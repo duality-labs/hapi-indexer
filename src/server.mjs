@@ -1,6 +1,12 @@
 import Hapi from '@hapi/hapi';
+import * as db from './storage/sqlite3/index.mjs';
+import * as sync from './sync.mjs';
 
 const init = async () => {
+
+  // wait for database to be set up before creating server
+  await db.init();
+  await sync.catchUp();
 
   const server = Hapi.server({
     port: 8000,
@@ -20,6 +26,7 @@ const init = async () => {
 
 process.on('unhandledRejection', (err) => {
   console.log(err);
+  db.close();
   process.exit(1);
 });
 

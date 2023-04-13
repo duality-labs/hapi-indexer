@@ -1,7 +1,10 @@
 version: "3"
 
 services:
-  web:
+  indexer:
     build: .
+    env_file:
+      - .env
+      - .env.local
     ports:
       - "8000:8000"

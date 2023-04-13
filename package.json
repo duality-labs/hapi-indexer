@@ -4,7 +4,7 @@
   "description": "A Node.js based indexer for the Duality Cosmos chain",
   "main": "index.js",
   "scripts": {
-    "docker": "docker-compose up --build --abort-on-container-exit || true && docker-compose down",
+    "docker": "touch .env.local && docker-compose up --build --abort-on-container-exit || true && docker-compose down",
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js"
   },
