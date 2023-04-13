@@ -2,11 +2,11 @@
   "name": "duality-hapi-indexer",
   "version": "0.1.0",
   "description": "A Node.js based indexer for the Duality Cosmos chain",
-  "main": "server.mjs",
+  "main": "index.js",
   "scripts": {
     "docker": "docker-compose up --build --abort-on-container-exit || true && docker-compose down",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.mjs"
+    "start": "node index.js"
   },
   "dependencies": {
     "@hapi/hapi": "^21.3.1",
