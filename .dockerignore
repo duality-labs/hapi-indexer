@@ -1,0 +1,5 @@
+Dockerfile
+docker-compose.yml
+
+# if local node_modules exist don't bring them into the Docker container
+node_modules
