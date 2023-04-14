@@ -29,13 +29,15 @@ export async function catchUp () {
     const itemsPerPage = 100;
     const response = await fetch(`${RPC_API}/tx_search?query="tx.height>=0"&page=${page}&per_page=${itemsPerPage}`);
     const { result } = await response.json();
+    const { txs: pageItems, total_count: totalItemCount } = result;
 
-    // ingest all tx rows given
-    await ingestTxs(result.txs);
+    // ingest list
+    await ingestTxs(pageItems);
+
     // return next page information for page iterating function
-    const totalItemCount = (page - 1) * itemsPerPage + result.txs.length;
-    const nextPage = totalItemCount < result.totalCount ? page + 1 : null;
-    return [result.txs.length, result.totalCount, nextPage];
+    const currentItemCount = (page - 1) * itemsPerPage + pageItems.length;
+    const nextPage = currentItemCount < totalItemCount ? page + 1 : null;
+    return [pageItems.length, totalItemCount, nextPage];
   });
 
 };
