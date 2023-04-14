@@ -2,12 +2,26 @@ import ingestTxs from './storage/sqlite3/ingest/tx.mjs';
 
 const { RPC_API='' } = process.env;
 
-async function iterateThroughPages(readPage) {
+async function iterateThroughPages(readPage, label='') {
+
+  let lastProgress;
+  let lastProgressTime = 0;
+  function printProgress(fraction) {
+    const progress = (100 * fraction).toFixed(1);
+    if ((progress !== lastProgress && Date.now() - lastProgressTime > 1000)) {
+      console.log(`${label} import progress: ${progress.padStart(3, ' ')}%`);
+      lastProgress = progress;
+      lastProgressTime = Date.now();
+    }
+  }
 
   let currentPage;
   let currentItemCount = 0;
   let previousItemCount = 0;
+
+  printProgress(0);
   do {
+    // read page data and return counting details
     const [pageItemCount, totalItemCount, nextPage] = await readPage({ page: currentPage });
 
     // update progress
@@ -16,9 +30,9 @@ async function iterateThroughPages(readPage) {
     currentPage = nextPage;
 
     // see progress
-    console.log(` import progress: ${Math.round(100*currentItemCount/totalItemCount).toFixed(0).padStart(3, ' ')}%`);
+    printProgress(currentItemCount / totalItemCount);
   } while (currentItemCount > previousItemCount && !!currentPage);
-
+  printProgress(1);
 };
 
 export async function catchUp () {
@@ -38,7 +52,7 @@ export async function catchUp () {
     const currentItemCount = (page - 1) * itemsPerPage + pageItems.length;
     const nextPage = currentItemCount < totalItemCount ? page + 1 : null;
     return [pageItems.length, totalItemCount, nextPage];
-  });
+  }, 'transaction');
 
 };
 
