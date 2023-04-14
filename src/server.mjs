@@ -4,6 +4,8 @@ import logger from './logger.mjs';
 import * as db from './storage/sqlite3/index.mjs';
 import * as sync from './sync.mjs';
 
+import { volume } from './storage/sqlite3/stats.mjs';
+
 const init = async () => {
 
   // wait for database to be set up before creating server
@@ -20,6 +22,24 @@ const init = async () => {
     method: 'GET',
     path: '/',
     handler: () => 'ok',
+  });
+
+  server.route({
+    method: 'GET',
+    path: '/stats/volume',
+    handler: async (_, h) => {
+      try {
+        return {
+          days: {
+            7: await volume({ lastDays: 7 }),
+          },
+        };
+      }
+      catch (err) {
+        console.log('err', err);
+        return h.response(`something happened: ${err.message || '?'}`).code(500);
+      }
+    },
   });
 
   await server.start();
