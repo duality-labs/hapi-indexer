@@ -1,4 +1,6 @@
 import Hapi from '@hapi/hapi';
+import logger from './logger.mjs';
+
 import * as db from './storage/sqlite3/index.mjs';
 import * as sync from './sync.mjs';
 
@@ -21,13 +23,13 @@ const init = async () => {
   });
 
   await server.start();
-  console.log('Server running on %s', server.info.uri);
+  logger.info(`Server running on ${server.info.uri}`);
 
   await sync.keepUp();
 };
 
 process.on('unhandledRejection', (err) => {
-  console.log(err);
+  logger.error(err);
   db.close();
   process.exit(1);
 });

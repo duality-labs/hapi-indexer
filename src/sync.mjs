@@ -1,3 +1,6 @@
+import { createLogger, transports, config, format } from 'winston';
+import { logFileTransport } from './logger.mjs';
+
 import ingestBlocks from './storage/sqlite3/ingest/block.mjs';
 import ingestTxs from './storage/sqlite3/ingest/tx.mjs';
 
@@ -5,8 +8,35 @@ const { RPC_API='', POLLING_INTERVAL_SECONDS='' } = process.env;
 
 const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
 
-async function iterateThroughPages(readPage, label='') {
+const defaultLogger = createLogger({
+  levels: config.npm.levels,
+  format: format.combine(
+    format((log) => {
+        if (log.label) {
+          log.message = `${log.label} ${log.message}`;
+          delete log.label;
+        }
+        return log;
+    })(),
+    format.colorize(),
+    format.simple(),
+  ),
+  transports: [
+    new transports.Console(),
+    logFileTransport,
+  ]
+});
 
+const pollingLogger = createLogger({
+  levels: config.npm.levels,
+  format: format(({ message }) => ({ message }))(),
+  transports: [
+    new transports.Console({ level: 'warn' }),
+    logFileTransport,
+  ],
+});
+
+async function iterateThroughPages(readPage, logger) {
   let lastProgress;
   let lastProgressTime = 0;
   function printProgress(fraction, forcePrint) {
@@ -14,13 +44,13 @@ async function iterateThroughPages(readPage, label='') {
     if (forcePrint || (progress !== lastProgress && Date.now() - lastProgressTime > 1000)) {
       // add special lines for start and end of import
       if (fraction === 0) {
-        console.log(`${label} import starting`);
+        logger.info('import starting');
       }
       else if (fraction === 1) {
-        console.log(`${label} import done`);
+        logger.info('import done');
       }
       else {
-        console.log(`${label} import progress: ${progress.padStart(3, ' ')}%`);
+        logger.info(`import progress: ${progress.padStart(3, ' ')}%`);
       }
       lastProgress = progress;
       lastProgressTime = Date.now();
@@ -48,7 +78,7 @@ async function iterateThroughPages(readPage, label='') {
 };
 
 let maxBlockHeight = 0;
-export async function catchUp ({ fromBlockHeight = 0 }={}) {
+export async function catchUp ({ fromBlockHeight = 0, logger = defaultLogger }={}) {
 
   // read block pages
   await iterateThroughPages(async ({ page = 1 }) => {
@@ -72,7 +102,7 @@ export async function catchUp ({ fromBlockHeight = 0 }={}) {
     const currentItemCount = (page - 1) * itemsPerPage + pageItems.length;
     const nextPage = currentItemCount < totalItemCount ? page + 1 : null;
     return [pageItems.length, totalItemCount, nextPage];
-  }, 'block');
+  }, logger.child({ label: 'block' }));
 
   // read transaction pages
   await iterateThroughPages(async ({ page = 1 }) => {
@@ -89,25 +119,25 @@ export async function catchUp ({ fromBlockHeight = 0 }={}) {
     const currentItemCount = (page - 1) * itemsPerPage + pageItems.length;
     const nextPage = currentItemCount < totalItemCount ? page + 1 : null;
     return [pageItems.length, totalItemCount, nextPage];
-  }, 'transaction');
+  }, logger.child({ label: 'transaction' }));
 
 };
 
 export async function keepUp () {
 
-  console.log(`keeping up: polling from block height: ${maxBlockHeight}`)
+  defaultLogger.info(`keeping up: polling from block height: ${maxBlockHeight}`)
 
   // poll for updates
   async function poll() {
 
-    console.log(`keeping up: polling`);
+    defaultLogger.info(`keeping up: polling`);
     const lastBlockHeight = maxBlockHeight;
-    await catchUp({ fromBlockHeight: maxBlockHeight });
+    await catchUp({ fromBlockHeight: maxBlockHeight, logger: pollingLogger });
 
     // log block height increments
     if (maxBlockHeight > lastBlockHeight) {
       for (let i = lastBlockHeight + 1; i <= maxBlockHeight; i += 1) {
-        console.log(`keeping up: new block processed: ${i}`);
+        defaultLogger.info(`keeping up: new block processed: ${i}`);
       }
     }
 
