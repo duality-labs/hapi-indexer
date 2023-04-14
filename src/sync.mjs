@@ -6,9 +6,15 @@ async function iterateThroughPages(readPage, label='') {
 
   let lastProgress;
   let lastProgressTime = 0;
-  function printProgress(fraction) {
+  function printProgress(fraction, forcePrint) {
+    // add special line for start of import
+    if (!fraction) {
+      console.log(`${label} import staring`);
+      lastProgressTime = Date.now();
+      return;
+    }
     const progress = (100 * fraction).toFixed(1);
-    if ((progress !== lastProgress && Date.now() - lastProgressTime > 1000)) {
+    if (forcePrint || (progress !== lastProgress && Date.now() - lastProgressTime > 1000)) {
       console.log(`${label} import progress: ${progress.padStart(3, ' ')}%`);
       lastProgress = progress;
       lastProgressTime = Date.now();
@@ -32,7 +38,7 @@ async function iterateThroughPages(readPage, label='') {
     // see progress
     printProgress(currentItemCount / totalItemCount);
   } while (currentItemCount > previousItemCount && !!currentPage);
-  printProgress(1);
+  printProgress(1, true);
 };
 
 export async function catchUp () {
