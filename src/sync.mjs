@@ -42,13 +42,14 @@ async function iterateThroughPages(readPage, label='') {
   printProgress(1, true);
 };
 
-export async function catchUp () {
+export async function catchUp ({ fromBlockHeight = 0 }={}) {
 
   // read block pages
   await iterateThroughPages(async ({ page = 1 }) => {
     // we default starting page to 1 as this API has 1-based page numbers
-    const itemsPerPage = 1000;
-    const response = await fetch(`${RPC_API}/block_search?query="block.height>=0"&page=${page}&per_page=${itemsPerPage}&order_by="asc"`);
+    // max API response page item count is 100
+    const itemsPerPage = 100;
+    const response = await fetch(`${RPC_API}/block_search?query="block.height>${fromBlockHeight}"&page=${page}&per_page=${itemsPerPage}&order_by="asc"`);
     const { result } = await response.json();
     const { blocks: pageItems, total_count: totalItemCount } = result;
 
@@ -56,8 +57,8 @@ export async function catchUp () {
     await ingestBlocks(pageItems);
 
     // return next page information for page iterating function
-    const currentItemCount = Number(pageItems[pageItems.length - 1]?.block.header.height);
-    const nextPage = currentItemCount && currentItemCount < totalItemCount ? page + 1 : null;
+    const currentItemCount = (page - 1) * itemsPerPage + pageItems.length;
+    const nextPage = currentItemCount < totalItemCount ? page + 1 : null;
     return [pageItems.length, totalItemCount, nextPage];
   }, 'block');
 
@@ -65,7 +66,7 @@ export async function catchUp () {
   await iterateThroughPages(async ({ page = 1 }) => {
     // we default starting page to 1 as this API has 1-based page numbers
     const itemsPerPage = 100;
-    const response = await fetch(`${RPC_API}/tx_search?query="tx.height>=0"&page=${page}&per_page=${itemsPerPage}`);
+    const response = await fetch(`${RPC_API}/tx_search?query="tx.height>${fromBlockHeight}"&page=${page}&per_page=${itemsPerPage}`);
     const { result } = await response.json();
     const { txs: pageItems, total_count: totalItemCount } = result;
 
