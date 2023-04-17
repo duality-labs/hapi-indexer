@@ -9,32 +9,35 @@ function translateEvents({ type, attributes }, index) {
       if (key) {
         const decodedKey = Buffer.from(key, 'base64').toString('utf8');
         const decodedValue = value ? Buffer.from(value, 'base64').toString('utf8') : null;
-        acc[decodedKey] = decodedValue;  
+        acc[decodedKey] = decodedValue;
       }
       return acc;
     }, {}),
   }
 }
 
-let getBlockTimeFromBlockHeight;
-async function getBlockHeightFromTx(tx) {
+
+let insertBlock;
+async function insertBlockRows(tx_result) {
   // activate at run time (after db has been initialized)
-  getBlockTimeFromBlockHeight = getBlockTimeFromBlockHeight || db.prepare(`
-    SELECT 'block'.'header.time_unix' FROM 'block'
-      WHERE ('block'.'header.height' = ?)
+  insertBlock = insertBlock || db.prepare(`
+    INSERT OR IGNORE INTO 'block' (
+      'header.height',
+      'header.time',
+      'header.time_unix'
+    ) values (?, ?, ?)
   `);
 
-  // if event has tokens, ensure these tokens are present in the DB
-  if (tx.height) {
-    return new Promise((resolve, reject) => {
-      getBlockTimeFromBlockHeight.get([
-        // 'block.header.time_unix' INTEGER NOT NULL,
-        Number(tx.height),
-      ], (err, result) => err ? reject(err) : resolve(result));
-    })
-    // pick the desired column value out
-    .then(result => result['header.time_unix']);
-  }
+  return new Promise((resolve, reject) => {
+    insertBlock.run([
+      // 'header.height' INTEGER PRIMARY KEY NOT NULL,
+      tx_result.height,
+      // 'header.time' TEXT NOT NULL,
+      tx_result.timestamp,
+      // 'header.time_unix' INTEGER UNIQUE NOT NULL
+      getBlockTimeFromTxResult(tx_result),
+    ], err => err ? reject(err) : resolve());
+  });
 }
 
 
@@ -87,8 +90,13 @@ async function insertDexPairsRows(txEvent) {
 }
 
 
+async function getBlockTimeFromTxResult(tx_result) {
+  // activate at run time (after db has been initialized)
+  return Math.round(new Date(tx_result.timestamp).valueOf() / 1000);
+}
+
 let insertTx;
-async function insertTxRows(tx) {
+async function insertTxRows(tx_result, index) {
   // activate at run time (after db has been initialized)
   insertTx = insertTx || db.prepare(`
     INSERT INTO 'tx' (
@@ -109,34 +117,34 @@ async function insertTxRows(tx) {
   return new Promise(async (resolve, reject) => {
     insertTx.run([
       // 'block.header.height' INTEGER NOT NULL,
-      tx.height,
+      tx_result.height,
       // 'block.header.time_unix' INTEGER NOT NULL,
-      await getBlockHeightFromTx(tx),
+      getBlockTimeFromTxResult(tx_result),
       // 'hash' TEXT NOT NULL,
-      tx.hash,
+      tx_result.txhash,
       // 'index' INTEGER NOT NULL,
-      tx.index,
+      index,
       // 'tx_result.code' INTEGER NOT NULL,
-      tx.tx_result.code,
+      tx_result.code,
       // 'tx_result.data' TEXT,
-      tx.tx_result.data,
+      tx_result.data,
       // 'tx_result.log' TEXT NOT NULL,
-      tx.tx_result.log,
+      tx_result.raw_log,
       // 'tx_result.info' TEXT,
-      tx.tx_result.info,
+      tx_result.info,
       // 'tx_result.gas_wanted' TEXT NOT NULL,
-      tx.tx_result.gas_wanted,
+      tx_result.gas_wanted,
       // 'tx_result.gas_used' TEXT NOT NULL,
-      tx.tx_result.gas_used,
+      tx_result.gas_used,
       // 'tx_result.codespace' TEXT NOT NULL,
-      tx.index,
+      tx_result.codespace,
     ], err => err ? reject(err) : resolve());
   });
 }
 
 
 let insertTxEvent;
-async function insertTxEventRows(tx, txEvent) {
+async function insertTxEventRows(tx_result, txEvent, index) {
   // activate at run time (after db has been initialized)
   insertTxEvent = insertTxEvent || db.prepare(`
     INSERT INTO 'tx_result.events' (
@@ -168,13 +176,13 @@ async function insertTxEventRows(tx, txEvent) {
   return new Promise(async (resolve, reject) => {
     insertTxEvent.run([
       // 'block.header.height' INTEGER NOT NULL,
-      tx.height,
+      tx_result.height,
       // 'block.header.time_unix' INTEGER NOT NULL,
-      await getBlockHeightFromTx(tx),
+      getBlockTimeFromTxResult(tx_result),
       // 'tx.index' INTEGER NOT NULL,
-      tx.index,
+      index,
       // 'tx.tx_result.code' INTEGER NOT NULL,
-      tx.tx_result.code,
+      tx_result.code,
 
       // 'index' INTEGER NOT NULL,
       txEvent.index,
@@ -194,15 +202,16 @@ async function insertTxEventRows(tx, txEvent) {
 }
 
 
-
 export default async function ingestTxs (txPage) {
-  return await Promise.all(txPage.map(async tx => {
-    const txEvents = (tx.tx_result.events || []).map(translateEvents);
-    // first add token foreign keys
+  return await Promise.all(txPage.map(async (tx_result, index) => {
+    const txEvents = (tx_result.events || []).map(translateEvents);
+    // first add block rows
+    await insertBlockRows(tx_result);
+    // then add token foreign keys
     await Promise.all(txEvents.map(insertDexPairsRows));
     // then add transaction rows
-    await insertTxRows(tx);
+    await insertTxRows(tx_result, index);
     // then add transaction event rows
-    await Promise.all(txEvents.map(txEvent => insertTxEventRows(tx, txEvent)));
+    await Promise.all(txEvents.map(txEvent => insertTxEventRows(tx_result, txEvent, index)));
   }));
 };

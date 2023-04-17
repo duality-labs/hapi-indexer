@@ -2,9 +2,10 @@ import { createLogger, transports, config, format } from 'winston';
 import { logFileTransport } from './logger.mjs';
 
 import ingestBlocks from './storage/sqlite3/ingest/rpc/block.mjs';
-import ingestTxs from './storage/sqlite3/ingest/rpc/tx.mjs';
+import ingestRpcTxs from './storage/sqlite3/ingest/rpc/tx.mjs';
+import ingestRestTxs from './storage/sqlite3/ingest/rest/tx.mjs';
 
-const { RPC_API='', POLLING_INTERVAL_SECONDS='' } = process.env;
+const { RPC_API='', REST_API='', POLLING_INTERVAL_SECONDS='' } = process.env;
 
 const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
 
@@ -66,7 +67,7 @@ async function iterateThroughPages(readPage, logger) {
 };
 
 let maxBlockHeight = 0;
-export async function catchUp ({ fromBlockHeight = 0, logger = defaultLogger }={}) {
+async function catchUpRPC ({ fromBlockHeight = 0, logger = defaultLogger }={}) {
 
   const totalBlockCount = await fetch(`${RPC_API}/abci_info`)
     .then(response => response.json())
@@ -108,7 +109,7 @@ export async function catchUp ({ fromBlockHeight = 0, logger = defaultLogger }={
     const { txs: pageItems, total_count: totalItemCount } = result;
 
     // ingest list
-    await ingestTxs(pageItems);
+    await ingestRpcTxs(pageItems);
 
     // return next page information for page iterating function
     const currentItemCount = (page - 1) * itemsPerPage + pageItems.length;
@@ -118,7 +119,7 @@ export async function catchUp ({ fromBlockHeight = 0, logger = defaultLogger }={
 
 };
 
-export async function keepUp () {
+export async function keepUpRPC () {
 
   defaultLogger.info(`keeping up: polling from block height: ${maxBlockHeight}`)
 
@@ -127,7 +128,7 @@ export async function keepUp () {
 
     defaultLogger.info(`keeping up: polling`);
     const lastBlockHeight = maxBlockHeight;
-    await catchUp({ fromBlockHeight: maxBlockHeight, logger: pollingLogger });
+    await catchUpRPC({ fromBlockHeight: maxBlockHeight, logger: pollingLogger });
 
     // log block height increments
     if (maxBlockHeight > lastBlockHeight) {
@@ -145,3 +146,66 @@ export async function keepUp () {
 
   poll();
 };
+
+async function catchUpREST ({ fromBlockHeight = 0, logger = defaultLogger }={}) {
+
+  // read block pages
+  let totalItemCount;
+  await iterateThroughPages(async ({ page }) => {
+    // we default starting page to 1 as this API has 1-based page numbers
+    // max API response page item count is 100
+    const itemsPerPage = 100;
+    const response = await fetch(`
+      ${REST_API}/cosmos/tx/v1beta1/txs
+        ?events=tx.height>=${fromBlockHeight}
+        ${page ? `&pagination.key=${page}` : ''}
+        &pagination.limit=${itemsPerPage}
+        &pagination.count_total=true
+        &order_by=ORDER_BY_ASC
+    `.replace(/ +/g, '')); // remove spaces from URL
+    // pagination object will only exist on first page (it is ignored when pagination.key is set)
+    const { pagination, tx_responses: pageItems = [] } = await response.json();
+    totalItemCount = (pagination?.total && Number(pagination.total)) || totalItemCount;
+
+    const lastItemBlockHeight = Number(pageItems.slice(-1).pop()?.['height']);
+    if (lastItemBlockHeight) {
+      maxBlockHeight = lastItemBlockHeight;
+    }
+
+    // ingest list
+    await ingestRestTxs(pageItems);
+
+    // return next page information for page iterating function
+    return [pageItems.length, totalItemCount, pagination.next_key];
+  }, logger.child({ label: 'transaction' }));
+};
+
+export async function keepUpREST () {
+
+  defaultLogger.info(`keeping up: polling from block height: ${maxBlockHeight}`)
+
+  // poll for updates
+  async function poll() {
+
+    defaultLogger.info(`keeping up: polling`);
+    const lastBlockHeight = maxBlockHeight;
+    await catchUpREST({ fromBlockHeight: maxBlockHeight + 1, logger: pollingLogger });
+
+    // log block height increments
+    if (maxBlockHeight > lastBlockHeight) {
+      defaultLogger.info(`keeping up: last block processed: ${maxBlockHeight}`);
+    }
+
+    // poll again after a certain amount of time has passed
+    // note: prefer setTimeout over setInterval because of concerns about
+    // overlapping ingestions into the DB (ie. if ingestion takes longer than
+    // the setInterval time then multiple invocations of catchUp will run concurrently)
+    setTimeout(poll, 1000 * pollIntervalTimeSeconds);
+  }
+
+  poll();
+};
+
+// choose method to use to catch up to the chain with
+export { catchUpREST as catchUp }
+export { keepUpREST as keepUp }

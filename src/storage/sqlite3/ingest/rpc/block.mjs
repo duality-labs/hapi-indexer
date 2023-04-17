@@ -6,8 +6,6 @@ async function insertBlockRows(block) {
   // activate at run time (after db has been initialized)
   insertTx = insertTx || db.prepare(`
     INSERT INTO 'block' (
-      'block_id.hash',
-      'header.version.block',
       'header.height',
       'header.time',
       'header.time_unix'
@@ -16,10 +14,6 @@ async function insertBlockRows(block) {
 
   return new Promise((resolve, reject) => {
     insertTx.run([
-      // 'block_id.hash' TEXT NOT NULL,
-      block.block_id.hash,
-      // 'header.version.block' INTEGER NOT NULL,
-      block.block.header.version.block,
       // 'header.height' INTEGER PRIMARY KEY NOT NULL,
       block.block.header.height,
       // 'header.time' TEXT NOT NULL,

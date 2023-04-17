@@ -35,8 +35,6 @@ export default async function init() {
     promises.push(promisify(cb => {
       db.run(`
         CREATE TABLE 'block' (
-          'block_id.hash' TEXT NOT NULL,
-          'header.version.block' INTEGER NOT NULL,
           'header.height' INTEGER PRIMARY KEY NOT NULL,
           'header.time' TEXT NOT NULL,
 
@@ -60,7 +58,6 @@ export default async function init() {
           'tx_result.gas_wanted' TEXT NOT NULL,
           'tx_result.gas_used' TEXT NOT NULL,
           'tx_result.codespace' TEXT,
-          'tx' TEXT,
 
           FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
           FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix')
