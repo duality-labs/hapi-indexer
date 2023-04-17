@@ -44,8 +44,7 @@ export async function volume({ lastDays, lastSeconds = lastDays * 24 * 60 * 60 }
   return new Promise((resolve, reject) => {
     db.all(`
       SELECT * FROM 'tx_result.events'
-        JOIN 'block' ON ('tx_result.events'.'block.header.height' = 'block'.'header.height')
-        WHERE ('block'.'header.time_unix' > ?)
+        WHERE ('tx_result.events'.'block.header.time_unix' > ?)
     `, [unixStart], (err, rows) => {
         if (err) reject(err);
         resolve(

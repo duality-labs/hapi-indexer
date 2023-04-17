@@ -16,6 +16,27 @@ function translateEvents({ type, attributes }, index) {
   }
 }
 
+let getBlockTimeFromBlockHeight;
+async function getBlockHeightFromTx(tx) {
+  // activate at run time (after db has been initialized)
+  getBlockTimeFromBlockHeight = getBlockTimeFromBlockHeight || db.prepare(`
+    SELECT 'block'.'header.time_unix' FROM 'block'
+      WHERE ('block'.'header.height' = ?)
+  `);
+
+  // if event has tokens, ensure these tokens are present in the DB
+  if (tx.height) {
+    return new Promise((resolve, reject) => {
+      getBlockTimeFromBlockHeight.get([
+        // 'block.header.time_unix' INTEGER NOT NULL,
+        Number(tx.height),
+      ], (err, result) => err ? reject(err) : resolve(result));
+    })
+    // pick the desired column value out
+    .then(result => result['header.time_unix']);
+  }
+}
+
 
 let insertDexPairs;
 async function insertDexPairsRows(txEvent) {
@@ -47,6 +68,7 @@ async function insertTxRows(tx) {
   insertTx = insertTx || db.prepare(`
     INSERT INTO 'tx' (
       'block.header.height',
+      'block.header.time_unix',
       'hash',
       'index',
       'tx_result.code',
@@ -57,13 +79,15 @@ async function insertTxRows(tx) {
       'tx_result.gas_used',
       'tx_result.codespace',
       'tx'
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     insertTx.run([
       // 'block.header.height' INTEGER NOT NULL,
       tx.height,
+      // 'block.header.time_unix' INTEGER NOT NULL,
+      await getBlockHeightFromTx(tx),
       // 'hash' TEXT NOT NULL,
       tx.hash,
       // 'index' INTEGER NOT NULL,
@@ -95,6 +119,7 @@ async function insertTxEventRows(tx, txEvent) {
   insertTxEvent = insertTxEvent || db.prepare(`
     INSERT INTO 'tx_result.events' (
       'block.header.height',
+      'block.header.time_unix',
       'tx.index',
       'tx.tx_result.code',
       'index',
@@ -103,15 +128,17 @@ async function insertTxEventRows(tx, txEvent) {
       'meta.dex.pair_swap',
       'meta.dex.pair_deposit',
       'meta.dex.pair_withdraw'
-    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const isDexMessage = txEvent.type === 'message' && txEvent.attributes.module === 'dex';
 
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     insertTxEvent.run([
       // 'block.header.height' INTEGER NOT NULL,
       tx.height,
+      // 'block.header.time_unix' INTEGER NOT NULL,
+      await getBlockHeightFromTx(tx),
       // 'tx.index' INTEGER NOT NULL,
       tx.index,
       // 'tx.tx_result.code' INTEGER NOT NULL,

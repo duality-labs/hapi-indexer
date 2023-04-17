@@ -50,6 +50,7 @@ export default async function init() {
       db.run(`
         CREATE TABLE 'tx' (
           'block.header.height' INTEGER NOT NULL,
+          'block.header.time_unix' INTEGER NOT NULL,
           'hash' TEXT NOT NULL,
           'index' INTEGER NOT NULL,
           'tx_result.code' INTEGER NOT NULL,
@@ -61,7 +62,8 @@ export default async function init() {
           'tx_result.codespace' TEXT,
           'tx' TEXT,
 
-          FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height')
+          FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
+          FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix')
         );
       `, cb);
     }));
@@ -87,6 +89,7 @@ export default async function init() {
       db.run(`
         CREATE TABLE 'tx_result.events' (
           'block.header.height' INTEGER NOT NULL,
+          'block.header.time_unix' INTEGER NOT NULL,
           'tx.index' INTEGER NOT NULL,
           'tx.tx_result.code' INTEGER NOT NULL,
           
@@ -99,6 +102,7 @@ export default async function init() {
           'meta.dex.pair_withdraw' INTEGER NOT NULL,
 
           FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
+          FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
           FOREIGN KEY('tx.index') REFERENCES 'tx'('index'),
           FOREIGN KEY('tx.tx_result.code') REFERENCES 'tx'('tx_result.code'),
 
