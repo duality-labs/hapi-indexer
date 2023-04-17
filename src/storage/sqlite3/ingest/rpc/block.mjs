@@ -1,5 +1,5 @@
 
-import db from '../db.mjs';
+import db from '../../db.mjs';
 
 let insertTx;
 async function insertBlockRows(block) {

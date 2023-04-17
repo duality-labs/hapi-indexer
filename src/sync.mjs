@@ -1,8 +1,8 @@
 import { createLogger, transports, config, format } from 'winston';
 import { logFileTransport } from './logger.mjs';
 
-import ingestBlocks from './storage/sqlite3/ingest/block.mjs';
-import ingestTxs from './storage/sqlite3/ingest/tx.mjs';
+import ingestBlocks from './storage/sqlite3/ingest/rpc/block.mjs';
+import ingestTxs from './storage/sqlite3/ingest/rpc/tx.mjs';
 
 const { RPC_API='', POLLING_INTERVAL_SECONDS='' } = process.env;
 
