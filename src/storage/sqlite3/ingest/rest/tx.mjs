@@ -90,7 +90,7 @@ async function insertDexPairsRows(txEvent) {
 }
 
 
-async function getBlockTimeFromTxResult(tx_result) {
+function getBlockTimeFromTxResult(tx_result) {
   // activate at run time (after db has been initialized)
   return Math.round(new Date(tx_result.timestamp).valueOf() / 1000);
 }

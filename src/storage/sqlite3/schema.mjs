@@ -112,7 +112,7 @@ export default async function init() {
     // ensure block.height + tx.index + event.index combination is unique
     promises.push(promisify(cb => {
       db.run(`
-        CREATE INDEX 'block.header.height--tx.index,index' ON 'tx_result.events' (
+        CREATE UNIQUE INDEX 'block.header.height--tx.index,index' ON 'tx_result.events' (
           'block.header.height',
           'tx.index',
           'index'
