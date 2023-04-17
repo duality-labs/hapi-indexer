@@ -120,6 +120,78 @@ export default async function init() {
       `, cb);
     }));
 
+    // setup events tables for specific events
+    // these are key values form the event attributes (in 'tx_result.events'.'attributes' as JSON blobs
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE TABLE 'event.NewDeposit' (
+          'block.header.height' INTEGER NOT NULL,
+          'block.header.time_unix' INTEGER NOT NULL,
+
+          'Creator' TEXT NOT NULL,
+          'Receiver' TEXT NOT NULL,
+          'Token0' TEXT NOT NULL,
+          'Token1' TEXT NOT NULL,
+          'TickIndex' INTEGER NOT NULL,
+          'FeeIndex' INTEGER NOT NULL,
+          'OldReserves0' TEXT NOT NULL,
+          'NewReserves0' TEXT NOT NULL,
+          'OldReserves1' TEXT NOT NULL,
+          'NewReserves1' TEXT NOT NULL,
+          'SharesMinted' TEXT NOT NULL,
+
+          'meta.dex.pair' INTEGER NOT NULL,
+
+          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
+        );
+      `, cb);
+    }));
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE TABLE 'event.NewWithdraw' (
+          'block.header.height' INTEGER NOT NULL,
+          'block.header.time_unix' INTEGER NOT NULL,
+
+          'Creator' TEXT NOT NULL,
+          'Receiver' TEXT NOT NULL,
+          'Token0' TEXT NOT NULL,
+          'Token1' TEXT NOT NULL,
+          'TickIndex' INTEGER NOT NULL,
+          'FeeIndex' INTEGER NOT NULL,
+          'OldReserves0' TEXT NOT NULL,
+          'NewReserves0' TEXT NOT NULL,
+          'OldReserves1' TEXT NOT NULL,
+          'NewReserves1' TEXT NOT NULL,
+          'SharesRemoved' TEXT NOT NULL,
+
+          'meta.dex.pair' INTEGER NOT NULL,
+
+          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
+        );
+      `, cb);
+    }));
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE TABLE 'event.NewSwap' (
+          'block.header.height' INTEGER NOT NULL,
+          'block.header.time_unix' INTEGER NOT NULL,
+
+          'Creator' TEXT NOT NULL,
+          'Receiver' TEXT NOT NULL,
+          'Token0' TEXT NOT NULL,
+          'Token1' TEXT NOT NULL,
+          'TokenIn' TEXT NOT NULL,
+          'AmountIn' TEXT NOT NULL,
+          'AmountOut' TEXT NOT NULL,
+          'MinOut' TEXT NOT NULL,
+
+          'meta.dex.pair' INTEGER NOT NULL,
+
+          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
+        );
+      `, cb);
+    }));
+
   });
 
   return await Promise.all(promises);

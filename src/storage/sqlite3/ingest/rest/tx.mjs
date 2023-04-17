@@ -162,23 +162,24 @@ async function insertTxEventRows(tx_result, txEvent, index) {
   `);
 
   const isDexMessage = txEvent.type === 'message' && txEvent.attributes.module === 'dex';
-  const getPairId = async () => {
-    return new Promise((resolve, reject) => {
+  const dexPairId = isDexMessage && txEvent.attributes.Token0 && txEvent.attributes.Token1 && (
+    new Promise((resolve, reject) => {
       getDexPairs.get([
         // 'token0' TEXT NOT NULL,
         txEvent.attributes.Token0,
         // 'token1' TEXT NOT NULL,
         txEvent.attributes.Token1,
       ], (err, result) => err ? reject(err) : resolve(result['id']));
-    });
-  };
+    })
+  );
 
+  const blockTime = getBlockTimeFromTxResult(tx_result);
   return new Promise(async (resolve, reject) => {
     insertTxEvent.run([
       // 'block.header.height' INTEGER NOT NULL,
       tx_result.height,
       // 'block.header.time_unix' INTEGER NOT NULL,
-      getBlockTimeFromTxResult(tx_result),
+      blockTime,
       // 'tx.index' INTEGER NOT NULL,
       index,
       // 'tx.tx_result.code' INTEGER NOT NULL,
@@ -192,12 +193,132 @@ async function insertTxEventRows(tx_result, txEvent, index) {
       JSON.stringify(txEvent.attributes),
 
       // 'meta.dex.pair_swap' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewSwap' && await getPairId(),
+      isDexMessage && txEvent.attributes.action === 'NewSwap' && await dexPairId,
       // 'meta.dex.pair_deposit' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewDeposit' && await getPairId(),
+      isDexMessage && txEvent.attributes.action === 'NewDeposit' && await dexPairId,
       // 'meta.dex.pair_withdraw' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewWithdraw' && await getPairId(),
-    ], err => err ? reject(err) : resolve());
+      isDexMessage && txEvent.attributes.action === 'NewWithdraw' && await dexPairId,
+    ], async function(err) {
+      if (err) {
+        return reject(err)
+      }
+      // add event row to specific event table:
+      if (txEvent.attributes.action === 'NewSwap') {
+        return db.run(`
+          INSERT INTO 'event.NewSwap' (
+            'block.header.height',
+            'block.header.time_unix',
+
+            'Creator',
+            'Receiver',
+            'Token0',
+            'Token1',
+            'TokenIn',
+            'AmountIn',
+            'AmountOut',
+            'MinOut',
+
+            'meta.dex.pair'
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          // 'block.header.height' INTEGER NOT NULL,
+          tx_result.height,
+          // 'block.header.time_unix' INTEGER NOT NULL,
+          blockTime,
+          // attributes
+          txEvent.attributes['Creator'],
+          txEvent.attributes['Receiver'],
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1'],
+          txEvent.attributes['TokenIn'],
+          txEvent.attributes['AmountIn'],
+          txEvent.attributes['AmountOut'],
+          txEvent.attributes['MinOut'],
+          await dexPairId,
+        ], err => err ? reject(err) : resolve())
+      }
+      else if (txEvent.attributes.action === 'NewDeposit') {
+        return db.run(`
+          INSERT INTO 'event.NewDeposit' (
+            'block.header.height',
+            'block.header.time_unix',
+
+            'Creator',
+            'Receiver',
+            'Token0',
+            'Token1',
+            'TickIndex',
+            'FeeIndex',
+            'OldReserves0',
+            'NewReserves0',
+            'OldReserves1',
+            'NewReserves1',
+            'SharesMinted',
+
+            'meta.dex.pair'
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          // 'block.header.height' INTEGER NOT NULL,
+          tx_result.height,
+          // 'block.header.time_unix' INTEGER NOT NULL,
+          blockTime,
+          // attributes
+          txEvent.attributes['Creator'],
+          txEvent.attributes['Receiver'],
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1'],
+          txEvent.attributes['TickIndex'],
+          txEvent.attributes['FeeIndex'],
+          txEvent.attributes['OldReserves0'],
+          txEvent.attributes['NewReserves0'],
+          txEvent.attributes['OldReserves1'],
+          txEvent.attributes['NewReserves1'],
+          txEvent.attributes['SharesMinted'],
+          await dexPairId,
+        ], err => err ? reject(err) : resolve())
+      }
+      else if (txEvent.attributes.action === 'NewWithdraw') {
+        return db.run(`
+          INSERT INTO 'event.NewWithdraw' (
+            'block.header.height',
+            'block.header.time_unix',
+
+            'Creator',
+            'Receiver',
+            'Token0',
+            'Token1',
+            'TickIndex',
+            'FeeIndex',
+            'OldReserves0',
+            'NewReserves0',
+            'OldReserves1',
+            'NewReserves1',
+            'SharesRemoved',
+
+            'meta.dex.pair'
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          // 'block.header.height' INTEGER NOT NULL,
+          tx_result.height,
+          // 'block.header.time_unix' INTEGER NOT NULL,
+          blockTime,
+          // attributes
+          txEvent.attributes['Creator'],
+          txEvent.attributes['Receiver'],
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1'],
+          txEvent.attributes['TickIndex'],
+          txEvent.attributes['FeeIndex'],
+          txEvent.attributes['OldReserves0'],
+          txEvent.attributes['NewReserves0'],
+          txEvent.attributes['OldReserves1'],
+          txEvent.attributes['NewReserves1'],
+          txEvent.attributes['SharesRemoved'],
+          await dexPairId,
+        ], err => err ? reject(err) : resolve())
+      }
+      resolve(this.lastID)
+    });
   });
 }
 
