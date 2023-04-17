@@ -38,9 +38,9 @@ const pollingLogger = createLogger({
 
 async function iterateThroughPages(readPage, logger) {
   let lastProgressTime = 0;
-  function printProgress(fraction, message) {
+  function printProgress(numerator, divisor, message) {
     if (message || (Date.now() - lastProgressTime > 1000)) {
-      logger.info(message || `import progress: ${(100 * fraction).toFixed(1).padStart(3, ' ')}%`);
+      logger.info(message || `import progress: ${(100 * numerator / divisor).toFixed(1).padStart(5, ' ')}% (${numerator} items)`);
       lastProgressTime = Date.now();
     }
   }
@@ -49,7 +49,7 @@ async function iterateThroughPages(readPage, logger) {
   let currentItemCount = 0;
   let previousItemCount = 0;
 
-  printProgress(0, 'import starting');
+  printProgress(0, 1, 'import starting');
   do {
     // read page data and return counting details
     const [pageItemCount, totalItemCount, nextPage] = await readPage({ page: currentPage });
@@ -60,9 +60,9 @@ async function iterateThroughPages(readPage, logger) {
     currentPage = nextPage;
 
     // see progress
-    printProgress(currentItemCount / totalItemCount);
+    printProgress(currentItemCount, totalItemCount);
   } while (currentItemCount > previousItemCount && !!currentPage);
-  printProgress(1, 'import done');
+  printProgress(1, 1, 'import done');
 };
 
 let maxBlockHeight = 0;
