@@ -38,9 +38,16 @@ async function getBlockHeightFromTx(tx) {
 }
 
 
+let getDexPairs;
 let insertDexPairs;
 async function insertDexPairsRows(txEvent) {
   // activate at run time (after db has been initialized)
+  getDexPairs = getDexPairs || db.prepare(`
+    SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+      'dex.pairs'.'token0' = ? AND
+      'dex.pairs'.'token1' = ?
+    )
+  `);
   insertDexPairs = insertDexPairs || db.prepare(`
     INSERT OR IGNORE INTO 'dex.pairs' (
       'token0',
@@ -51,12 +58,30 @@ async function insertDexPairsRows(txEvent) {
   // if event has tokens, ensure these tokens are present in the DB
   if (txEvent.attributes.Token0 && txEvent.attributes.Token1) {
     return new Promise((resolve, reject) => {
-      insertDexPairs.run([
+      getDexPairs.get([
         // 'token0' TEXT NOT NULL,
         txEvent.attributes.Token0,
         // 'token1' TEXT NOT NULL,
         txEvent.attributes.Token1,
-      ], err => err ? reject(err) : resolve());
+      ], (err, result) => {
+        if (err) {
+          return reject(err);
+        }
+        // return found id
+        const id = result?.['id'];
+        if (id) {
+          return resolve(id);
+        }
+        // or insert new pair
+        insertDexPairs.run([
+          // 'token0' TEXT NOT NULL,
+          txEvent.attributes.Token0,
+          // 'token1' TEXT NOT NULL,
+          txEvent.attributes.Token1,
+        ], function(err) {
+          err ? reject(err) : resolve(this.lastID)
+        });
+      })
     });
   }
 }
@@ -132,6 +157,16 @@ async function insertTxEventRows(tx, txEvent) {
   `);
 
   const isDexMessage = txEvent.type === 'message' && txEvent.attributes.module === 'dex';
+  const getPairId = async () => {
+    return new Promise((resolve, reject) => {
+      getDexPairs.get([
+        // 'token0' TEXT NOT NULL,
+        txEvent.attributes.Token0,
+        // 'token1' TEXT NOT NULL,
+        txEvent.attributes.Token1,
+      ], (err, result) => err ? reject(err) : resolve(result['id']));
+    });
+  };
 
   return new Promise(async (resolve, reject) => {
     insertTxEvent.run([
@@ -152,11 +187,11 @@ async function insertTxEventRows(tx, txEvent) {
       JSON.stringify(txEvent.attributes),
 
       // 'meta.dex.pair_swap' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewSwap',
+      isDexMessage && txEvent.attributes.action === 'NewSwap' && await getPairId(),
       // 'meta.dex.pair_deposit' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewDeposit',
+      isDexMessage && txEvent.attributes.action === 'NewDeposit' && await getPairId(),
       // 'meta.dex.pair_withdraw' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewWithdraw',
+      isDexMessage && txEvent.attributes.action === 'NewWithdraw' && await getPairId(),
     ], err => err ? reject(err) : resolve());
   });
 }
