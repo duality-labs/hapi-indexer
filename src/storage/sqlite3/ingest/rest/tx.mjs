@@ -252,7 +252,42 @@ async function insertTxEventRows(tx_result, txEvent, index) {
       }
       // continue logic for several dex events
       // add event row to specific event table:
-      if (isDexMessage && txEvent.attributes.action === 'NewSwap') {
+      if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
+        return db.run(`
+          INSERT INTO 'event.TickUpdate' (
+            'block.header.height',
+            'block.header.time_unix',
+
+            'Token0',
+            'Token1',
+            'Token',
+            'TickIndex',
+            'Reserves',
+            'Delta',
+
+            'meta.dex.pair',
+            'meta.dex.token'
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+          // 'block.header.height' INTEGER NOT NULL,
+          tx_result.height,
+          // 'block.header.time_unix' INTEGER NOT NULL,
+          blockTime,
+          // attributes
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1'],
+          txEvent.attributes['Token'],
+          txEvent.attributes['TickIndex'],
+          txEvent.attributes['Reserves'],
+          txEvent.attributes['Delta'],
+          await dexPairId,
+          await new Promise((resolve, reject) => getDexTokens.get(
+            txEvent.attributes['Token'],
+            (err, row) => err ? reject(err) : resolve(row.id)
+          )),
+        ], err => err ? reject(err) : resolve());
+      }
+      else if (isDexMessage && txEvent.attributes.action === 'NewSwap') {
         return db.run(`
           INSERT INTO 'event.Swap' (
             'block.header.height',

@@ -218,6 +218,41 @@ export default async function init() {
       `, cb);
     }));
 
+    // add ticks table to hold all ticks data
+    // (larger and more frequently changing than other tables)
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE TABLE 'event.TickUpdate' (
+          'block.header.height' INTEGER NOT NULL,
+          'block.header.time_unix' INTEGER NOT NULL,
+
+          'Token0' TEXT NOT NULL,
+          'Token1' TEXT NOT NULL,
+          'Token' TEXT NOT NULL,
+          'TickIndex' INTEGER NOT NULL,
+          'Reserves' TEXT NOT NULL,
+          'Delta' TEXT NOT NULL,
+
+          'meta.dex.pair' INTEGER NOT NULL,
+          'meta.dex.token' INTEGER NOT NULL,
+
+          FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
+          FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
+          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
+          FOREIGN KEY('meta.dex.token') REFERENCES 'dex.tokens'('id')
+        );
+      `, cb);
+    }));
+    // add index for quick timeseries lookups, ie. lookup by pair id and then time
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE INDEX 'dex_pairs.ticks--meta.dex.pair,block.header.time_unix' ON 'event.TickUpdate' (
+          'meta.dex.pair',
+          'block.header.time_unix'
+        );
+      `, cb);
+    }));
+
   });
 
   return await Promise.all(promises);
