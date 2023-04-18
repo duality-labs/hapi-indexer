@@ -336,6 +336,53 @@ async function insertTxEventRows(tx_result, txEvent, index) {
         ], err => err ? reject(err) : resolve())
       }
       else if (isDexMessage && txEvent.attributes.action === 'NewDeposit' && txEvent.attributes['SharesMinted']) {
+
+        // temp: add faked TickUpdate event for some test calculations to be done on
+        await new Promise(async (resolve, reject) => {
+          db.run(`
+            INSERT INTO 'event.TickUpdate' (
+              'block.header.height',
+              'block.header.time_unix',
+
+              'Token0',
+              'Token1',
+              'Token',
+              'TickIndex',
+              'Reserves',
+              'Delta',
+
+              'meta.dex.pair',
+              'meta.dex.token'
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            // 'block.header.height' INTEGER NOT NULL,
+            tx_result.height,
+            // 'block.header.time_unix' INTEGER NOT NULL,
+            blockTime,
+            // attributes
+            txEvent.attributes['Token0'],
+            txEvent.attributes['Token1'],
+            new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isGreaterThan(0)
+              ? txEvent.attributes['Token0']
+              : txEvent.attributes['Token1'],
+            txEvent.attributes['TickIndex'],
+            // fake moving the reserves from 0 to new number
+            new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isGreaterThan(0)
+              ? new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).toFixed(0)
+              : new BigNumber(txEvent.attributes['NewReserves1']).minus(txEvent.attributes['OldReserves1']).toFixed(0),
+            new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isGreaterThan(0)
+              ? new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).toFixed(0)
+              : new BigNumber(txEvent.attributes['NewReserves1']).minus(txEvent.attributes['OldReserves1']).toFixed(0),
+            await dexPairId,
+            await new Promise((resolve, reject) => getDexTokens.get(
+              new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isGreaterThan(0)
+                ? txEvent.attributes['Token0']
+                : txEvent.attributes['Token1']
+              , (err, row) => err ? reject(err) : resolve(row.id)
+            )),
+          ], err => err ? reject(err) : resolve());
+        });
+
         return db.run(`
           INSERT INTO 'event.Deposit' (
             'block.header.height',
@@ -383,6 +430,51 @@ async function insertTxEventRows(tx_result, txEvent, index) {
         ], err => err ? reject(err) : resolve())
       }
       else if (isDexMessage && txEvent.attributes.action === 'NewWithdraw') {
+
+        // temp: add faked TickUpdate event for some test calculations to be done on
+        await new Promise(async (resolve, reject) => {
+          db.run(`
+            INSERT INTO 'event.TickUpdate' (
+              'block.header.height',
+              'block.header.time_unix',
+
+              'Token0',
+              'Token1',
+              'Token',
+              'TickIndex',
+              'Reserves',
+              'Delta',
+
+              'meta.dex.pair',
+              'meta.dex.token'
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            // 'block.header.height' INTEGER NOT NULL,
+            tx_result.height,
+            // 'block.header.time_unix' INTEGER NOT NULL,
+            blockTime,
+            // attributes
+            txEvent.attributes['Token0'],
+            txEvent.attributes['Token1'],
+            new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isLessThan(0)
+              ? txEvent.attributes['Token0']
+              : txEvent.attributes['Token1'],
+            txEvent.attributes['TickIndex'],
+            // fake moving the reserves from current number to 0
+            0,
+            new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isLessThan(0)
+              ? new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).toFixed(0)
+              : new BigNumber(txEvent.attributes['NewReserves1']).minus(txEvent.attributes['OldReserves1']).toFixed(0),
+            await dexPairId,
+            await new Promise((resolve, reject) => getDexTokens.get(
+              new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isLessThan(0)
+                ? txEvent.attributes['Token0']
+                : txEvent.attributes['Token1']
+              , (err, row) => err ? reject(err) : resolve(row.id)
+            )),
+          ], err => err ? reject(err) : resolve());
+        });
+
         return db.run(`
           INSERT INTO 'event.Withdraw' (
             'block.header.height',
