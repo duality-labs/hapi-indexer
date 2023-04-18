@@ -208,7 +208,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
     ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const isDexMessage = txEvent.type === 'message' && txEvent.attributes.module === 'dex';
+  const isDexMessage = txEvent.type === 'message' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
   const dexPairId = isDexMessage && txEvent.attributes.Token0 && txEvent.attributes.Token1 && (
     new Promise((resolve, reject) => {
       getDexPairs.get([
@@ -249,8 +249,9 @@ async function insertTxEventRows(tx_result, txEvent, index) {
       if (err) {
         return reject(err)
       }
+      // continue logic for several dex events
       // add event row to specific event table:
-      if (txEvent.attributes.action === 'Swap') {
+      if (isDexMessage && txEvent.attributes.action === 'Swap') {
         return db.run(`
           INSERT INTO 'event.Swap' (
             'block.header.height',
@@ -298,7 +299,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           )),
         ], err => err ? reject(err) : resolve())
       }
-      else if (txEvent.attributes.action === 'Deposit') {
+      else if (isDexMessage && txEvent.attributes.action === 'Deposit') {
         return db.run(`
           INSERT INTO 'event.Deposit' (
             'block.header.height',
@@ -341,7 +342,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           )),
         ], err => err ? reject(err) : resolve())
       }
-      else if (txEvent.attributes.action === 'Withdraw') {
+      else if (isDexMessage && txEvent.attributes.action === 'Withdraw') {
         return db.run(`
           INSERT INTO 'event.Withdraw' (
             'block.header.height',
