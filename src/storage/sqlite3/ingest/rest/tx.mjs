@@ -58,7 +58,13 @@ async function insertDexTokensRows(txEvent) {
   `);
 
   // if event has tokens, ensure these tokens are present in the DB
-  const tokens = [txEvent.attributes.TokenIn, txEvent.attributes.TokenOut, txEvent.attributes.Token]
+  const tokens = [
+    txEvent.attributes.Token0,
+    txEvent.attributes.Token1,
+    txEvent.attributes.TokenIn,
+    txEvent.attributes.TokenOut,
+    txEvent.attributes.Token,
+  ]
     .filter(Boolean) // remove falsy
     .reduce((acc, token) => acc.includes(token) ? acc : acc.concat(token), []); // remove duplicates
   // loop through all found
