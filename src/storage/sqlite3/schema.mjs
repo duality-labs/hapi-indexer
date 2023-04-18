@@ -157,6 +157,8 @@ export default async function init() {
           'meta.dex.pair' INTEGER NOT NULL,
           'meta.dex.tokenIn' INTEGER NOT NULL,
 
+          FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
+          FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.tokenIn') REFERENCES 'dex.tokens'('id')
         );
@@ -181,6 +183,8 @@ export default async function init() {
           'meta.dex.pair' INTEGER NOT NULL,
           'meta.dex.tokenOut' INTEGER NOT NULL,
 
+          FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
+          FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.tokenOut') REFERENCES 'dex.tokens'('id')
         );
@@ -205,6 +209,8 @@ export default async function init() {
           'meta.dex.tokenIn' INTEGER NOT NULL,
           'meta.dex.tokenOut' INTEGER NOT NULL,
 
+          FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
+          FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.tokenIn') REFERENCES 'dex.tokens'('id'),
           FOREIGN KEY('meta.dex.tokenOut') REFERENCES 'dex.tokens'('id')
