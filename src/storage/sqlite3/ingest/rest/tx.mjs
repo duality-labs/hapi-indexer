@@ -41,6 +41,53 @@ async function insertBlockRows(tx_result) {
 }
 
 
+let getDexTokens;
+let insertDexTokens;
+async function insertDexTokensRows(txEvent) {
+  // activate at run time (after db has been initialized)
+  getDexTokens = getDexTokens || db.prepare(`
+    SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+      'dex.tokens'.'token' = ?
+    )
+  `);
+  insertDexTokens = insertDexTokens || db.prepare(`
+    INSERT OR IGNORE INTO 'dex.tokens' (
+      'token'
+    ) values (?)
+  `);
+
+  // if event has tokens, ensure these tokens are present in the DB
+  const tokens = [txEvent.attributes.TokenIn, txEvent.attributes.TokenOut, txEvent.attributes.Token]
+    .filter(Boolean) // remove falsy
+    .reduce((acc, token) => acc.includes(token) ? acc : acc.concat(token), []); // remove duplicates
+  // loop through all found
+  if (tokens.length > 0) {
+    return Promise.all(tokens.map(token => new Promise((resolve, reject) => {
+      getDexTokens.get([
+        // 'token' TEXT NOT NULL,
+        token,
+      ], (err, result) => {
+        if (err) {
+          return reject(err);
+        }
+        // return found id
+        const id = result?.['id'];
+        if (id) {
+          return resolve(id);
+        }
+        // or insert new token
+        insertDexTokens.run([
+          // 'token' TEXT NOT NULL,
+          token,
+        ], function(err) {
+          err ? reject(err) : resolve(this.lastID)
+        });
+      })
+    })));
+  }
+}
+
+
 let getDexPairs;
 let insertDexPairs;
 async function insertDexPairsRows(txEvent) {
@@ -214,11 +261,14 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'Token0',
             'Token1',
             'TokenIn',
+            'TokenOut',
             'AmountIn',
             'AmountOut',
 
-            'meta.dex.pair'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            'meta.dex.pair',
+            'meta.dex.tokenIn',
+            'meta.dex.tokenOut'
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
@@ -236,6 +286,16 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['AmountIn'],
           txEvent.attributes['AmountOut'],
           await dexPairId,
+          await new Promise((resolve, reject) => getDexTokens.get(
+            [txEvent.attributes['TokenIn']],
+            (err, row) => err ? reject(err) : resolve(row.id)
+          )),
+          await new Promise((resolve, reject) => getDexTokens.get(
+            [txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
+              ? txEvent.attributes['Token0']
+              : txEvent.attributes['Token1']],
+            (err, row) => err ? reject(err) : resolve(row.id)
+          )),
         ], err => err ? reject(err) : resolve())
       }
       else if (txEvent.attributes.action === 'Deposit') {
@@ -254,8 +314,9 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'AmountDeposited',
             'SharesMinted',
 
-            'meta.dex.pair'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            'meta.dex.pair',
+            'meta.dex.tokenIn'
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
@@ -272,6 +333,12 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['AmountDeposited'],
           txEvent.attributes['SharesMinted'],
           await dexPairId,
+          await new Promise((resolve, reject) => getDexTokens.get(
+            [new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isGreaterThan(0)
+              ? txEvent.attributes['Token0']
+              : txEvent.attributes['Token1']],
+            (err, row) => err ? reject(err) : resolve(row.id)
+          )),
         ], err => err ? reject(err) : resolve())
       }
       else if (txEvent.attributes.action === 'Withdraw') {
@@ -290,8 +357,9 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'AmountWithdrawn',
             'SharesRemoved',
 
-            'meta.dex.pair'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            'meta.dex.pair',
+            'meta.dex.tokenOut'
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
@@ -308,6 +376,12 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['AmountWithdrawn'],
           txEvent.attributes['SharesRemoved'],
           await dexPairId,
+          await new Promise((resolve, reject) => getDexTokens.get(
+            new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isLessThan(0)
+              ? txEvent.attributes['Token0']
+              : txEvent.attributes['Token1']
+            , (err, row) => err ? reject(err) : resolve(row.id)
+          )),
         ], err => err ? reject(err) : resolve())
       }
       resolve(this.lastID)
@@ -321,6 +395,8 @@ export default async function ingestTxs (txPage) {
     const txEvents = (tx_result.events || []).map(translateEvents);
     // first add block rows
     await insertBlockRows(tx_result);
+    // then add token foreign keys
+    await Promise.all(txEvents.map(insertDexTokensRows));
     // then add token foreign keys
     await Promise.all(txEvents.map(insertDexPairsRows));
     // then add transaction rows

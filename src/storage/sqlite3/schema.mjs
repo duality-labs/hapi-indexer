@@ -14,6 +14,22 @@ export default async function init() {
     // setup module foreign key indexes to be used first
     promises.push(promisify(cb => {
       db.run(`
+        CREATE TABLE 'dex.tokens' (
+          'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+          'token' TEXT NOT NULL
+        );
+      `, cb);
+    }));
+    // ensure token combination is unique
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE UNIQUE INDEX 'dex.tokens.token' ON 'dex.tokens' ('token');
+      `, cb);
+    }));
+
+    // setup module foreign key indexes to be used first
+    promises.push(promisify(cb => {
+      db.run(`
         CREATE TABLE 'dex.pairs' (
           'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
           'token0' TEXT NOT NULL,
@@ -139,8 +155,10 @@ export default async function init() {
           'SharesMinted' TEXT NOT NULL,
 
           'meta.dex.pair' INTEGER NOT NULL,
+          'meta.dex.tokenIn' INTEGER NOT NULL,
 
-          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
+          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
+          FOREIGN KEY('meta.dex.tokenIn') REFERENCES 'dex.tokens'('id')
         );
       `, cb);
     }));
@@ -161,8 +179,10 @@ export default async function init() {
           'SharesRemoved' TEXT NOT NULL,
 
           'meta.dex.pair' INTEGER NOT NULL,
+          'meta.dex.tokenOut' INTEGER NOT NULL,
 
-          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
+          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
+          FOREIGN KEY('meta.dex.tokenOut') REFERENCES 'dex.tokens'('id')
         );
       `, cb);
     }));
@@ -182,8 +202,12 @@ export default async function init() {
           'AmountOut' TEXT NOT NULL,
 
           'meta.dex.pair' INTEGER NOT NULL,
+          'meta.dex.tokenIn' INTEGER NOT NULL,
+          'meta.dex.tokenOut' INTEGER NOT NULL,
 
-          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
+          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
+          FOREIGN KEY('meta.dex.tokenIn') REFERENCES 'dex.tokens'('id'),
+          FOREIGN KEY('meta.dex.tokenOut') REFERENCES 'dex.tokens'('id')
         );
       `, cb);
     }));
