@@ -230,6 +230,9 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['Token0'],
           txEvent.attributes['Token1'],
           txEvent.attributes['TokenIn'],
+          txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
+            ? txEvent.attributes['Token0']
+            : txEvent.attributes['Token1'],
           txEvent.attributes['AmountIn'],
           txEvent.attributes['AmountOut'],
           await dexPairId,

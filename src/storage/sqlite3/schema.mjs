@@ -177,6 +177,7 @@ export default async function init() {
           'Token0' TEXT NOT NULL,
           'Token1' TEXT NOT NULL,
           'TokenIn' TEXT NOT NULL,
+          'TokenOut' TEXT NOT NULL,
           'AmountIn' TEXT NOT NULL,
           'AmountOut' TEXT NOT NULL,
 
