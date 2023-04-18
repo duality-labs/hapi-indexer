@@ -257,6 +257,8 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           INSERT INTO 'event.TickUpdate' (
             'block.header.height',
             'block.header.time_unix',
+            'tx.index',
+            'tx_result.events.index',
 
             'Token0',
             'Token1',
@@ -267,12 +269,17 @@ async function insertTxEventRows(tx_result, txEvent, index) {
 
             'meta.dex.pair',
             'meta.dex.token'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
           // 'block.header.time_unix' INTEGER NOT NULL,
           blockTime,
+          // 'tx.index' INTEGER NOT NULL,
+          index,
+          // 'tx_result.events.index' INTEGER NOT NULL,
+          txEvent.index,
+
           // attributes
           txEvent.attributes['Token0'],
           txEvent.attributes['Token1'],
@@ -292,6 +299,8 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           INSERT INTO 'event.Swap' (
             'block.header.height',
             'block.header.time_unix',
+            'tx.index',
+            'tx_result.events.index',
 
             'Creator',
             'Receiver',
@@ -305,12 +314,16 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'meta.dex.pair',
             'meta.dex.tokenIn',
             'meta.dex.tokenOut'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
           // 'block.header.time_unix' INTEGER NOT NULL,
           blockTime,
+          // 'tx.index' INTEGER NOT NULL,
+          index,
+          // 'tx_result.events.index' INTEGER NOT NULL,
+          txEvent.index,
           // attributes
           txEvent.attributes['Creator'],
           txEvent.attributes['Receiver'],
@@ -343,6 +356,8 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             INSERT INTO 'event.TickUpdate' (
               'block.header.height',
               'block.header.time_unix',
+              'tx.index',
+              'tx_result.events.index',
 
               'Token0',
               'Token1',
@@ -353,12 +368,16 @@ async function insertTxEventRows(tx_result, txEvent, index) {
 
               'meta.dex.pair',
               'meta.dex.token'
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [
             // 'block.header.height' INTEGER NOT NULL,
             tx_result.height,
             // 'block.header.time_unix' INTEGER NOT NULL,
             blockTime,
+            // 'tx.index' INTEGER NOT NULL,
+            index,
+            // 'tx_result.events.index' INTEGER NOT NULL,
+            txEvent.index,
             // attributes
             txEvent.attributes['Token0'],
             txEvent.attributes['Token1'],
@@ -387,6 +406,8 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           INSERT INTO 'event.Deposit' (
             'block.header.height',
             'block.header.time_unix',
+            'tx.index',
+            'tx_result.events.index',
 
             'Creator',
             'Receiver',
@@ -400,12 +421,16 @@ async function insertTxEventRows(tx_result, txEvent, index) {
 
             'meta.dex.pair',
             'meta.dex.tokenIn'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
           // 'block.header.time_unix' INTEGER NOT NULL,
           blockTime,
+          // 'tx.index' INTEGER NOT NULL,
+          index,
+          // 'tx_result.events.index' INTEGER NOT NULL,
+          txEvent.index,
           // attributes
           txEvent.attributes['Creator'],
           txEvent.attributes['Receiver'],
@@ -437,6 +462,8 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             INSERT INTO 'event.TickUpdate' (
               'block.header.height',
               'block.header.time_unix',
+              'tx.index',
+              'tx_result.events.index',
 
               'Token0',
               'Token1',
@@ -447,12 +474,16 @@ async function insertTxEventRows(tx_result, txEvent, index) {
 
               'meta.dex.pair',
               'meta.dex.token'
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `, [
             // 'block.header.height' INTEGER NOT NULL,
             tx_result.height,
             // 'block.header.time_unix' INTEGER NOT NULL,
             blockTime,
+            // 'tx.index' INTEGER NOT NULL,
+            index,
+            // 'tx_result.events.index' INTEGER NOT NULL,
+            txEvent.index,
             // attributes
             txEvent.attributes['Token0'],
             txEvent.attributes['Token1'],
@@ -479,6 +510,8 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           INSERT INTO 'event.Withdraw' (
             'block.header.height',
             'block.header.time_unix',
+            'tx.index',
+            'tx_result.events.index',
 
             'Creator',
             'Receiver',
@@ -492,12 +525,16 @@ async function insertTxEventRows(tx_result, txEvent, index) {
 
             'meta.dex.pair',
             'meta.dex.tokenOut'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
           // 'block.header.time_unix' INTEGER NOT NULL,
           blockTime,
+          // 'tx.index' INTEGER NOT NULL,
+          index,
+          // 'tx_result.events.index' INTEGER NOT NULL,
+          txEvent.index,
           // attributes
           txEvent.attributes['Creator'],
           txEvent.attributes['Receiver'],

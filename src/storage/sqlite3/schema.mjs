@@ -143,6 +143,8 @@ export default async function init() {
         CREATE TABLE 'event.Deposit' (
           'block.header.height' INTEGER NOT NULL,
           'block.header.time_unix' INTEGER NOT NULL,
+          'tx.index' INTEGER NOT NULL,
+          'tx_result.events.index' INTEGER NOT NULL,
 
           'Creator' TEXT NOT NULL,
           'Receiver' TEXT NOT NULL,
@@ -159,6 +161,8 @@ export default async function init() {
 
           FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
           FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
+          FOREIGN KEY('tx.index') REFERENCES 'tx'('index'),
+          FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.tokenIn') REFERENCES 'dex.tokens'('id')
         );
@@ -169,6 +173,8 @@ export default async function init() {
         CREATE TABLE 'event.Withdraw' (
           'block.header.height' INTEGER NOT NULL,
           'block.header.time_unix' INTEGER NOT NULL,
+          'tx.index' INTEGER NOT NULL,
+          'tx_result.events.index' INTEGER NOT NULL,
 
           'Creator' TEXT NOT NULL,
           'Receiver' TEXT NOT NULL,
@@ -185,6 +191,8 @@ export default async function init() {
 
           FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
           FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
+          FOREIGN KEY('tx.index') REFERENCES 'tx'('index'),
+          FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.tokenOut') REFERENCES 'dex.tokens'('id')
         );
@@ -195,6 +203,8 @@ export default async function init() {
         CREATE TABLE 'event.Swap' (
           'block.header.height' INTEGER NOT NULL,
           'block.header.time_unix' INTEGER NOT NULL,
+          'tx.index' INTEGER NOT NULL,
+          'tx_result.events.index' INTEGER NOT NULL,
 
           'Creator' TEXT NOT NULL,
           'Receiver' TEXT NOT NULL,
@@ -211,6 +221,8 @@ export default async function init() {
 
           FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
           FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
+          FOREIGN KEY('tx.index') REFERENCES 'tx'('index'),
+          FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.tokenIn') REFERENCES 'dex.tokens'('id'),
           FOREIGN KEY('meta.dex.tokenOut') REFERENCES 'dex.tokens'('id')
@@ -225,6 +237,8 @@ export default async function init() {
         CREATE TABLE 'event.TickUpdate' (
           'block.header.height' INTEGER NOT NULL,
           'block.header.time_unix' INTEGER NOT NULL,
+          'tx.index' INTEGER NOT NULL,
+          'tx_result.events.index' INTEGER NOT NULL,
 
           'Token0' TEXT NOT NULL,
           'Token1' TEXT NOT NULL,
@@ -238,6 +252,8 @@ export default async function init() {
 
           FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
           FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
+          FOREIGN KEY('tx.index') REFERENCES 'tx'('index'),
+          FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.token') REFERENCES 'dex.tokens'('id')
         );
