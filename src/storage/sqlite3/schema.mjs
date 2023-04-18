@@ -246,7 +246,7 @@ export default async function init() {
     // add index for quick timeseries lookups, ie. lookup by pair id and then time
     promises.push(promisify(cb => {
       db.run(`
-        CREATE INDEX 'dex_pairs.ticks--meta.dex.pair,block.header.time_unix' ON 'event.TickUpdate' (
+        CREATE INDEX 'event.TickUpdate--meta.dex.pair,block.header.time_unix' ON 'event.TickUpdate' (
           'meta.dex.pair',
           'block.header.time_unix'
         );
