@@ -300,7 +300,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           )),
         ], err => err ? reject(err) : resolve())
       }
-      else if (isDexMessage && txEvent.attributes.action === 'NewDeposit') {
+      else if (isDexMessage && txEvent.attributes.action === 'NewDeposit' && txEvent.attributes['SharesMinted']) {
         return db.run(`
           INSERT INTO 'event.Deposit' (
             'block.header.height',
