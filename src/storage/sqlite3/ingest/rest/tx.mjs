@@ -193,19 +193,19 @@ async function insertTxEventRows(tx_result, txEvent, index) {
       JSON.stringify(txEvent.attributes),
 
       // 'meta.dex.pair_swap' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewSwap' && await dexPairId,
+      isDexMessage && txEvent.attributes.action === 'Swap' && await dexPairId,
       // 'meta.dex.pair_deposit' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewDeposit' && await dexPairId,
+      isDexMessage && txEvent.attributes.action === 'Deposit' && await dexPairId,
       // 'meta.dex.pair_withdraw' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewWithdraw' && await dexPairId,
+      isDexMessage && txEvent.attributes.action === 'Withdraw' && await dexPairId,
     ], async function(err) {
       if (err) {
         return reject(err)
       }
       // add event row to specific event table:
-      if (txEvent.attributes.action === 'NewSwap') {
+      if (txEvent.attributes.action === 'Swap') {
         return db.run(`
-          INSERT INTO 'event.NewSwap' (
+          INSERT INTO 'event.Swap' (
             'block.header.height',
             'block.header.time_unix',
 
@@ -216,10 +216,9 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'TokenIn',
             'AmountIn',
             'AmountOut',
-            'MinOut',
 
             'meta.dex.pair'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
@@ -233,13 +232,12 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['TokenIn'],
           txEvent.attributes['AmountIn'],
           txEvent.attributes['AmountOut'],
-          txEvent.attributes['MinOut'],
           await dexPairId,
         ], err => err ? reject(err) : resolve())
       }
-      else if (txEvent.attributes.action === 'NewDeposit') {
+      else if (txEvent.attributes.action === 'Deposit') {
         return db.run(`
-          INSERT INTO 'event.NewDeposit' (
+          INSERT INTO 'event.Deposit' (
             'block.header.height',
             'block.header.time_unix',
 
@@ -249,14 +247,12 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'Token1',
             'TickIndex',
             'FeeIndex',
-            'OldReserves0',
-            'NewReserves0',
-            'OldReserves1',
-            'NewReserves1',
+            'TokenIn',
+            'AmountDeposited',
             'SharesMinted',
 
             'meta.dex.pair'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
@@ -269,17 +265,15 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['Token1'],
           txEvent.attributes['TickIndex'],
           txEvent.attributes['FeeIndex'],
-          txEvent.attributes['OldReserves0'],
-          txEvent.attributes['NewReserves0'],
-          txEvent.attributes['OldReserves1'],
-          txEvent.attributes['NewReserves1'],
+          txEvent.attributes['TokenIn'],
+          txEvent.attributes['AmountDeposited'],
           txEvent.attributes['SharesMinted'],
           await dexPairId,
         ], err => err ? reject(err) : resolve())
       }
-      else if (txEvent.attributes.action === 'NewWithdraw') {
+      else if (txEvent.attributes.action === 'Withdraw') {
         return db.run(`
-          INSERT INTO 'event.NewWithdraw' (
+          INSERT INTO 'event.Withdraw' (
             'block.header.height',
             'block.header.time_unix',
 
@@ -289,14 +283,12 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'Token1',
             'TickIndex',
             'FeeIndex',
-            'OldReserves0',
-            'NewReserves0',
-            'OldReserves1',
-            'NewReserves1',
+            'TokenOut',
+            'AmountWithdrawn',
             'SharesRemoved',
 
             'meta.dex.pair'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
@@ -309,10 +301,8 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['Token1'],
           txEvent.attributes['TickIndex'],
           txEvent.attributes['FeeIndex'],
-          txEvent.attributes['OldReserves0'],
-          txEvent.attributes['NewReserves0'],
-          txEvent.attributes['OldReserves1'],
-          txEvent.attributes['NewReserves1'],
+          txEvent.attributes['TokenOut'],
+          txEvent.attributes['AmountWithdrawn'],
           txEvent.attributes['SharesRemoved'],
           await dexPairId,
         ], err => err ? reject(err) : resolve())

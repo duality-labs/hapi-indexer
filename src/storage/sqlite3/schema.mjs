@@ -124,7 +124,7 @@ export default async function init() {
     // these are key values form the event attributes (in 'tx_result.events'.'attributes' as JSON blobs
     promises.push(promisify(cb => {
       db.run(`
-        CREATE TABLE 'event.NewDeposit' (
+        CREATE TABLE 'event.Deposit' (
           'block.header.height' INTEGER NOT NULL,
           'block.header.time_unix' INTEGER NOT NULL,
 
@@ -134,10 +134,8 @@ export default async function init() {
           'Token1' TEXT NOT NULL,
           'TickIndex' INTEGER NOT NULL,
           'FeeIndex' INTEGER NOT NULL,
-          'OldReserves0' TEXT NOT NULL,
-          'NewReserves0' TEXT NOT NULL,
-          'OldReserves1' TEXT NOT NULL,
-          'NewReserves1' TEXT NOT NULL,
+          'TokenIn' TEXT NOT NULL,
+          'AmountDeposited' TEXT NOT NULL,
           'SharesMinted' TEXT NOT NULL,
 
           'meta.dex.pair' INTEGER NOT NULL,
@@ -148,7 +146,7 @@ export default async function init() {
     }));
     promises.push(promisify(cb => {
       db.run(`
-        CREATE TABLE 'event.NewWithdraw' (
+        CREATE TABLE 'event.Withdraw' (
           'block.header.height' INTEGER NOT NULL,
           'block.header.time_unix' INTEGER NOT NULL,
 
@@ -158,10 +156,8 @@ export default async function init() {
           'Token1' TEXT NOT NULL,
           'TickIndex' INTEGER NOT NULL,
           'FeeIndex' INTEGER NOT NULL,
-          'OldReserves0' TEXT NOT NULL,
-          'NewReserves0' TEXT NOT NULL,
-          'OldReserves1' TEXT NOT NULL,
-          'NewReserves1' TEXT NOT NULL,
+          'TokenOut' TEXT NOT NULL,
+          'AmountWithdrawn' TEXT NOT NULL,
           'SharesRemoved' TEXT NOT NULL,
 
           'meta.dex.pair' INTEGER NOT NULL,
@@ -172,7 +168,7 @@ export default async function init() {
     }));
     promises.push(promisify(cb => {
       db.run(`
-        CREATE TABLE 'event.NewSwap' (
+        CREATE TABLE 'event.Swap' (
           'block.header.height' INTEGER NOT NULL,
           'block.header.time_unix' INTEGER NOT NULL,
 
@@ -183,7 +179,6 @@ export default async function init() {
           'TokenIn' TEXT NOT NULL,
           'AmountIn' TEXT NOT NULL,
           'AmountOut' TEXT NOT NULL,
-          'MinOut' TEXT NOT NULL,
 
           'meta.dex.pair' INTEGER NOT NULL,
 
