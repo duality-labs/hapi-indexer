@@ -23,7 +23,7 @@ export default async function init() {
     // ensure token combination is unique
     promises.push(promisify(cb => {
       db.run(`
-        CREATE UNIQUE INDEX 'dex.tokens.token' ON 'dex.tokens' ('token');
+        CREATE UNIQUE INDEX 'dex.tokens--token' ON 'dex.tokens' ('token');
       `, cb);
     }));
 
@@ -40,7 +40,7 @@ export default async function init() {
     // ensure token combination is unique
     promises.push(promisify(cb => {
       db.run(`
-        CREATE UNIQUE INDEX 'dex.pairs.token0--token1' ON 'dex.pairs' (
+        CREATE UNIQUE INDEX 'dex.pairs--token0,token1' ON 'dex.pairs' (
           'token0',
           'token1'
         );
@@ -83,14 +83,14 @@ export default async function init() {
     // ensure block.height + tx.index combination is unique
     promises.push(promisify(cb => {
       db.run(`
-        CREATE INDEX 'block.header.height--index' ON 'tx' (
+        CREATE INDEX 'tx--block.header.height,index' ON 'tx' (
           'block.header.height',
           'index'
         );
-        CREATE INDEX 'tx.index' ON 'tx' (
+        CREATE INDEX 'tx--index' ON 'tx' (
           'index'
         );
-        CREATE INDEX 'tx.tx_result.code' ON 'tx' (
+        CREATE INDEX 'tx--tx_result.code' ON 'tx' (
           'tx_result.code'
         );
       `, cb);
@@ -128,7 +128,7 @@ export default async function init() {
     // ensure block.height + tx.index + event.index combination is unique
     promises.push(promisify(cb => {
       db.run(`
-        CREATE UNIQUE INDEX 'block.header.height--tx.index,index' ON 'tx_result.events' (
+        CREATE UNIQUE INDEX 'tx_result.events--block.header.height,tx.index,index' ON 'tx_result.events' (
           'block.header.height',
           'tx.index',
           'index'
