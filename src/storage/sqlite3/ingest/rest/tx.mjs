@@ -298,7 +298,15 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             txEvent.attributes['Token'],
             (err, row) => err ? reject(err) : resolve(row.id)
           )),
-        ], err => err ? reject(err) : resolve());
+        ], err => {
+          if (err) {
+            return reject(err);
+          }
+          // add derivations of TickUpdates before resolving
+          return upsertDerivedTickStateRows(tx_result, txEvent, index)
+            .then(resolve)
+            .catch(reject);
+        });
       }
       else if (isDexMessage && txEvent.attributes.action === 'NewSwap') {
         return db.run(`
@@ -467,6 +475,156 @@ async function insertTxEventRows(tx_result, txEvent, index) {
   });
 }
 
+
+let upsertTickState;
+let upsertTxPriceData;
+async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
+
+  const isDexMessage = txEvent.type === 'message' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
+  if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
+    const blockTime = getBlockTimeFromTxResult(tx_result);
+
+    // activate at run time (after db has been initialized)
+    upsertTickState = upsertTickState || db.prepare(`
+      INSERT OR REPLACE INTO 'derived.tick_state' (
+        'meta.dex.pair',
+        'meta.dex.token',
+        'TickIndex',
+        'Reserves'
+      ) values (
+        (SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE ('dex.pairs'.'Token0' = ? AND 'dex.pairs'.'Token1' = ?)),
+        (SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE ('dex.tokens'.'Token' = ?)),
+        ?,
+        ?
+      )
+    `);
+
+    return new Promise(async (resolve, reject) => {
+      upsertTickState.run([
+        // 'Token0' = ?
+        txEvent.attributes['Token0'],
+        // 'Token1' = ?
+        txEvent.attributes['Token1'],
+        // 'Token' = ?
+        txEvent.attributes['Token'],
+        // 'TickIndex' = ?
+        txEvent.attributes['TickIndex'],
+        // 'Reserves' = ?
+        Number(txEvent.attributes['Reserves']) ? txEvent.attributes['Reserves'] : '', // allow field to be empty for easier calculations
+      ], async function(err) {
+        if (err) {
+          return reject(err)
+        }
+
+        // continue logic for several dependent states
+        const isForward = txEvent.attributes['Token'] === txEvent.attributes['Token1'];
+        const tickSide = isForward ? 'LowestTick1': 'HighestTick0';
+        // note that previousTickIndex may not exist yet
+        const previousPriceData = await new Promise(async (resolve, reject) => {
+
+          db.get(`
+            SELECT 'derived.tx_price_data'.'HighestTick0', 'derived.tx_price_data'.'LowestTick1' FROM 'derived.tx_price_data' WHERE (
+              'derived.tx_price_data'.'meta.dex.pair' = (
+                SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE ('dex.pairs'.'Token0' = ? AND 'dex.pairs'.'Token1' = ?)
+              )
+            )
+            ORDER BY
+              'derived.tx_price_data'.'block.header.height' DESC,
+              'derived.tx_price_data'.'tx.index' DESC,
+              'derived.tx_price_data'.'tx_result.events.index' DESC
+            LIMIT 1
+          `, [
+            // 'Token0' = ?
+            txEvent.attributes['Token0'],
+            // 'Token1' = ?
+            txEvent.attributes['Token1'],
+          ], (err, row) => err ? reject(err) : resolve(row));
+        });
+        const previousTickIndex = previousPriceData?.[tickSide];
+
+        // derive data from entire ticks state (useful for maybe some other calculations)
+        const currentTickIndex = await new Promise((resolve, reject) => {
+          db.get(`
+            SELECT 'derived.tick_state'.'TickIndex' FROM 'derived.tick_state' WHERE (
+              'derived.tick_state'.'meta.dex.pair' = (
+                SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE ('dex.pairs'.'Token0' = ? AND 'dex.pairs'.'Token1' = ?)
+              )
+              AND
+              'derived.tick_state'.'meta.dex.token' = (
+                SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE ('dex.tokens'.'Token' = ?)
+              )
+              AND
+              'derived.tick_state'.'Reserves' != ''
+            )
+            ORDER BY 'derived.tick_state'.'TickIndex' ${isForward ? 'ASC' : 'DESC'}
+            LIMIT 1
+          `, [
+            // 'Token0' = ?
+            txEvent.attributes['Token0'],
+            // 'Token1' = ?
+            txEvent.attributes['Token1'],
+            // 'Token' = ?
+            txEvent.attributes['Token'],
+          ], (err, row) => err ? reject(err) : resolve(row['TickIndex']));
+        });
+
+
+        // if activity has changed current price then update data
+        if (previousTickIndex !== currentTickIndex) {
+          upsertTxPriceData = upsertTxPriceData || db.prepare(`
+            INSERT OR REPLACE INTO 'derived.tx_price_data' (
+              'block.header.height',
+              'block.header.time_unix',
+              'tx.index',
+              'tx_result.events.index',
+
+              'meta.dex.pair',
+
+              'HighestTick0',
+              'LowestTick1',
+              'LastTick'
+            ) values (
+              ?,
+              ?,
+              ?,
+              ?,
+              (SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE ('dex.pairs'.'Token0' = ? AND 'dex.pairs'.'Token1' = ?)),
+              ?,
+              ?,
+              ?
+            )
+          `);
+
+          await new Promise((resolve, reject) => {
+            upsertTxPriceData.run([
+              // 'block.header.height' INTEGER NOT NULL,
+              tx_result.height,
+              // 'block.header.time_unix' INTEGER NOT NULL,
+              blockTime,
+              // 'tx.index' INTEGER NOT NULL,
+              -index,
+              // 'tx_result.events.index' INTEGER NOT NULL,
+              txEvent.index,
+              // attributes
+              // 'Token0' = ?
+              txEvent.attributes['Token0'],
+              // 'Token1' = ?
+              txEvent.attributes['Token1'],
+              // 'HighestTick0'
+              isForward ? (previousPriceData?.['HighestTick0'] ?? null) : currentTickIndex,
+              // 'LowestTick1'
+              isForward ? currentTickIndex : (previousPriceData?.['LowestTick1'] ?? null),
+              // 'LastTick'
+              currentTickIndex,
+            ], err => err ? reject(err) : resolve());
+          });
+        }
+
+        resolve(this.lastID);
+      });
+    });
+  }
+}
 
 export default async function ingestTxs (txPage) {
   return await promiseMapInSeries(txPage, async (tx_result, index) => {
