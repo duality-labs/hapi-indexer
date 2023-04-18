@@ -168,6 +168,16 @@ export default async function init() {
         );
       `, cb);
     }));
+    // add unique index constraint
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE UNIQUE INDEX 'event.Deposit--block.header.height,tx.index,tx_result.events.index' ON 'event.Deposit' (
+          'block.header.height',
+          'tx.index',
+          'tx_result.events.index'
+        );
+      `, cb);
+    }));
     promises.push(promisify(cb => {
       db.run(`
         CREATE TABLE 'event.Withdraw' (
@@ -195,6 +205,16 @@ export default async function init() {
           FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.tokenOut') REFERENCES 'dex.tokens'('id')
+        );
+      `, cb);
+    }));
+    // add unique index constraint
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE UNIQUE INDEX 'event.Withdraw--block.header.height,tx.index,tx_result.events.index' ON 'event.Withdraw' (
+          'block.header.height',
+          'tx.index',
+          'tx_result.events.index'
         );
       `, cb);
     }));
@@ -229,6 +249,16 @@ export default async function init() {
         );
       `, cb);
     }));
+    // add unique index constraint
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE UNIQUE INDEX 'event.Swap--block.header.height,tx.index,tx_result.events.index' ON 'event.Swap' (
+          'block.header.height',
+          'tx.index',
+          'tx_result.events.index'
+        );
+      `, cb);
+    }));
 
     // add ticks table to hold all ticks data
     // (larger and more frequently changing than other tables)
@@ -256,6 +286,16 @@ export default async function init() {
           FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.token') REFERENCES 'dex.tokens'('id')
+        );
+      `, cb);
+    }));
+    // add unique index constraint
+    promises.push(promisify(cb => {
+      db.run(`
+        CREATE UNIQUE INDEX 'event.TickUpdate--block.header.height,tx.index,tx_result.events.index' ON 'event.TickUpdate' (
+          'block.header.height',
+          'tx.index',
+          'tx_result.events.index'
         );
       `, cb);
     }));
