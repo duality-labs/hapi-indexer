@@ -571,17 +571,23 @@ async function insertTxEventRows(tx_result, txEvent, index) {
 
 
 export default async function ingestTxs (txPage) {
-  return await Promise.all(txPage.map(async (tx_result, index) => {
+  return await promiseMapInSeries(txPage, async (tx_result, index) => {
     const txEvents = (tx_result.events || []).map(translateEvents);
     // first add block rows
     await insertBlockRows(tx_result);
     // then add token foreign keys
-    await Promise.all(txEvents.map(insertDexTokensRows));
+    await promiseMapInSeries(txEvents, insertDexTokensRows);
     // then add token foreign keys
-    await Promise.all(txEvents.map(insertDexPairsRows));
+    await promiseMapInSeries(txEvents, insertDexPairsRows);
     // then add transaction rows
     await insertTxRows(tx_result, index);
     // then add transaction event rows
-    await Promise.all(txEvents.map(txEvent => insertTxEventRows(tx_result, txEvent, index)));
-  }));
+    await promiseMapInSeries(txEvents, txEvent => insertTxEventRows(tx_result, txEvent, index));
+  });
 };
+
+async function promiseMapInSeries(list, itemCallback) {
+  return list.reduce(async (listPromise, item, index) => {
+    return Promise.all([...await listPromise, itemCallback(item, index, list)]);
+  }, []);
+}
