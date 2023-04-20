@@ -247,11 +247,11 @@ async function insertTxEventRows(tx_result, txEvent, index) {
       JSON.stringify(txEvent.attributes),
 
       // 'meta.dex.pair_swap' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewSwap' && await dexPairId,
+      isDexMessage && txEvent.attributes.action === 'Swap' && await dexPairId,
       // 'meta.dex.pair_deposit' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewDeposit' && await dexPairId,
+      isDexMessage && txEvent.attributes.action === 'Deposit' && await dexPairId,
       // 'meta.dex.pair_withdraw' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'NewWithdraw' && await dexPairId,
+      isDexMessage && txEvent.attributes.action === 'Withdraw' && await dexPairId,
     ], async function(err) {
       if (err) {
         return reject(err)
@@ -308,7 +308,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             .catch(reject);
         });
       }
-      else if (isDexMessage && txEvent.attributes.action === 'NewSwap') {
+      else if (isDexMessage && txEvent.attributes.action === 'Swap') {
         return db.run(`
           INSERT INTO 'event.Swap' (
             'block.header.height',
@@ -362,8 +362,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           )),
         ], err => err ? reject(err) : resolve())
       }
-      else if (isDexMessage && txEvent.attributes.action === 'NewDeposit') {
-
+      else if (isDexMessage && txEvent.attributes.action === 'Deposit') {
         return db.run(`
           INSERT INTO 'event.Deposit' (
             'block.header.height',
@@ -400,12 +399,8 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['Token1'],
           txEvent.attributes['TickIndex'],
           txEvent.attributes['FeeIndex'],
-          new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isGreaterThan(0)
-            ? txEvent.attributes['Token0']
-            : txEvent.attributes['Token1'],
-          new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isGreaterThan(0)
-            ? new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).toFixed(0)
-            : new BigNumber(txEvent.attributes['NewReserves1']).minus(txEvent.attributes['OldReserves1']).toFixed(0),
+          txEvent.attributes['TokenIn'],
+          txEvent.attributes['AmountDeposited'],
           txEvent.attributes['SharesMinted'],
           await dexPairId,
           await new Promise((resolve, reject) => getDexTokens.get(
@@ -416,8 +411,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           )),
         ], err => err ? reject(err) : resolve())
       }
-      else if (isDexMessage && txEvent.attributes.action === 'NewWithdraw') {
-
+      else if (isDexMessage && txEvent.attributes.action === 'Withdraw') {
         return db.run(`
           INSERT INTO 'event.Withdraw' (
             'block.header.height',
@@ -454,12 +448,8 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['Token1'],
           txEvent.attributes['TickIndex'],
           txEvent.attributes['FeeIndex'],
-          new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isLessThan(0)
-            ? txEvent.attributes['Token0']
-            : txEvent.attributes['Token1'],
-          new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isLessThan(0)
-            ? new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).negated().toFixed(0)
-            : new BigNumber(txEvent.attributes['NewReserves1']).minus(txEvent.attributes['OldReserves1']).negated().toFixed(0),
+          txEvent.attributes['TokenOut'],
+          txEvent.attributes['AmountWithdrawn'],
           txEvent.attributes['SharesRemoved'],
           await dexPairId,
           await new Promise((resolve, reject) => getDexTokens.get(
