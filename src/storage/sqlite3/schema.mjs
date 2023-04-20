@@ -151,20 +151,18 @@ export default async function init() {
           'Token0' TEXT NOT NULL,
           'Token1' TEXT NOT NULL,
           'TickIndex' INTEGER NOT NULL,
-          'FeeIndex' INTEGER NOT NULL,
-          'TokenIn' TEXT NOT NULL,
-          'AmountDeposited' TEXT NOT NULL,
+          'Fee' INTEGER NOT NULL,
+          'Reserves0Deposited' TEXT NOT NULL,
+          'Reserves1Deposited' TEXT NOT NULL,
           'SharesMinted' TEXT NOT NULL,
 
           'meta.dex.pair' INTEGER NOT NULL,
-          'meta.dex.tokenIn' INTEGER NOT NULL,
 
           FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
           FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
           FOREIGN KEY('tx.index') REFERENCES 'tx'('index'),
           FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
-          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
-          FOREIGN KEY('meta.dex.tokenIn') REFERENCES 'dex.tokens'('id')
+          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
         );
       `, cb);
     }));
@@ -191,20 +189,18 @@ export default async function init() {
           'Token0' TEXT NOT NULL,
           'Token1' TEXT NOT NULL,
           'TickIndex' INTEGER NOT NULL,
-          'FeeIndex' INTEGER NOT NULL,
-          'TokenOut' TEXT NOT NULL,
-          'AmountWithdrawn' TEXT NOT NULL,
+          'Fee' INTEGER NOT NULL,
+          'Reserves0Withdrawn' TEXT NOT NULL,
+          'Reserves1Withdrawn' TEXT NOT NULL,
           'SharesRemoved' TEXT NOT NULL,
 
           'meta.dex.pair' INTEGER NOT NULL,
-          'meta.dex.tokenOut' INTEGER NOT NULL,
 
           FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
           FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix'),
           FOREIGN KEY('tx.index') REFERENCES 'tx'('index'),
           FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
-          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
-          FOREIGN KEY('meta.dex.tokenOut') REFERENCES 'dex.tokens'('id')
+          FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
         );
       `, cb);
     }));
@@ -275,7 +271,6 @@ export default async function init() {
           'Token' TEXT NOT NULL,
           'TickIndex' INTEGER NOT NULL,
           'Reserves' TEXT NOT NULL,
-          'Delta' TEXT NOT NULL,
 
           'meta.dex.pair' INTEGER NOT NULL,
           'meta.dex.token' INTEGER NOT NULL,

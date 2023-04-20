@@ -215,7 +215,9 @@ async function insertTxEventRows(tx_result, txEvent, index) {
     ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const isDexMessage = txEvent.type === 'message' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
+  const isDexMessage = tx_result.code === 0 &&
+    txEvent.attributes.module === 'dex' &&
+    (txEvent.type === 'message' || txEvent.type === 'TickUpdate');
   const dexPairId = isDexMessage && txEvent.attributes.Token0 && txEvent.attributes.Token1 && (
     new Promise((resolve, reject) => {
       getDexPairs.get([
@@ -271,11 +273,10 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'Token',
             'TickIndex',
             'Reserves',
-            'Delta',
 
             'meta.dex.pair',
             'meta.dex.token'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
@@ -289,13 +290,12 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           // attributes
           txEvent.attributes['Token0'],
           txEvent.attributes['Token1'],
-          txEvent.attributes['Token'],
+          txEvent.attributes['TokenIn'],
           txEvent.attributes['TickIndex'],
           txEvent.attributes['Reserves'],
-          txEvent.attributes['Delta'],
           await dexPairId,
           await new Promise((resolve, reject) => getDexTokens.get(
-            txEvent.attributes['Token'],
+            txEvent.attributes['TokenIn'],
             (err, row) => err ? reject(err) : resolve(row.id)
           )),
         ], err => {
@@ -375,14 +375,13 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'Token0',
             'Token1',
             'TickIndex',
-            'FeeIndex',
-            'TokenIn',
-            'AmountDeposited',
+            'Fee',
+            'Reserves0Deposited',
+            'Reserves1Deposited',
             'SharesMinted',
 
-            'meta.dex.pair',
-            'meta.dex.tokenIn'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            'meta.dex.pair'
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
@@ -398,17 +397,11 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['Token0'],
           txEvent.attributes['Token1'],
           txEvent.attributes['TickIndex'],
-          txEvent.attributes['FeeIndex'],
-          txEvent.attributes['TokenIn'],
-          txEvent.attributes['AmountDeposited'],
+          txEvent.attributes['Fee'],
+          txEvent.attributes['Reserves0Deposited'],
+          txEvent.attributes['Reserves1Deposited'],
           txEvent.attributes['SharesMinted'],
           await dexPairId,
-          await new Promise((resolve, reject) => getDexTokens.get(
-            [new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isGreaterThan(0)
-              ? txEvent.attributes['Token0']
-              : txEvent.attributes['Token1']],
-            (err, row) => err ? reject(err) : resolve(row.id)
-          )),
         ], err => err ? reject(err) : resolve())
       }
       else if (isDexMessage && txEvent.attributes.action === 'Withdraw') {
@@ -424,14 +417,13 @@ async function insertTxEventRows(tx_result, txEvent, index) {
             'Token0',
             'Token1',
             'TickIndex',
-            'FeeIndex',
-            'TokenOut',
-            'AmountWithdrawn',
+            'Fee',
+            'Reserves0Withdrawn',
+            'Reserves1Withdrawn',
             'SharesRemoved',
 
-            'meta.dex.pair',
-            'meta.dex.tokenOut'
-          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            'meta.dex.pair'
+          ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
           // 'block.header.height' INTEGER NOT NULL,
           tx_result.height,
@@ -447,17 +439,11 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           txEvent.attributes['Token0'],
           txEvent.attributes['Token1'],
           txEvent.attributes['TickIndex'],
-          txEvent.attributes['FeeIndex'],
-          txEvent.attributes['TokenOut'],
-          txEvent.attributes['AmountWithdrawn'],
+          txEvent.attributes['Fee'],
+          txEvent.attributes['Reserves0Withdrawn'],
+          txEvent.attributes['Reserves1Withdrawn'] || '0', // hack fix because Reserves1Withdrawn is never emitted
           txEvent.attributes['SharesRemoved'],
-          await dexPairId,
-          await new Promise((resolve, reject) => getDexTokens.get(
-            new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']).isLessThan(0)
-              ? txEvent.attributes['Token0']
-              : txEvent.attributes['Token1']
-            , (err, row) => err ? reject(err) : resolve(row.id)
-          )),
+          await dexPairId
         ], err => err ? reject(err) : resolve())
       }
       resolve(this.lastID)
@@ -470,7 +456,7 @@ let upsertTickState;
 let upsertTxPriceData;
 async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
 
-  const isDexMessage = txEvent.type === 'message' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
+  const isDexMessage = txEvent.type === 'TickUpdate' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     const blockTime = getBlockTimeFromTxResult(tx_result);
 
@@ -496,7 +482,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
         // 'Token1' = ?
         txEvent.attributes['Token1'],
         // 'Token' = ?
-        txEvent.attributes['Token'],
+        txEvent.attributes['TokenIn'],
         // 'TickIndex' = ?
         txEvent.attributes['TickIndex'],
         // 'Reserves' = ?
@@ -507,7 +493,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
         }
 
         // continue logic for several dependent states
-        const isForward = txEvent.attributes['Token'] === txEvent.attributes['Token1'];
+        const isForward = txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
         const tickSide = isForward ? 'LowestTick1': 'HighestTick0';
         // note that previousTickIndex may not exist yet
         const previousPriceData = await new Promise(async (resolve, reject) => {
@@ -554,7 +540,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
             // 'Token1' = ?
             txEvent.attributes['Token1'],
             // 'Token' = ?
-            txEvent.attributes['Token'],
+            txEvent.attributes['TokenIn'],
           ], (err, row) => err ? reject(err) : resolve(row['TickIndex']));
         });
 
@@ -630,39 +616,6 @@ export default async function ingestTxs (txPage) {
     // then add transaction event rows
     await promiseMapInSeries(txEvents, async (txEvent) => {
       await insertTxEventRows(tx_result, txEvent, index);
-
-      // temp: add faked TickUpdate event for some test calculations to be done on
-      const isDexMessage = txEvent.type === 'message' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
-      if (
-        // 'meta.dex.pair_deposit' INTEGER NOT NULL,
-        (isDexMessage && txEvent.attributes.action === 'NewDeposit') ||
-        // 'meta.dex.pair_withdraw' INTEGER NOT NULL,
-        (isDexMessage && txEvent.attributes.action === 'NewWithdraw')
-      ) {
-
-        const change0 = new BigNumber(txEvent.attributes['NewReserves0']).minus(txEvent.attributes['OldReserves0']);
-        const change1 = new BigNumber(txEvent.attributes['NewReserves1']).minus(txEvent.attributes['OldReserves1']);
-        const change = change0.isEqualTo(0) ? change1 : change0;
-
-        const txFakeEvent = {
-          type: txEvent.type,
-          index: txEvent.index,
-          attributes: {
-            module: 'dex',
-            action: 'TickUpdate',
-            Token0: txEvent.attributes['Token0'],
-            Token1: txEvent.attributes['Token1'],
-            Token: change0.isEqualTo(0) ? txEvent.attributes['Token1'] : txEvent.attributes['Token0'],
-            TickIndex: txEvent.attributes['TickIndex'],
-            // approximate shift of reserves by depositing from 0 -> balanced or withdrawing balance -> 0.
-            Reserves: change.isGreaterThan(0) ? change.toFixed() : change.negated().toFixed(),
-            Delta: change.toFixed(0),
-          }
-        };
-
-        // add to negative index because its not real
-        await insertTxEventRows(tx_result, txFakeEvent, -index);
-      }
     });
   });
 };
