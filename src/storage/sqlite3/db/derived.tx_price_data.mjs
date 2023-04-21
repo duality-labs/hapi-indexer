@@ -7,6 +7,10 @@ const derivedTxPriceData = {
     const pageSize = Number(query['page-size']) || 100;
     const fromHeight = Number(query['from-height']) || Math.pow(2, 31) - 1;
     const toHeight = Number(query['to-height']) || 0;
+    const adjusted = {
+      fromHeight: fromHeight > toHeight ? fromHeight : toHeight,
+      toHeight: fromHeight > toHeight ? toHeight: fromHeight,
+    };
 
     // prepare statement at run time (after db has been initialized)
     this._getSeconds_query = this._getSeconds_query || db.prepare(`
@@ -45,9 +49,9 @@ const derivedTxPriceData = {
         // 'token0' TEXT NOT NULL,
         tokenB,
         // 'block.header.height' INTEGER NOT NULL,
-        fromHeight > toHeight ? fromHeight : toHeight,
+        adjusted.fromHeight,
         // 'block.header.height' INTEGER NOT NULL,
-        fromHeight > toHeight ? toHeight: fromHeight,
+        adjusted.toHeight,
         // page size
         pageSize
       ], (err, result) => err ? reject(err) : resolve(result));
