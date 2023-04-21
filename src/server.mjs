@@ -7,7 +7,7 @@ import * as sync from './sync.mjs';
 import dbClient from './storage/sqlite3/db.mjs'
 
 import { volume } from './storage/sqlite3/stats.mjs';
-import getPricePerSecond from './storage/sqlite3/db/derived.tx_price_data.mjs';
+import getPricePerSecond from './storage/sqlite3/db/derived.tx_price_data/getPricePerSecond.mjs';
 
 const init = async () => {
 
