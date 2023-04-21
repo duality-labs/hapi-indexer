@@ -24,18 +24,11 @@ const derivedTxPriceData = {
       return query;
     }, {});
 
-    const defaultsQuery = {
-      offset: numericQuery.offset ?? 0,
-      pageSize: numericQuery.pageSize ?? 100,
-      fromHeight: numericQuery.fromHeight ?? Math.pow(2, 31) - 1,
-      toHeight: numericQuery.toHeight ?? 0,
-    };
-
     const query = {
-      offset: Math.max(0, defaultsQuery.offset),
-      pageSize: Math.min(1000, defaultsQuery.pageSize),
-      fromHeight: defaultsQuery.fromHeight > defaultsQuery.toHeight ? defaultsQuery.fromHeight : defaultsQuery.toHeight,
-      toHeight: defaultsQuery.fromHeight > defaultsQuery.toHeight ? defaultsQuery.toHeight: defaultsQuery.fromHeight,
+      offset: Math.max(0, numericQuery.offset ?? 0),
+      pageSize: Math.min(1000, numericQuery.pageSize ?? 100),
+      before: numericQuery.before ?? Math.floor(Date.now() / 1000),
+      after: numericQuery.after ?? 0,
     };
 
     // prepare statement at run time (after db has been initialized)
@@ -55,10 +48,10 @@ const derivedTxPriceData = {
             'dex.pairs'.'token0' = ?
           )
         )
-        AND 'derived.tx_price_data'.'block.header.height' <= ?
-        AND 'derived.tx_price_data'.'block.header.height' >= ?
+        AND 'derived.tx_price_data'.'block.header.time_unix' <= ?
+        AND 'derived.tx_price_data'.'block.header.time_unix' >= ?
       ORDER BY
-        'derived.tx_price_data'.'block.header.height' DESC,
+        'derived.tx_price_data'.'block.header.time_unix' DESC,
         'derived.tx_price_data'.'tx_result.events.index' DESC
       LIMIT ?
       OFFSET ?
@@ -75,10 +68,10 @@ const derivedTxPriceData = {
         tokenA,
         // 'token0' TEXT NOT NULL,
         tokenB,
-        // 'block.header.height' INTEGER NOT NULL,
-        query.fromHeight,
-        // 'block.header.height' INTEGER NOT NULL,
-        query.toHeight,
+        // 'block.header.time_unix' INTEGER NOT NULL,
+        query.before,
+        // 'block.header.time_unix' INTEGER NOT NULL,
+        query.after,
         // page size
         query.pageSize,
         // offset
@@ -95,11 +88,11 @@ const derivedTxPriceData = {
             'page-size': query.pageSize,
             // pass height queries back in exactly as it came
             // (for consistent processing)
-            ...givenQuery['from-height'] && {
-              'from-height': givenQuery['from-height'],
+            ...givenQuery['before'] && {
+              'before': givenQuery['before'],
             },
-            ...givenQuery['to-height'] && {
-              'to-height': givenQuery['to-height'],
+            ...givenQuery['after'] && {
+              'after': givenQuery['after'],
             },
           })
         ).toString('base64url'),
