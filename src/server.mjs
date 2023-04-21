@@ -16,6 +16,15 @@ const init = async () => {
     port: 8000,
     // host: 0.0.0.0 resolves better than host: localhost in a Docker container
     host: '0.0.0.0',
+    routes: {
+      cors: {
+        origin: process.env.NODE_ENV !== 'development'
+          ? [ 'app.duality.xyz' ] // production CORS settings
+          : [ '*' ],              // development CORS settings
+        headers: ['Accept', 'Content-Type'],
+        additionalHeaders: ['X-Requested-With']
+      },
+    },
   });
 
   // add routes
