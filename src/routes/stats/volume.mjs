@@ -93,11 +93,28 @@ const routes = [
     handler: async (request, h) => {
       try {
         return {
+          hours: {
+            1: await volume(
+              request.params['tokenA'],
+              request.params['tokenB'],
+              { lastSeconds: 60 * 60 }
+            ),
+          },
           days: {
+            1: await volume(
+              request.params['tokenA'],
+              request.params['tokenB'],
+              { lastDays: 1 }
+            ),
             7: await volume(
               request.params['tokenA'],
               request.params['tokenB'],
               { lastDays: 7 }
+            ),
+            28: await volume(
+              request.params['tokenA'],
+              request.params['tokenB'],
+              { lastDays: 28 }
             ),
           },
         };
