@@ -1,16 +1,41 @@
+import logger from '../../../logger.mjs';
 import db from '../db.mjs';
+
+const camelize = s => s.replace(/-./g, x=>x[1].toUpperCase());
 
 const derivedTxPriceData = {
 
   // get pair ID without know which is token0 or token1
-  getSeconds: async function getSeconds(tokenA, tokenB, query={}) {
-    const pageSize = Number(query['page-size']) || 100;
-    const offset = Number(query['offset']) || 0;
-    const fromHeight = Number(query['from-height']) || Math.pow(2, 31) - 1;
-    const toHeight = Number(query['to-height']) || 0;
-    const adjusted = {
-      fromHeight: fromHeight > toHeight ? fromHeight : toHeight,
-      toHeight: fromHeight > toHeight ? toHeight: fromHeight,
+  getSeconds: async function getSeconds(tokenA, tokenB, givenQuery={}) {
+    let nextKey;
+    try {
+      nextKey = JSON.parse(
+        Buffer.from(givenQuery['next-key'], 'base64url').toString('utf8')
+      );
+    }
+    catch (e) {
+      logger.error(e);
+    }
+    // convert kebabe case keys and string values
+    // to camel case keys and numeric values
+    // eg { "page-size": "100" }
+    const numericQuery = Object.entries(nextKey || givenQuery || {}).reduce((query, [key, value]) => {
+      query[camelize(key)] = Number(value) || undefined;
+      return query;
+    }, {});
+
+    const defaultsQuery = {
+      offset: numericQuery.offset ?? 0,
+      pageSize: numericQuery.pageSize ?? 100,
+      fromHeight: numericQuery.fromHeight ?? Math.pow(2, 31) - 1,
+      toHeight: numericQuery.toHeight ?? 0,
+    };
+
+    const query = {
+      offset: Math.max(0, defaultsQuery.offset),
+      pageSize: Math.min(1000, defaultsQuery.pageSize),
+      fromHeight: defaultsQuery.fromHeight > defaultsQuery.toHeight ? defaultsQuery.fromHeight : defaultsQuery.toHeight,
+      toHeight: defaultsQuery.fromHeight > defaultsQuery.toHeight ? defaultsQuery.toHeight: defaultsQuery.fromHeight,
     };
 
     // prepare statement at run time (after db has been initialized)
@@ -40,7 +65,7 @@ const derivedTxPriceData = {
     `);
 
     // wrap response in a promise
-    return new Promise((resolve, reject) => {
+    const data = await new Promise((resolve, reject) => {
       this._getSeconds_query.all([
         // 'token0' TEXT NOT NULL,
         tokenA,
@@ -51,15 +76,35 @@ const derivedTxPriceData = {
         // 'token0' TEXT NOT NULL,
         tokenB,
         // 'block.header.height' INTEGER NOT NULL,
-        adjusted.fromHeight,
+        query.fromHeight,
         // 'block.header.height' INTEGER NOT NULL,
-        adjusted.toHeight,
+        query.toHeight,
         // page size
-        pageSize,
+        query.pageSize,
         // offset
-        offset,
-      ], (err, result) => err ? reject(err) : resolve(result));
+        query.offset,
+      ], (err, result) => err ? reject(err) : resolve(result || []));
     });
+
+    return {
+      data,
+      pagination: {
+        'next-key': Buffer.from(
+          JSON.stringify({
+            'offset': query.offset + data.length,
+            'page-size': query.pageSize,
+            // pass height queries back in exactly as it came
+            // (for consistent processing)
+            ...givenQuery['from-height'] && {
+              'from-height': givenQuery['from-height'],
+            },
+            ...givenQuery['to-height'] && {
+              'to-height': givenQuery['to-height'],
+            },
+          })
+        ).toString('base64url'),
+      },
+    }
   },
 
 }
