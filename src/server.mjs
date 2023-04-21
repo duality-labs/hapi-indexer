@@ -58,7 +58,7 @@ const init = async () => {
         }, {}));
       }
       catch (err) {
-        console.log('err', err);
+        logger.error(err);
         return h.response(`something happened: ${err.message || '?'}`).code(500);
       }
     },
@@ -76,7 +76,7 @@ const init = async () => {
         };
       }
       catch (err) {
-        console.log('err', err);
+        logger.error(err);
         return h.response(`something happened: ${err.message || '?'}`).code(500);
       }
     },
