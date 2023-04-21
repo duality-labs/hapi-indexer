@@ -5,6 +5,7 @@ const derivedTxPriceData = {
   // get pair ID without know which is token0 or token1
   getSeconds: async function getSeconds(tokenA, tokenB, query={}) {
     const pageSize = Number(query['page-size']) || 100;
+    const offset = Number(query['offset']) || 0;
     const fromHeight = Number(query['from-height']) || Math.pow(2, 31) - 1;
     const toHeight = Number(query['to-height']) || 0;
     const adjusted = {
@@ -35,6 +36,7 @@ const derivedTxPriceData = {
         'derived.tx_price_data'.'block.header.height' DESC,
         'derived.tx_price_data'.'tx_result.events.index' DESC
       LIMIT ?
+      OFFSET ?
     `);
 
     // wrap response in a promise
@@ -53,7 +55,9 @@ const derivedTxPriceData = {
         // 'block.header.height' INTEGER NOT NULL,
         adjusted.toHeight,
         // page size
-        pageSize
+        pageSize,
+        // offset
+        offset,
       ], (err, result) => err ? reject(err) : resolve(result));
     });
   },
