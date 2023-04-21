@@ -162,7 +162,7 @@ async function catchUpREST ({ fromBlockHeight = 0, logger = defaultLogger }={}) 
         &pagination.limit=${itemsPerPage}
         &pagination.count_total=true
         &order_by=ORDER_BY_ASC
-    `.replace(/ +/g, '')); // remove spaces from URL
+    `.replace(/\s+/g, '')); // remove spaces from URL
     // pagination object will only exist on first page (it is ignored when pagination.key is set)
     const { pagination, tx_responses: pageItems = [] } = await response.json();
     totalItemCount = (pagination?.total && Number(pagination.total)) || totalItemCount;
