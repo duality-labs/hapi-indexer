@@ -4,7 +4,7 @@ const derivedTxPriceData = {
 
   // get pair ID without know which is token0 or token1
   getSeconds: async function getSeconds(tokenA, tokenB, query={}) {
-    const { pageSize = 100 } = query
+    const pageSize = Number(query['page-size']) || 100;
     const fromHeight = Number(query['from-height']) || Math.pow(2, 31) - 1;
     const toHeight = Number(query['to-height']) || 0;
 
