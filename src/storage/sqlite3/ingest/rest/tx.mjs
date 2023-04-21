@@ -486,7 +486,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
         // 'TickIndex' = ?
         txEvent.attributes['TickIndex'],
         // 'Reserves' = ?
-        Number(txEvent.attributes['Reserves']) ? txEvent.attributes['Reserves'] : '', // allow field to be empty for easier calculations
+        txEvent.attributes['Reserves'], // allow field to be empty for easier calculations
       ], async function(err) {
         if (err) {
           return reject(err)
@@ -530,7 +530,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
                 SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE ('dex.tokens'.'Token' = ?)
               )
               AND
-              'derived.tick_state'.'Reserves' != ''
+              'derived.tick_state'.'Reserves' != '0'
             )
             ORDER BY 'derived.tick_state'.'TickIndex' ${isForward ? 'ASC' : 'DESC'}
             LIMIT 1
@@ -541,7 +541,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
             txEvent.attributes['Token1'],
             // 'Token' = ?
             txEvent.attributes['TokenIn'],
-          ], (err, row) => err ? reject(err) : resolve(row['TickIndex']));
+          ], (err, row) => err ? reject(err) : resolve(row?.['TickIndex'] ?? null));
         });
 
 
@@ -571,6 +571,11 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
             )
           `);
 
+          const previousOtherSideTickIndex = (
+            isForward
+              ? previousPriceData?.['HighestTick0']
+              : previousPriceData?.['LowestTick1']
+          ) ?? null;
           await new Promise((resolve, reject) => {
             upsertTxPriceData.run([
               // 'block.header.height' INTEGER NOT NULL,
@@ -587,11 +592,11 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
               // 'Token1' = ?
               txEvent.attributes['Token1'],
               // 'HighestTick0'
-              isForward ? (previousPriceData?.['HighestTick0'] ?? null) : currentTickIndex,
+              isForward ? previousOtherSideTickIndex : currentTickIndex,
               // 'LowestTick1'
-              isForward ? currentTickIndex : (previousPriceData?.['LowestTick1'] ?? null),
+              isForward ? currentTickIndex : previousOtherSideTickIndex,
               // 'LastTick'
-              currentTickIndex,
+              currentTickIndex || previousOtherSideTickIndex,
             ], err => err ? reject(err) : resolve());
           });
         }
