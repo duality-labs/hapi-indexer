@@ -9,9 +9,11 @@ const derivedTxPriceData = {
   getSeconds: async function getSeconds(tokenA, tokenB, givenQuery={}) {
     let nextKey;
     try {
-      nextKey = JSON.parse(
-        Buffer.from(givenQuery['next-key'], 'base64url').toString('utf8')
-      );
+      if (givenQuery['next-key']) {
+        nextKey = JSON.parse(
+          Buffer.from(givenQuery['next-key'], 'base64url').toString('utf8')
+        );
+      }
     }
     catch (e) {
       logger.error(e);
