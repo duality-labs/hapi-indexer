@@ -149,23 +149,20 @@ export async function keepUpRPC () {
 
 async function catchUpREST ({ fromBlockHeight = 0, logger = defaultLogger }={}) {
 
-  // read block pages
-  let totalItemCount;
-  await iterateThroughPages(async ({ page }) => {
+  // read tx pages
+  await iterateThroughPages(async ({ page: offset=0 }) => {
     // we default starting page to 1 as this API has 1-based page numbers
     // max API response page item count is 100
     const itemsPerPage = 100;
     const response = await fetch(`
       ${REST_API}/cosmos/tx/v1beta1/txs
         ?events=tx.height>=${fromBlockHeight}
-        ${page ? `&pagination.key=${page}` : ''}
+        ${offset ? `&pagination.offset=${offset}` : ''}
         &pagination.limit=${itemsPerPage}
         &pagination.count_total=true
         &order_by=ORDER_BY_ASC
     `.replace(/\s+/g, '')); // remove spaces from URL
-    // pagination object will only exist on first page (it is ignored when pagination.key is set)
-    const { pagination, tx_responses: pageItems = [] } = await response.json();
-    totalItemCount = (pagination?.total && Number(pagination.total)) || totalItemCount;
+    const { pagination, txs=[], tx_responses: pageItems = [] } = await response.json();
 
     const lastItemBlockHeight = Number(pageItems.slice(-1).pop()?.['height']);
     if (lastItemBlockHeight) {
@@ -174,9 +171,12 @@ async function catchUpREST ({ fromBlockHeight = 0, logger = defaultLogger }={}) 
 
     // ingest list
     await ingestRestTxs(pageItems);
-
     // return next page information for page iterating function
-    return [pageItems.length, totalItemCount, pagination.next_key];
+    const pageItemCount = txs.length;
+    const totalItemCount = (pagination?.total && Number(pagination.total)) || 0;
+    const currentItemCount = offset + pageItemCount;
+    const nextOffset = currentItemCount < totalItemCount ? currentItemCount: null;
+    return [pageItemCount, totalItemCount, nextOffset];
   }, logger.child({ label: 'transaction' }));
 };
 
