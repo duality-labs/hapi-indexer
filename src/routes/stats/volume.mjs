@@ -1,6 +1,7 @@
+
 import BigNumber from 'bignumber.js';
 
-import db from './db.mjs'
+import db from '../../storage/sqlite3/db.mjs';
 
 // get volume of pair over last 7 days
 // SELECT 'dex.pairs'
@@ -34,9 +35,9 @@ import db from './db.mjs'
 // through  RPC API: - both /tx_search?query="tx.height>=0"
 //                      and /block_search?query="block.height>=0"
 //                      are needed to get events with timestamps
-//                      as foreign keys are used 
+//                      as foreign keys are used
 
-export async function volume({ lastDays, lastSeconds = lastDays * 24 * 60 * 60 }) {
+async function volume({ lastDays, lastSeconds = lastDays * 24 * 60 * 60 }) {
 
   const unixNow = Math.round(Date.now() / 1000);
   const unixStart = unixNow - lastSeconds;
@@ -56,3 +57,27 @@ export async function volume({ lastDays, lastSeconds = lastDays * 24 * 60 * 60 }
     });
   });
 }
+
+const routes = [
+
+  {
+    method: 'GET',
+    path: '/stats/volume',
+    handler: async (_, h) => {
+      try {
+        return {
+          days: {
+            7: await volume({ lastDays: 7 }),
+          },
+        };
+      }
+      catch (err) {
+        logger.error(err);
+        return h.response(`something happened: ${err.message || '?'}`).code(500);
+      }
+    },
+  },
+
+];
+
+export default routes;

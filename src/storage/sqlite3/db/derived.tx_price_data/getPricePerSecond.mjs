@@ -1,5 +1,5 @@
-import logger from '../../../logger.mjs';
-import db from '../db.mjs';
+import logger from '../../../../logger.mjs';
+import db from '../../db.mjs';
 
 const camelize = s => s.replace(/-./g, x=>x[1].toUpperCase());
 
