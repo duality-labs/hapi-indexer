@@ -2,6 +2,7 @@
 import BigNumber from 'bignumber.js';
 
 import db from '../../storage/sqlite3/db.mjs';
+import logger from '../../logger.mjs';
 
 // get volume of pair over last 7 days
 // SELECT 'dex.pairs'
@@ -37,21 +38,47 @@ import db from '../../storage/sqlite3/db.mjs';
 //                      are needed to get events with timestamps
 //                      as foreign keys are used
 
-async function volume({ lastDays, lastSeconds = lastDays * 24 * 60 * 60 }) {
+async function volume(tokenA, tokenB, { lastDays, lastSeconds = lastDays * 24 * 60 * 60 }) {
 
   const unixNow = Math.round(Date.now() / 1000);
   const unixStart = unixNow - lastSeconds;
 
   return new Promise((resolve, reject) => {
     db.all(`
-      SELECT * FROM 'tx_result.events'
-        WHERE ('tx_result.events'.'block.header.time_unix' > ?)
-    `, [unixStart], (err, rows) => {
+      SELECT
+        'event.Swap'.'block.header.time_unix',
+        'event.Swap'.'AmountOut',
+        'event.Swap'.'TokenOut'
+      FROM 'event.Swap'
+        WHERE
+        'event.Swap'.'meta.dex.pair' = (
+          SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+            'dex.pairs'.'token0' = ? AND
+            'dex.pairs'.'token1' = ?
+          ) OR (
+            'dex.pairs'.'token1' = ? AND
+            'dex.pairs'.'token0' = ?
+          )
+        )
+        AND 'event.Swap'.'block.header.time_unix' > ?
+    `, [
+      // 'token0' TEXT NOT NULL,
+      tokenA,
+      // 'token1' TEXT NOT NULL,
+      tokenB,
+      // 'token1' TEXT NOT NULL,
+      tokenA,
+      // 'token0' TEXT NOT NULL,
+      tokenB,
+      // 'block.header.time_unix' INTEGER NOT NULL,
+      unixStart,
+    ], (err, rows=[]) => {
         if (err) reject(err);
         resolve(
           // find the volume traded within these events
           rows.reduce((acc, row) => {
-            return acc.plus(JSON.parse(row.attributes)?.['AmountIn'] ?? '0')
+            // todo: add conversion to base currency to get real total value
+            return acc.plus(row['AmountOut'] ?? '0')
           }, new BigNumber(0))
         );
     });
@@ -62,12 +89,16 @@ const routes = [
 
   {
     method: 'GET',
-    path: '/stats/volume',
-    handler: async (_, h) => {
+    path: '/stats/volume/{tokenA}/{tokenB}',
+    handler: async (request, h) => {
       try {
         return {
           days: {
-            7: await volume({ lastDays: 7 }),
+            7: await volume(
+              request.params['tokenA'],
+              request.params['tokenB'],
+              { lastDays: 7 }
+            ),
           },
         };
       }
