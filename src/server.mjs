@@ -7,7 +7,7 @@ import * as sync from './sync.mjs';
 import dbClient from './storage/sqlite3/db.mjs'
 
 import { volume } from './storage/sqlite3/stats.mjs';
-import derivedTxPriceData from './storage/sqlite3/db/derived.tx_price_data.mjs';
+import getPricePerSecond from './storage/sqlite3/db/derived.tx_price_data.mjs';
 
 const init = async () => {
 
@@ -88,7 +88,7 @@ const init = async () => {
     path: '/timelines/price/{tokenA}/{tokenB}',
     handler: async (request, h) => {
       try {
-        return await derivedTxPriceData.getSeconds(
+        return await getPricePerSecond(
           request.params['tokenA'],
           request.params['tokenB'],
           request.query, // the time extents and frequency and such
