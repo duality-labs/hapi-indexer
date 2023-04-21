@@ -45,9 +45,9 @@ const derivedTxPriceData = {
         // 'token0' TEXT NOT NULL,
         tokenB,
         // 'block.header.height' INTEGER NOT NULL,
-        fromHeight,
+        fromHeight > toHeight ? fromHeight : toHeight,
         // 'block.header.height' INTEGER NOT NULL,
-        toHeight,
+        fromHeight > toHeight ? toHeight: fromHeight,
         // page size
         pageSize
       ], (err, result) => err ? reject(err) : resolve(result));
