@@ -32,26 +32,48 @@ export default async function getPricePerSecond(tokenA, tokenB, givenQuery={}) {
 
   // prepare statement at run time (after db has been initialized)
   const preparedStatement = db.prepare(`
-    SELECT
-      'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',
-      'derived.tx_price_data'.'LastTick' as 'last_price'
-    FROM
-      'derived.tx_price_data'
-    WHERE
-      'derived.tx_price_data'.'meta.dex.pair' = (
-        SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
-          'dex.pairs'.'token0' = ? AND
-          'dex.pairs'.'token1' = ?
-        ) OR (
-          'dex.pairs'.'token1' = ? AND
-          'dex.pairs'.'token0' = ?
+    WITH price_points AS (
+      SELECT
+        'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',
+        first_value('derived.tx_price_data'.'LastTick')
+          OVER seconds_window as 'last_price',
+        last_value('derived.tx_price_data'.'LastTick')
+          OVER seconds_window as 'first_price',
+        'derived.tx_price_data'.'LastTick' as 'price'
+      FROM
+        'derived.tx_price_data'
+      WHERE
+        'derived.tx_price_data'.'meta.dex.pair' = (
+          SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+            'dex.pairs'.'token0' = ? AND
+            'dex.pairs'.'token1' = ?
+          ) OR (
+            'dex.pairs'.'token1' = ? AND
+            'dex.pairs'.'token0' = ?
+          )
         )
+        AND 'derived.tx_price_data'.'block.header.time_unix' <= ?
+        AND 'derived.tx_price_data'.'block.header.time_unix' >= ?
+      WINDOW seconds_window AS (
+        ORDER BY 'derived.tx_price_data'.'block.header.time_unix'
+        GROUPS CURRENT ROW
       )
-      AND 'derived.tx_price_data'.'block.header.time_unix' <= ?
-      AND 'derived.tx_price_data'.'block.header.time_unix' >= ?
+      ORDER BY
+        'derived.tx_price_data'.'block.header.time_unix' DESC,
+        'derived.tx_price_data'.'tx_result.events.index' DESC
+    )
+    SELECT
+      'price_points'.'time_unix',
+      'price_points'.'first_price' as 'open',
+      'price_points'.'last_price' as 'close',
+      min('price_points'.'price') as 'min',
+      max('price_points'.'price') as 'max'
+    FROM
+      'price_points'
+    GROUP BY
+      'price_points'.'time_unix'
     ORDER BY
-      'derived.tx_price_data'.'block.header.time_unix' DESC,
-      'derived.tx_price_data'.'tx_result.events.index' DESC
+      'price_points'.'time_unix' DESC
     LIMIT ?
     OFFSET ?
   `);
