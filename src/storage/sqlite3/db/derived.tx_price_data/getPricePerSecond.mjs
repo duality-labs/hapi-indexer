@@ -4,10 +4,10 @@ import db from '../../db.mjs';
 const camelize = s => s.replace(/-./g, x=>x[1].toUpperCase());
 
 export default async function getPricePerSecond(tokenA, tokenB, query={}) {
-  let paginationKey;
+  // use pagination key to replace any other pagination options requested
   try {
     if (query.pagination?.['key']) {
-      paginationKey = JSON.parse(
+      query.pagination = JSON.parse(
         Buffer.from(query.pagination?.['key'], 'base64url').toString('utf8')
       );
     }
@@ -18,7 +18,7 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
   // convert kebabe case keys and string values
     // to camel case keys and numeric values
     // eg { "page-size": "100" }
-  const unsafePagination = Object.entries(paginationKey || query.pagination || {})
+  const unsafePagination = Object.entries(query.pagination || {})
     .reduce((query, [key, value]) => {
       query[camelize(key)] = Number(value) || undefined;
       return query;
