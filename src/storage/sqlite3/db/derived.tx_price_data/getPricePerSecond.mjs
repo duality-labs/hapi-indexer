@@ -4,11 +4,11 @@ import db from '../../db.mjs';
 const camelize = s => s.replace(/-./g, x=>x[1].toUpperCase());
 
 export default async function getPricePerSecond(tokenA, tokenB, query={}) {
-  let nextKey;
+  let paginationKey;
   try {
-    if (query['next-key']) {
-      nextKey = JSON.parse(
-        Buffer.from(query['next-key'], 'base64url').toString('utf8')
+    if (query.pagination?.['key']) {
+      paginationKey = JSON.parse(
+        Buffer.from(query.pagination?.['key'], 'base64url').toString('utf8')
       );
     }
   }
@@ -18,16 +18,18 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
   // convert kebabe case keys and string values
     // to camel case keys and numeric values
     // eg { "page-size": "100" }
-  const numericQuery = Object.entries(nextKey || query || {}).reduce((query, [key, value]) => {
-    query[camelize(key)] = Number(value) || undefined;
-    return query;
-  }, {});
+  const unsafePagination = Object.entries(paginationKey || query.pagination || {})
+    .reduce((query, [key, value]) => {
+      query[camelize(key)] = Number(value) || undefined;
+      return query;
+    }, {});
 
+  // ensure some basic pagination limits are respected
   const pagination = {
-    offset: Math.max(0, numericQuery.offset ?? 0),
-    pageSize: Math.min(1000, numericQuery.pageSize ?? 100),
-    before: numericQuery.before ?? Math.floor(Date.now() / 1000),
-    after: numericQuery.after ?? 0,
+    offset: Math.max(0, unsafePagination.offset ?? 0),
+    limit: Math.min(1000, unsafePagination.limit ?? 100),
+    before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
+    after: unsafePagination.after ?? 0,
   };
 
   // prepare statement at run time (after db has been initialized)
@@ -94,7 +96,7 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
       // 'block.header.time_unix' INTEGER NOT NULL,
       pagination.after,
       // page size
-      pagination.pageSize,
+      pagination.limit,
       // offset
       pagination.offset,
     ], (err, result) => err ? reject(err) : resolve(result || []));
@@ -106,14 +108,14 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
       'next-key': Buffer.from(
         JSON.stringify({
           'offset': pagination.offset + data.length,
-          'page-size': pagination.pageSize,
+          'size': pagination.limit,
           // pass height queries back in exactly as it came
           // (for consistent processing)
-          ...query['before'] && {
-            'before': query['before'],
+          ...query['pagination.before'] && {
+            'before': query['pagination.before'],
           },
-          ...query['after'] && {
-            'after': query['after'],
+          ...query['pagination.after'] && {
+            'after': query['pagination.after'],
           },
         })
       ).toString('base64url'),
