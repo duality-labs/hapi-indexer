@@ -4,6 +4,14 @@ import db from '../../db.mjs';
 const camelize = s => s.replace(/-./g, x=>x[1].toUpperCase());
 
 export default async function getPricePerSecond(tokenA, tokenB, query={}) {
+  // collect pagination keys into a pagination object
+  query.pagination = Object.entries(query).reduce((pagination, [key, value]) => {
+    const [keyPrefix, paginationKey] = key.split('.');
+    if (keyPrefix === 'pagination') {
+      pagination[paginationKey] = value;
+    }
+    return pagination;
+  }, {});
   // use pagination key to replace any other pagination options requested
   try {
     if (query.pagination?.['key']) {
