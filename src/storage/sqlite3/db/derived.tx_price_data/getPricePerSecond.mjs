@@ -96,16 +96,18 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
       // 'block.header.time_unix' INTEGER NOT NULL,
       pagination.after,
       // page size
-      pagination.limit,
+      // note: requesting 1 extra element to see if another page of data exists after this one
+      pagination.limit + 1,
       // offset
       pagination.offset,
     ], (err, result) => err ? reject(err) : resolve(result || []));
   });
 
-  return {
-    data,
-    pagination: {
-      'next-key': Buffer.from(
+  // if result includes an item from the next page then remove it
+  // and generate a next key to represent the next page of data
+  const nextKey = data.length > pagination.limit
+    ? data.pop() && (
+      Buffer.from(
         JSON.stringify({
           'offset': pagination.offset + data.length,
           'size': pagination.limit,
@@ -118,7 +120,14 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
             'after': query['pagination.after'],
           },
         })
-      ).toString('base64url'),
+      ).toString('base64url')
+    )
+    : null;
+
+  return {
+    data,
+    pagination: {
+      'next-key': nextKey,
     },
   }
 }
