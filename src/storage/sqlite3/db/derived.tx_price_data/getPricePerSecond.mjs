@@ -3,12 +3,12 @@ import db from '../../db.mjs';
 
 const camelize = s => s.replace(/-./g, x=>x[1].toUpperCase());
 
-export default async function getPricePerSecond(tokenA, tokenB, givenQuery={}) {
+export default async function getPricePerSecond(tokenA, tokenB, query={}) {
   let nextKey;
   try {
-    if (givenQuery['next-key']) {
+    if (query['next-key']) {
       nextKey = JSON.parse(
-        Buffer.from(givenQuery['next-key'], 'base64url').toString('utf8')
+        Buffer.from(query['next-key'], 'base64url').toString('utf8')
       );
     }
   }
@@ -18,12 +18,12 @@ export default async function getPricePerSecond(tokenA, tokenB, givenQuery={}) {
   // convert kebabe case keys and string values
     // to camel case keys and numeric values
     // eg { "page-size": "100" }
-  const numericQuery = Object.entries(nextKey || givenQuery || {}).reduce((query, [key, value]) => {
+  const numericQuery = Object.entries(nextKey || query || {}).reduce((query, [key, value]) => {
     query[camelize(key)] = Number(value) || undefined;
     return query;
   }, {});
 
-  const query = {
+  const pagination = {
     offset: Math.max(0, numericQuery.offset ?? 0),
     pageSize: Math.min(1000, numericQuery.pageSize ?? 100),
     before: numericQuery.before ?? Math.floor(Date.now() / 1000),
@@ -90,13 +90,13 @@ export default async function getPricePerSecond(tokenA, tokenB, givenQuery={}) {
       // 'token0' TEXT NOT NULL,
       tokenB,
       // 'block.header.time_unix' INTEGER NOT NULL,
-      query.before,
+      pagination.before,
       // 'block.header.time_unix' INTEGER NOT NULL,
-      query.after,
+      pagination.after,
       // page size
-      query.pageSize,
+      pagination.pageSize,
       // offset
-      query.offset,
+      pagination.offset,
     ], (err, result) => err ? reject(err) : resolve(result || []));
   });
 
@@ -105,15 +105,15 @@ export default async function getPricePerSecond(tokenA, tokenB, givenQuery={}) {
     pagination: {
       'next-key': Buffer.from(
         JSON.stringify({
-          'offset': query.offset + data.length,
-          'page-size': query.pageSize,
+          'offset': pagination.offset + data.length,
+          'page-size': pagination.pageSize,
           // pass height queries back in exactly as it came
           // (for consistent processing)
-          ...givenQuery['before'] && {
-            'before': givenQuery['before'],
+          ...query['before'] && {
+            'before': query['before'],
           },
-          ...givenQuery['after'] && {
-            'after': givenQuery['after'],
+          ...query['after'] && {
+            'after': query['after'],
           },
         })
       ).toString('base64url'),
