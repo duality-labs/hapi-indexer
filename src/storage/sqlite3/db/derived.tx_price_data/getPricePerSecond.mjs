@@ -46,9 +46,9 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
       SELECT
         'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',
         first_value('derived.tx_price_data'.'LastTick')
-          OVER seconds_window as 'last_price',
-        last_value('derived.tx_price_data'.'LastTick')
           OVER seconds_window as 'first_price',
+        last_value('derived.tx_price_data'.'LastTick')
+          OVER seconds_window as 'last_price',
         'derived.tx_price_data'.'LastTick' as 'price'
       FROM
         'derived.tx_price_data'
