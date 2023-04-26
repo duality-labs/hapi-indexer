@@ -73,7 +73,7 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
         'derived.tx_price_data'.'tx_result.events.index' DESC
     )
     SELECT
-      'price_points'.'time_unix' as 'time',
+      'price_points'.'time_unix' as 'time_unix',
       'price_points'.'first_price' as 'open',
       'price_points'.'last_price' as 'close',
       min('price_points'.'price') as 'low',
@@ -132,8 +132,15 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
     )
     : null;
 
+  const shape = ['time_unix', ['open', 'high', 'low', 'close']];
   return {
-    data,
+    shape,
+    data: data.map(row => {
+      return [
+        row['time_unix'],
+        [row['open'], row['high'], row['low'], row['close']]
+      ];
+    }),
     pagination: {
       'next-key': nextKey,
     },
