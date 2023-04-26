@@ -73,11 +73,11 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
         'derived.tx_price_data'.'tx_result.events.index' DESC
     )
     SELECT
-      'price_points'.'time_unix',
+      'price_points'.'time_unix' as 'time',
       'price_points'.'first_price' as 'open',
       'price_points'.'last_price' as 'close',
-      min('price_points'.'price') as 'min',
-      max('price_points'.'price') as 'max'
+      min('price_points'.'price') as 'low',
+      max('price_points'.'price') as 'high'
     FROM
       'price_points'
     GROUP BY
