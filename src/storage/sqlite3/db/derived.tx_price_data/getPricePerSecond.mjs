@@ -41,7 +41,7 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
   };
 
   // prepare statement at run time (after db has been initialized)
-  const preparedStatement = await db.prepare(`
+  const preparedStatement = await db.prepare(`--sql
     WITH price_points AS (
       SELECT
         'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',

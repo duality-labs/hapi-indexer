@@ -21,7 +21,7 @@ function translateEvents({ type, attributes }, index) {
 let insertBlock;
 async function insertBlockRows(tx_result) {
   // activate at run time (after db has been initialized)
-  insertBlock = insertBlock || await db.prepare(`
+  insertBlock = insertBlock || await db.prepare(`--sql
     INSERT OR IGNORE INTO 'block' (
       'header.height',
       'header.time',
@@ -45,12 +45,12 @@ let getDexTokens;
 let insertDexTokens;
 async function insertDexTokensRows(txEvent) {
   // activate at run time (after db has been initialized)
-  getDexTokens = getDexTokens || await db.prepare(`
+  getDexTokens = getDexTokens || await db.prepare(`--sql
     SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
       'dex.tokens'.'token' = ?
     )
   `);
-  insertDexTokens = insertDexTokens || await db.prepare(`
+  insertDexTokens = insertDexTokens || await db.prepare(`--sql
     INSERT OR IGNORE INTO 'dex.tokens' (
       'token'
     ) values (?)
@@ -92,13 +92,13 @@ let getDexPairs;
 let insertDexPairs;
 async function insertDexPairsRows(txEvent) {
   // activate at run time (after db has been initialized)
-  getDexPairs = getDexPairs || await db.prepare(`
+  getDexPairs = getDexPairs || await db.prepare(`--sql
     SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
       'dex.pairs'.'token0' = ? AND
       'dex.pairs'.'token1' = ?
     )
   `);
-  insertDexPairs = insertDexPairs || await db.prepare(`
+  insertDexPairs = insertDexPairs || await db.prepare(`--sql
     INSERT OR IGNORE INTO 'dex.pairs' (
       'token0',
       'token1'
@@ -137,7 +137,7 @@ function getBlockTimeFromTxResult(tx_result) {
 let insertTx;
 async function insertTxRows(tx_result, index) {
   // activate at run time (after db has been initialized)
-  insertTx = insertTx || await db.prepare(`
+  insertTx = insertTx || await db.prepare(`--sql
     INSERT INTO 'tx' (
       'block.header.height',
       'block.header.time_unix',
@@ -184,7 +184,7 @@ async function insertTxRows(tx_result, index) {
 let insertTxEvent;
 async function insertTxEventRows(tx_result, txEvent, index) {
   // activate at run time (after db has been initialized)
-  insertTxEvent = insertTxEvent || await db.prepare(`
+  insertTxEvent = insertTxEvent || await db.prepare(`--sql
     INSERT INTO 'tx_result.events' (
       'block.header.height',
       'block.header.time_unix',
@@ -241,7 +241,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
       // continue logic for several dex events
       // add event row to specific event table:
       if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
-        await db.run(`
+        await db.run(`--sql
           INSERT INTO 'event.TickUpdate' (
             'block.header.height',
             'block.header.time_unix',
@@ -282,7 +282,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
           await upsertDerivedTickStateRows(tx_result, txEvent, index);
       }
       else if (isDexMessage && txEvent.attributes.action === 'Swap') {
-        await db.run(`
+        await db.run(`--sql
           INSERT INTO 'event.Swap' (
             'block.header.height',
             'block.header.time_unix',
@@ -336,7 +336,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
         ]);
       }
       else if (isDexMessage && txEvent.attributes.action === 'Deposit') {
-        await db.run(`
+        await db.run(`--sql
           INSERT INTO 'event.Deposit' (
             'block.header.height',
             'block.header.time_unix',
@@ -378,7 +378,7 @@ async function insertTxEventRows(tx_result, txEvent, index) {
         ]);
       }
       else if (isDexMessage && txEvent.attributes.action === 'Withdraw') {
-        await db.run(`
+        await db.run(`--sql
           INSERT INTO 'event.Withdraw' (
             'block.header.height',
             'block.header.time_unix',
@@ -432,7 +432,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
     const blockTime = getBlockTimeFromTxResult(tx_result);
 
     // activate at run time (after db has been initialized)
-    upsertTickState = upsertTickState || await db.prepare(`
+    upsertTickState = upsertTickState || await db.prepare(`--sql
       INSERT OR REPLACE INTO 'derived.tick_state' (
         'meta.dex.pair',
         'meta.dex.token',
@@ -465,7 +465,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
         const tickSide = isForward ? 'LowestTick1': 'HighestTick0';
         // note that previousTickIndex may not exist yet
         const previousPriceData = await
-          db.get(`
+          db.get(`--sql
             SELECT 'derived.tx_price_data'.'HighestTick0', 'derived.tx_price_data'.'LowestTick1' FROM 'derived.tx_price_data' WHERE (
               'derived.tx_price_data'.'meta.dex.pair' = (
                 SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE ('dex.pairs'.'Token0' = ? AND 'dex.pairs'.'Token1' = ?)
@@ -486,7 +486,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
 
         // derive data from entire ticks state (useful for maybe some other calculations)
         const currentTickIndex = await
-          db.get(`
+          db.get(`--sql
             SELECT 'derived.tick_state'.'TickIndex' FROM 'derived.tick_state' WHERE (
               'derived.tick_state'.'meta.dex.pair' = (
                 SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE ('dex.pairs'.'Token0' = ? AND 'dex.pairs'.'Token1' = ?)
@@ -511,7 +511,7 @@ async function upsertDerivedTickStateRows(tx_result, txEvent, index) {
 
         // if activity has changed current price then update data
         if (previousTickIndex !== currentTickIndex) {
-          upsertTxPriceData = upsertTxPriceData || await db.prepare(`
+          upsertTxPriceData = upsertTxPriceData || await db.prepare(`--sql
             INSERT OR REPLACE INTO 'derived.tx_price_data' (
               'block.header.height',
               'block.header.time_unix',

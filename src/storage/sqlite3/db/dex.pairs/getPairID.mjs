@@ -5,7 +5,7 @@ export default async function getPairID(tokenA, tokenB) {
 
   // wrap response in a promise
   return await
-    db.get(`
+    db.get(`--sql
       SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
         'dex.pairs'.'token0' = ? AND
         'dex.pairs'.'token1' = ?

@@ -44,7 +44,7 @@ async function volume(tokenA, tokenB, { lastDays, lastSeconds = lastDays * 24 * 
   const unixStart = unixNow - lastSeconds;
 
   return await
-    db.all(`
+    db.all(`--sql
       SELECT
         'event.Swap'.'block.header.time_unix',
         'event.Swap'.'AmountOut',
