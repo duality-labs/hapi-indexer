@@ -1,7 +1,7 @@
 import Hapi from '@hapi/hapi';
 import logger from './logger.mjs';
 
-import db from './storage/sqlite3/db.mjs';
+import { dbPromise } from './storage/sqlite3/db.mjs';
 import initDbSchema from './storage/sqlite3/schema.mjs';
 import * as sync from './sync.mjs';
 
@@ -10,6 +10,7 @@ import routes from './routes.mjs';
 const init = async () => {
 
   // wait for database to be set up before creating server
+  await dbPromise;
   await initDbSchema();
   await sync.catchUp();
 

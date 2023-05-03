@@ -5,9 +5,9 @@ if (process.env.NODE_ENV === 'development') {
   sqlite3.verbose();
 }
 
-const db = await open({
-  filename: '/tmp/database.db',
+export const dbPromise = open({
+  filename: ':memory:',
   driver: sqlite3.Database
 });
 
-export default db;
+export default await dbPromise;
