@@ -11,6 +11,7 @@
   "dependencies": {
     "@hapi/hapi": "^21.3.1",
     "bignumber.js": "^9.1.1",
+    "sql-template-strings": "^2.2.2",
     "sqlite": "^4.2.0",
     "sqlite3": "^5.1.6",
     "winston": "^3.8.2"

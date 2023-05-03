@@ -1,3 +1,5 @@
+import sql from 'sql-template-strings';
+
 import logger from '../../../../logger.mjs';
 import db from '../../db.mjs';
 
@@ -41,7 +43,7 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
   };
 
   // prepare statement at run time (after db has been initialized)
-  const preparedStatement = await db.prepare(`--sql
+  const data = await db.all(sql`
     WITH price_points AS (
       SELECT
         'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',
@@ -55,15 +57,15 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
       WHERE
         'derived.tx_price_data'.'meta.dex.pair' = (
           SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
-            'dex.pairs'.'token0' = ? AND
-            'dex.pairs'.'token1' = ?
+            'dex.pairs'.'token0' = ${tokenA} AND
+            'dex.pairs'.'token1' = ${tokenB}
           ) OR (
-            'dex.pairs'.'token1' = ? AND
-            'dex.pairs'.'token0' = ?
+            'dex.pairs'.'token1' = ${tokenA} AND
+            'dex.pairs'.'token0' = ${tokenB}
           )
         )
-        AND 'derived.tx_price_data'.'block.header.time_unix' <= ?
-        AND 'derived.tx_price_data'.'block.header.time_unix' >= ?
+        AND 'derived.tx_price_data'.'block.header.time_unix' <= ${pagination.before}
+        AND 'derived.tx_price_data'.'block.header.time_unix' >= ${pagination.after}
       WINDOW seconds_window AS (
         ORDER BY 'derived.tx_price_data'.'block.header.time_unix'
         GROUPS CURRENT ROW
@@ -84,35 +86,13 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
       'price_points'.'time_unix'
     ORDER BY
       'price_points'.'time_unix' DESC
-    LIMIT ?
-    OFFSET ?
+    LIMIT ${pagination.limit + 1}
+    OFFSET ${pagination.offset}
   `);
-
-  // wrap response in a promise
-  const data = await
-    preparedStatement.all([
-      // 'token0' TEXT NOT NULL,
-      tokenA,
-      // 'token1' TEXT NOT NULL,
-      tokenB,
-      // 'token1' TEXT NOT NULL,
-      tokenA,
-      // 'token0' TEXT NOT NULL,
-      tokenB,
-      // 'block.header.time_unix' INTEGER NOT NULL,
-      pagination.before,
-      // 'block.header.time_unix' INTEGER NOT NULL,
-      pagination.after,
-      // page size
-      // note: requesting 1 extra element to see if another page of data exists after this one
-      pagination.limit + 1,
-      // offset
-      pagination.offset,
-    ]).then((result) => result || []);
 
   // if result includes an item from the next page then remove it
   // and generate a next key to represent the next page of data
-  const nextKey = data.length > pagination.limit
+  const nextKey = data && data.length > pagination.limit
     ? data.pop() && (
       Buffer.from(
         JSON.stringify({
@@ -134,7 +114,7 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
   const shape = ['time_unix', ['open', 'high', 'low', 'close']];
   return {
     shape,
-    data: data.map(row => {
+    data: (data || []).map(row => {
       return [
         row['time_unix'],
         [row['open'], row['high'], row['low'], row['close']]
