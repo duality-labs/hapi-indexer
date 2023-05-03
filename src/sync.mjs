@@ -37,10 +37,17 @@ const pollingLogger = createLogger({
 
 async function iterateThroughPages(readPage, logger) {
   let lastProgressTime = 0;
+  let lastNumerator = 0;
   function printProgress(numerator, divisor, message) {
-    if (message || (Date.now() - lastProgressTime > 1000)) {
-      logger.info(message || `import progress: ${(100 * numerator / divisor).toFixed(1).padStart(5, ' ')}% (${numerator} items)`);
-      lastProgressTime = Date.now();
+    const now = Date.now();
+    if (message || (now - lastProgressTime > 1000)) {
+      logger.info(message || `import progress: ${
+        (100 * numerator / divisor).toFixed(1).padStart(5, ' ')
+      }% (${numerator} items) (~${
+        ((now - lastProgressTime)/(numerator - lastNumerator)).toFixed(0)
+      }ms per item)`);
+      lastProgressTime = now;
+      lastNumerator = numerator;
     }
   }
 
@@ -48,6 +55,7 @@ async function iterateThroughPages(readPage, logger) {
   let currentItemCount = 0;
   let previousItemCount = 0;
 
+  const startTime = Date.now();
   printProgress(0, 1, 'import starting');
   do {
     // read page data and return counting details
@@ -61,7 +69,12 @@ async function iterateThroughPages(readPage, logger) {
     // see progress
     printProgress(currentItemCount, totalItemCount);
   } while (currentItemCount > previousItemCount && !!currentPage);
-  printProgress(1, 1, 'import done');
+  const duration = Date.now() - startTime;
+  printProgress(1, 1, `import done (done in ${
+    (duration/1000).toFixed(1)
+  } seconds, ${
+    (duration/(currentItemCount || 1)).toFixed(1)
+  }ms per transaction)`);
 };
 
 let maxBlockHeight = 0;
@@ -108,11 +121,20 @@ export async function keepUpREST () {
 
     defaultLogger.info(`keeping up: polling`);
     const lastBlockHeight = maxBlockHeight;
+    const startTime = Date.now();
     await catchUpREST({ fromBlockHeight: maxBlockHeight + 1, logger: pollingLogger });
+    const duration = Date.now() - startTime;
 
     // log block height increments
     if (maxBlockHeight > lastBlockHeight) {
-      defaultLogger.info(`keeping up: last block processed: ${maxBlockHeight}`);
+      defaultLogger.info(`keeping up: last block processed: ${maxBlockHeight} (done in ${
+        (duration/1000).toFixed(3)
+      } seconds)`);
+    }
+    else {
+      defaultLogger.info(`keeping up: no change (done in ${
+        (duration/1000).toFixed(3)
+      } seconds)`);
     }
 
     // poll again after a certain amount of time has passed
