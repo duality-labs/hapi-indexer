@@ -15,8 +15,12 @@ const rootPath = {
 // add debug path
 const debugPath = {
   method: 'GET',
-  path: '/debug',
-  handler: async (_, h) => {
+  path: '/debug/{limitOrAll?}',
+  handler: async (request, h) => {
+    // set limit to all or the given number (defaulting to 100)
+    const limit = request.params['limitOrAll'] === 'all'
+      ? 0
+      : Number(request.params['limitOrAll']) || 100;
     try {
       const tableNames = 
         await db
@@ -26,7 +30,7 @@ const debugPath = {
       const tableEntries = await Promise.all(tableNames.filter(name => name !== 'sqlite_sequence').map(async tableName => {
         return await db
           .all(`SELECT * FROM '${tableName}'`, [])
-          .then((rows) => [tableName, rows]);
+          .then((rows) => [tableName, rows.slice(-limit)]);
       }));
       return Object.fromEntries(tableEntries);
     }
