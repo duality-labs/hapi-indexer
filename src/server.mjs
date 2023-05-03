@@ -1,7 +1,8 @@
 import Hapi from '@hapi/hapi';
 import logger from './logger.mjs';
 
-import * as db from './storage/sqlite3/index.mjs';
+import db from './storage/sqlite3/db.mjs';
+import initDbSchema from './storage/sqlite3/schema.mjs';
 import * as sync from './sync.mjs';
 
 import routes from './routes.mjs';
@@ -9,7 +10,7 @@ import routes from './routes.mjs';
 const init = async () => {
 
   // wait for database to be set up before creating server
-  await db.init();
+  await initDbSchema();
   await sync.catchUp();
 
   const server = Hapi.server({
@@ -38,9 +39,9 @@ const init = async () => {
   await sync.keepUp();
 };
 
-process.on('unhandledRejection', (err) => {
+process.on('unhandledRejection', async (err) => {
   logger.error(err);
-  db.close();
+  await db.close();
   process.exit(1);
 });
 

@@ -18,31 +18,17 @@ const debugPath = {
   path: '/debug',
   handler: async (_, h) => {
     try {
-      const tableNames = await new Promise((resolve, reject) => {
-        db.all(`SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name`, [], (err, rows) => {
-          if (err) {
-            reject(err);
-          }
-          else {
-            resolve(rows.map(row => row.name))
-          }
-        });
-      })
-      return Promise.all(tableNames.filter(name => name !== 'sqlite_sequence').map(tableName => {
-        return new Promise((resolve, reject) => {
-          db.all(`SELECT * FROM '${tableName}'`, [], (err, rows) => {
-            if (err) {
-              reject(err);
-            }
-            else {
-              resolve([tableName, rows]);
-            }
-          });
-        });
-      })).then(tables => tables.reduce((acc, [tableName, rows]) => {
-        acc[tableName] = rows;
-        return acc;
-      }, {}));
+      const tableNames = 
+        await db
+          .all(`SELECT name FROM 'sqlite_schema' WHERE type='table' ORDER BY name`, [])
+          .then((rows) => rows.map(row => row.name));
+      // return as rows keyed under the table name
+      const tableEntries = await Promise.all(tableNames.filter(name => name !== 'sqlite_sequence').map(async tableName => {
+        return await db
+          .all(`SELECT * FROM '${tableName}'`, [])
+          .then((rows) => [tableName, rows]);
+      }));
+      return Object.fromEntries(tableEntries);
     }
     catch (err) {
       logger.error(err);

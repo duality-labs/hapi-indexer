@@ -41,7 +41,7 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
   };
 
   // prepare statement at run time (after db has been initialized)
-  const preparedStatement = db.prepare(`
+  const preparedStatement = await db.prepare(`
     WITH price_points AS (
       SELECT
         'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',
@@ -89,7 +89,7 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
   `);
 
   // wrap response in a promise
-  const data = await new Promise((resolve, reject) => {
+  const data = await
     preparedStatement.all([
       // 'token0' TEXT NOT NULL,
       tokenA,
@@ -108,8 +108,7 @@ export default async function getPricePerSecond(tokenA, tokenB, query={}) {
       pagination.limit + 1,
       // offset
       pagination.offset,
-    ], (err, result) => err ? reject(err) : resolve(result || []));
-  });
+    ]).then((result) => result || []);
 
   // if result includes an item from the next page then remove it
   // and generate a next key to represent the next page of data

@@ -1,54 +1,48 @@
 import db from './db.mjs'
 
-function promisify(unpromisifiedCallback) {
-  return new Promise((resolve, reject) => {
-    unpromisifiedCallback(err => err ? reject(err) : resolve());
-  })
-}
-
 export default async function init() {
 
   const promises = [];
   db.serialize(() => {
 
     // setup module foreign key indexes to be used first
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE TABLE 'dex.tokens' (
           'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
           'token' TEXT NOT NULL
         );
-      `, cb);
-    }));
+      `)
+    );
     // ensure token combination is unique
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE UNIQUE INDEX 'dex.tokens--token' ON 'dex.tokens' ('token');
-      `, cb);
-    }));
+      `)
+    );
 
     // setup module foreign key indexes to be used first
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE TABLE 'dex.pairs' (
           'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
           'token0' TEXT NOT NULL,
           'token1' TEXT NOT NULL
         );
-      `, cb);
-    }));
+      `)
+    );
     // ensure token combination is unique
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE UNIQUE INDEX 'dex.pairs--token0,token1' ON 'dex.pairs' (
           'token0',
           'token1'
         );
-      `, cb);
-    }));
+      `)
+    );
 
     // setup blocks table with indexed columns to be used as foreign keys
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE TABLE 'block' (
           'header.height' INTEGER PRIMARY KEY NOT NULL,
@@ -56,11 +50,11 @@ export default async function init() {
 
           'header.time_unix' INTEGER UNIQUE NOT NULL
         );
-      `, cb);
-    }));
+      `)
+    );
 
     // setup transactions table with block height foreign key
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE TABLE 'tx' (
           'block.header.height' INTEGER NOT NULL,
@@ -78,10 +72,10 @@ export default async function init() {
           FOREIGN KEY('block.header.height') REFERENCES 'block'('header.height'),
           FOREIGN KEY('block.header.time_unix') REFERENCES 'block'('header.time_unix')
         );
-      `, cb);
-    }));
+      `)
+    );
     // ensure block.height + tx.index combination is unique
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE INDEX 'tx--block.header.height,index' ON 'tx' (
           'block.header.height',
@@ -93,19 +87,19 @@ export default async function init() {
         CREATE INDEX 'tx--tx_result.code' ON 'tx' (
           'tx_result.code'
         );
-      `, cb);
-    }));
+      `)
+    );
 
     // setup events table with many foreign keys and derived metadata flags
     // attributes are JSON blobs (it's ok, they need to be extracted out into BigNumbers to be useful anyway)
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE TABLE 'tx_result.events' (
           'block.header.height' INTEGER NOT NULL,
           'block.header.time_unix' INTEGER NOT NULL,
           'tx.index' INTEGER NOT NULL,
           'tx.tx_result.code' INTEGER NOT NULL,
-          
+
           'index' INTEGER NOT NULL,
           'type' TEXT NOT NULL,
           'attributes' TEXT NOT NULL,
@@ -123,22 +117,22 @@ export default async function init() {
           FOREIGN KEY('meta.dex.pair_deposit') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.pair_withdraw') REFERENCES 'dex.pairs'('id')
         );
-      `, cb);
-    }));
+      `)
+    );
     // ensure block.height + tx.index + event.index combination is unique
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE UNIQUE INDEX 'tx_result.events--block.header.height,tx.index,index' ON 'tx_result.events' (
           'block.header.height',
           'tx.index',
           'index'
         );
-      `, cb);
-    }));
+      `)
+    );
 
     // setup events tables for specific events
     // these are key values form the event attributes (in 'tx_result.events'.'attributes' as JSON blobs
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE TABLE 'event.Deposit' (
           'block.header.height' INTEGER NOT NULL,
@@ -164,19 +158,19 @@ export default async function init() {
           FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
         );
-      `, cb);
-    }));
+      `)
+    );
     // add unique index constraint
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE UNIQUE INDEX 'event.Deposit--block.header.height,tx.index,tx_result.events.index' ON 'event.Deposit' (
           'block.header.height',
           'tx.index',
           'tx_result.events.index'
         );
-      `, cb);
-    }));
-    promises.push(promisify(cb => {
+      `)
+    );
+    promises.push(
       db.run(`
         CREATE TABLE 'event.Withdraw' (
           'block.header.height' INTEGER NOT NULL,
@@ -202,19 +196,19 @@ export default async function init() {
           FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
         );
-      `, cb);
-    }));
+      `)
+    );
     // add unique index constraint
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE UNIQUE INDEX 'event.Withdraw--block.header.height,tx.index,tx_result.events.index' ON 'event.Withdraw' (
           'block.header.height',
           'tx.index',
           'tx_result.events.index'
         );
-      `, cb);
-    }));
-    promises.push(promisify(cb => {
+      `)
+    );
+    promises.push(
       db.run(`
         CREATE TABLE 'event.Swap' (
           'block.header.height' INTEGER NOT NULL,
@@ -243,22 +237,22 @@ export default async function init() {
           FOREIGN KEY('meta.dex.tokenIn') REFERENCES 'dex.tokens'('id'),
           FOREIGN KEY('meta.dex.tokenOut') REFERENCES 'dex.tokens'('id')
         );
-      `, cb);
-    }));
+      `)
+    );
     // add unique index constraint
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE UNIQUE INDEX 'event.Swap--block.header.height,tx.index,tx_result.events.index' ON 'event.Swap' (
           'block.header.height',
           'tx.index',
           'tx_result.events.index'
         );
-      `, cb);
-    }));
+      `)
+    );
 
     // add ticks table to hold all ticks data
     // (larger and more frequently changing than other tables)
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE TABLE 'event.TickUpdate' (
           'block.header.height' INTEGER NOT NULL,
@@ -282,30 +276,30 @@ export default async function init() {
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.token') REFERENCES 'dex.tokens'('id')
         );
-      `, cb);
-    }));
+      `)
+    );
     // add unique index constraint
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE UNIQUE INDEX 'event.TickUpdate--block.header.height,tx.index,tx_result.events.index' ON 'event.TickUpdate' (
           'block.header.height',
           'tx.index',
           'tx_result.events.index'
         );
-      `, cb);
-    }));
+      `)
+    );
     // add index for quick timeseries lookups, ie. lookup by pair id and then time
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE INDEX 'event.TickUpdate--meta.dex.pair,block.header.time_unix' ON 'event.TickUpdate' (
           'meta.dex.pair',
           'block.header.time_unix'
         );
-      `, cb);
-    }));
+      `)
+    );
 
     // add derived data from tick update data to know the state of all ticks throughout time
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE TABLE 'derived.tick_state' (
           'meta.dex.pair' INTEGER NOT NULL,
@@ -317,21 +311,21 @@ export default async function init() {
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id'),
           FOREIGN KEY('meta.dex.token') REFERENCES 'dex.tokens'('id')
         );
-      `, cb);
-    }));
+      `)
+    );
     // add unique index for tick state to ensure no duplicate tick state
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE UNIQUE INDEX 'derived.tick_state--meta.dex.pair,meta.dex.token,TickIndex' ON 'derived.tick_state' (
           'meta.dex.pair',
           'meta.dex.token',
           'TickIndex'
         );
-      `, cb);
-    }));
+      `)
+    );
 
     // add derived data from tick update data to know the state of all ticks throughout time
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE TABLE 'derived.tx_price_data' (
           'block.header.height' INTEGER NOT NULL,
@@ -351,27 +345,27 @@ export default async function init() {
           FOREIGN KEY('tx_result.events.index') REFERENCES 'tx_result.events'('index'),
           FOREIGN KEY('meta.dex.pair') REFERENCES 'dex.pairs'('id')
         );
-      `, cb);
-    }));
+      `)
+    );
     // add unique index constraint
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE UNIQUE INDEX 'derived.tx_price_data--block.header.height,tx.index,tx_result.events.index' ON 'derived.tx_price_data' (
           'block.header.height',
           'tx.index',
           'tx_result.events.index'
         );
-      `, cb);
-    }));
+      `)
+    );
     // add index for quick timeseries lookups, ie. lookup by pair id and then time
-    promises.push(promisify(cb => {
+    promises.push(
       db.run(`
         CREATE INDEX 'derived.tx_price_data--meta.dex.pair,block.header.time_unix' ON 'derived.tx_price_data' (
           'meta.dex.pair',
           'block.header.time_unix'
         );
-      `, cb);
-    }));
+      `)
+    );
 
   });
 

@@ -1,6 +1,13 @@
-import Sqlite3 from 'sqlite3'
+import sqlite3 from 'sqlite3'
+import { open } from 'sqlite'
 
-const sqlite3 = Sqlite3.verbose();
-const db = new sqlite3.Database(':memory:');
+if (process.env.NODE_ENV === 'development') {
+  sqlite3.verbose();
+}
+
+const db = await open({
+  filename: '/tmp/database.db',
+  driver: sqlite3.Database
+});
 
 export default db;

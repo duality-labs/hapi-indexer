@@ -4,7 +4,7 @@ import db from '../../db.mjs';
 export default async function getPairID(tokenA, tokenB) {
 
   // wrap response in a promise
-  return new Promise((resolve, reject) => {
+  return await
     db.get(`
       SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
         'dex.pairs'.'token0' = ? AND
@@ -22,15 +22,9 @@ export default async function getPairID(tokenA, tokenB) {
       tokenA,
       // 'token0' TEXT NOT NULL,
       tokenB,
-    ], (err, result) => {
-      if (err) {
-        return reject(err);
-      }
+    ])
+    .then((result) => {
       // return found id
-      const id = result?.['id'];
-      if (id) {
-        return resolve(id);
-      }
+      return result?.['id'] || undefined;
     });
-  });
 }

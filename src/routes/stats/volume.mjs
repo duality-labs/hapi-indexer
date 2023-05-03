@@ -43,7 +43,7 @@ async function volume(tokenA, tokenB, { lastDays, lastSeconds = lastDays * 24 * 
   const unixNow = Math.round(Date.now() / 1000);
   const unixStart = unixNow - lastSeconds;
 
-  return new Promise((resolve, reject) => {
+  return await
     db.all(`
       SELECT
         'event.Swap'.'block.header.time_unix',
@@ -72,17 +72,13 @@ async function volume(tokenA, tokenB, { lastDays, lastSeconds = lastDays * 24 * 
       tokenB,
       // 'block.header.time_unix' INTEGER NOT NULL,
       unixStart,
-    ], (err, rows=[]) => {
-        if (err) reject(err);
-        resolve(
-          // find the volume traded within these events
-          rows.reduce((acc, row) => {
+    ])
+    .then((rows=[]) => {
+          return rows.reduce((acc, row) => {
             // todo: add conversion to base currency to get real total value
             return acc.plus(row['AmountOut'] ?? '0')
           }, new BigNumber(0))
-        );
     });
-  });
 }
 
 const routes = [
