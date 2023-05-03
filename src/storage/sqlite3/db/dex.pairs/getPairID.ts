@@ -1,7 +1,7 @@
-import db from '../../db.mjs';
+import db from '../db';
 
 // get pair ID without know which is token0 or token1
-export default async function getPairID(tokenA, tokenB) {
+export default async function getPairID(tokenA: string, tokenB: string) {
 
   // wrap response in a promise
   return await

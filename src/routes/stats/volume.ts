@@ -1,8 +1,8 @@
-
+import { Request, ResponseToolkit } from '@hapi/hapi';
 import BigNumber from 'bignumber.js';
 
-import db from '../../storage/sqlite3/db.mjs';
-import logger from '../../logger.mjs';
+import db from '../../storage/sqlite3/db/db';
+import logger from '../../logger';
 
 // get volume of pair over last 7 days
 // SELECT 'dex.pairs'
@@ -38,7 +38,10 @@ import logger from '../../logger.mjs';
 //                      are needed to get events with timestamps
 //                      as foreign keys are used
 
-async function volume(tokenA, tokenB, { lastDays, lastSeconds = lastDays * 24 * 60 * 60 }) {
+async function volume(tokenA: string, tokenB: string, { lastDays = 1, lastSeconds = lastDays * 24 * 60 * 60 }: {
+  lastDays?: number;
+  lastSeconds?: number;
+}) {
 
   const unixNow = Math.round(Date.now() / 1000);
   const unixStart = unixNow - lastSeconds;
@@ -86,7 +89,7 @@ const routes = [
   {
     method: 'GET',
     path: '/stats/volume/{tokenA}/{tokenB}',
-    handler: async (request, h) => {
+    handler: async (request: Request, h: ResponseToolkit) => {
       try {
         return {
           hours: {
@@ -115,9 +118,12 @@ const routes = [
           },
         };
       }
-      catch (err) {
-        logger.error(err);
-        return h.response(`something happened: ${err.message || '?'}`).code(500);
+      catch (err: unknown) {
+        if (err instanceof Error) {
+          logger.error(err);
+          return h.response(`something happened: ${err.message || '?'}`).code(500);  
+        }
+        return h.response('An unknown error occurred').code(500);  
       }
     },
   },

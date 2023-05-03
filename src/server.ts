@@ -1,11 +1,11 @@
 import Hapi from '@hapi/hapi';
-import logger from './logger.mjs';
+import logger from './logger';
 
-import { dbPromise } from './storage/sqlite3/db.mjs';
-import initDbSchema from './storage/sqlite3/schema.mjs';
-import * as sync from './sync.mjs';
+import db, { dbPromise } from './storage/sqlite3/db/db.js';
+import initDbSchema from './storage/sqlite3/schema';
+import * as sync from './sync';
 
-import routes from './routes.mjs';
+import routes from './routes';
 
 const init = async () => {
 

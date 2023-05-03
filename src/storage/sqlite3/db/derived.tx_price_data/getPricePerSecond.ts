@@ -1,41 +1,44 @@
 import sql from 'sql-template-strings';
 
-import logger from '../../../../logger.mjs';
-import db from '../../db.mjs';
+import logger from '../../../../logger';
+import db from '../db';
+import { RequestQuery } from '@hapi/hapi';
 
-const camelize = s => s.replace(/-./g, x=>x[1].toUpperCase());
+interface UnsafePagination {
+  offset?: number;
+  limit?: number;
+  before?: number;
+  after?: number;
+}
+interface Pagination {
+  offset: number;
+  limit: number;
+  before: number;
+  after: number;
+}
 
-export default async function getPricePerSecond(tokenA, tokenB, query={}) {
+export default async function getPricePerSecond(tokenA: string, tokenB: string, query: RequestQuery={}) {
   // collect pagination keys into a pagination object
-  query.pagination = Object.entries(query).reduce((pagination, [key, value]) => {
-    const [keyPrefix, paginationKey] = key.split('.');
-    if (keyPrefix === 'pagination') {
-      pagination[paginationKey] = value;
-    }
-    return pagination;
-  }, {});
+  let unsafePagination: UnsafePagination = {
+    offset: Number(query['pagination.offset']) || undefined,
+    limit: Number(query['pagination.limit']) || undefined,
+    before: Number(query['pagination.before']) || undefined,
+    after: Number(query['pagination.after']) || undefined,
+  }
   // use pagination key to replace any other pagination options requested
   try {
-    if (query.pagination?.['key']) {
-      query.pagination = JSON.parse(
-        Buffer.from(query.pagination?.['key'], 'base64url').toString('utf8')
+    if (query['pagination.key']) {
+      unsafePagination = JSON.parse(
+        Buffer.from(query['pagination.key'], 'base64url').toString('utf8')
       );
     }
   }
   catch (e) {
     logger.error(e);
   }
-  // convert kebabe case keys and string values
-    // to camel case keys and numeric values
-    // eg { "page-size": "100" }
-  const unsafePagination = Object.entries(query.pagination || {})
-    .reduce((query, [key, value]) => {
-      query[camelize(key)] = Number(value) || undefined;
-      return query;
-    }, {});
 
   // ensure some basic pagination limits are respected
-  const pagination = {
+  const pagination: Pagination = {
     offset: Math.max(0, unsafePagination.offset ?? 0),
     limit: Math.min(1000, unsafePagination.limit ?? 100),
     before: unsafePagination.before ?? Math.floor(Date.now() / 1000),

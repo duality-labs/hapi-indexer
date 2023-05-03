@@ -1,8 +1,8 @@
-import db from './db.mjs'
+import db from './db/db.js'
 
 export default async function init() {
 
-  const promises = [];
+  const promises: Array<Promise<unknown>> = [];
   db.getDatabaseInstance().serialize(() => {
 
     // setup module foreign key indexes to be used first

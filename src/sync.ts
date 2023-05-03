@@ -1,11 +1,53 @@
-import { createLogger, transports, config, format } from 'winston';
-import { logFileTransport } from './logger.mjs';
+import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci'
+import { createLogger, transports, config, format, Logger } from 'winston';
+import { logFileTransport } from './logger';
 
-import ingestRestTxs from './storage/sqlite3/ingest/rest/tx.mjs';
+import ingestRestTxs from './storage/sqlite3/ingest/rest/tx';
 
+interface PlainTxResponse extends Omit<TxResponse, 'rawLog'> {
+  raw_log: TxResponse['rawLog'],
+  gas_wanted: TxResponse['gasWanted'],
+  gas_used: TxResponse['gasUsed'],
+}
+
+interface PlainV1Beta1GetTxsEventResponse {
+  /** txs is the list of queried transactions. */
+  txs?: unknown[];
+
+  /** tx_responses is the list of queried TxResponses. */
+  tx_responses?: PlainTxResponse[];
+
+  /** pagination defines an pagination for the response. */
+  pagination?: {
+    next_key: string;
+    total: string;
+  };
+}
 const { REST_API='', POLLING_INTERVAL_SECONDS='' } = process.env;
 
 const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
+
+interface V1Beta1GetTxsEventResponse {
+  /** txs is the list of queried transactions. */
+  txs?: unknown[];
+
+  /** tx_responses is the list of queried TxResponses. */
+  tx_responses?: TxResponse[];
+
+  /** pagination defines an pagination for the response. */
+  pagination?: {
+    next_key: string;
+    total: string;
+  };
+}
+
+type PageReader = (options: { page?: number }) => Promise<
+  [
+    pageItemCount: number,
+    totalItemCount: number,
+    nextOffset: number | null
+  ]
+>
 
 const defaultLogger = createLogger({
   levels: config.npm.levels,
@@ -28,17 +70,17 @@ const defaultLogger = createLogger({
 
 const pollingLogger = createLogger({
   levels: config.npm.levels,
-  format: format(({ message }) => ({ message }))(),
+  format: format(({ message, level }) => ({ message, level }))(),
   transports: [
     new transports.Console({ level: 'warn' }),
     logFileTransport,
   ],
 });
 
-async function iterateThroughPages(readPage, logger) {
+async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   let lastProgressTime = 0;
   let lastNumerator = 0;
-  function printProgress(numerator, divisor, message) {
+  function printProgress(numerator: number, divisor: number, message?: string) {
     const now = Date.now();
     if (message || (now - lastProgressTime > 1000)) {
       logger.info(message || `import progress: ${
@@ -94,7 +136,20 @@ async function catchUpREST ({ fromBlockHeight = 0, logger = defaultLogger }={}) 
         &pagination.count_total=true
         &order_by=ORDER_BY_ASC
     `.replace(/\s+/g, '')); // remove spaces from URL
-    const { pagination, txs=[], tx_responses: pageItems = [] } = await response.json();
+    const { pagination, txs=[], tx_responses: pageItems = [] } = await (response.json() as Promise<PlainV1Beta1GetTxsEventResponse>)
+      .then(({ pagination, txs, tx_responses }: PlainV1Beta1GetTxsEventResponse) => ({
+        pagination,
+        txs,
+        tx_responses: tx_responses?.map(({ raw_log, gas_wanted, gas_used, ...response }: PlainTxResponse) => {
+          const txResponse: TxResponse = {
+            ...response,
+            rawLog: raw_log,
+            gasWanted: gas_wanted,
+            gasUsed: gas_used,
+          };
+          return txResponse;
+        })
+      }));
 
     const lastItemBlockHeight = Number(pageItems.slice(-1).pop()?.['height']);
     if (lastItemBlockHeight) {

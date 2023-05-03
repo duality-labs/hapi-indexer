@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "description": "A Node.js based indexer for the Duality Cosmos chain",
   "main": "index.js",
+  "type": "module",
   "scripts": {
+    "build": "tsc",
     "docker": "touch .env.local && docker-compose up --build --abort-on-container-exit || true && docker-compose down",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js"
+    "start": "node --experimental-specifier-resolution=node dist/server.js"
   },
   "dependencies": {
     "@hapi/hapi": "^21.3.1",
@@ -15,5 +17,13 @@
     "sqlite": "^4.2.0",
     "sqlite3": "^5.1.6",
     "winston": "^3.8.2"
+  },
+  "devDependencies": {
+    "@types/hapi": "^18.0.8",
+    "@types/node": "^18.16.3",
+    "cosmjs-types": "^0.7.2",
+    "formdata-node": "^5.0.0",
+    "typescript": "^5.0.4",
+    "undici": "^5.22.0"
   }
 }
