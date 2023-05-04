@@ -193,7 +193,7 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
     txEvent.attributes.module === 'dex' &&
     (txEvent.type === 'message' || txEvent.type === 'TickUpdate');
   const dexPairId = isDexMessage && txEvent.attributes.Token0 && txEvent.attributes.Token1
-    ? insertDexPairsRows(txEvent)
+    ? await insertDexPairsRows(txEvent)
     : undefined;
 
   const blockTime = getBlockTimeFromTxResult(tx_result);
@@ -229,11 +229,11 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
       JSON.stringify(txEvent.attributes),
 
       // 'meta.dex.pair_swap' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'Swap' && await dexPairId,
+      isDexMessage && txEvent.attributes.action === 'Swap' && dexPairId,
       // 'meta.dex.pair_deposit' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'Deposit' && await dexPairId,
+      isDexMessage && txEvent.attributes.action === 'Deposit' && dexPairId,
       // 'meta.dex.pair_withdraw' INTEGER NOT NULL,
-      isDexMessage && txEvent.attributes.action === 'Withdraw' && await dexPairId,
+      isDexMessage && txEvent.attributes.action === 'Withdraw' && dexPairId,
     ]);
       // continue logic for several dex events
       // add event row to specific event table:
