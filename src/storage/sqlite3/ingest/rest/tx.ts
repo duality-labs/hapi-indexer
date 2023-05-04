@@ -65,18 +65,18 @@ async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
       tokens.map(async (token) => {
         const { id } =
           (await db.get<{ id: number }>(sql`
-        SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
-          'dex.tokens'.'token' = ${token}
-        )
-      `)) || {};
+            SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+              'dex.tokens'.'token' = ${token}
+            )
+          `)) || {};
         if (id) {
           return id;
         }
         // or insert new token
         const { lastID } =
           (await db.run(sql`
-          INSERT INTO 'dex.tokens' ('token') values (${token})
-        `)) || {};
+            INSERT INTO 'dex.tokens' ('token') values (${token})
+          `)) || {};
         if (!lastID) {
           throw new Error('unable to insert dex.tokens id');
         }
@@ -104,14 +104,14 @@ async function insertDexPairsRows(txEvent: DecodedTxEvent): Promise<number | und
     // or insert new token
     const { lastID } =
       (await db.run(sql`
-          INSERT INTO 'dex.pairs' (
-            'token0',
-            'token1'
-          ) values (
-            ${txEvent.attributes.Token0},
-            ${txEvent.attributes.Token1}            
-          )
-        `)) || {};
+        INSERT INTO 'dex.pairs' (
+          'token0',
+          'token1'
+        ) values (
+          ${txEvent.attributes.Token0},
+          ${txEvent.attributes.Token1}            
+        )
+      `)) || {};
     if (!lastID) {
       throw new Error('unable to insert dex.pairs id');
     }
@@ -126,32 +126,32 @@ function getBlockTimeFromTxResult(tx_result: TxResponse) {
 
 async function insertTxRows(tx_result: TxResponse, index: number) {
   return await db.run(sql`
-      INSERT INTO 'tx' (
-        'block.header.height',
-        'block.header.time_unix',
-        'hash',
-        'index',
-        'tx_result.code',
-        'tx_result.data',
-        'tx_result.log',
-        'tx_result.info',
-        'tx_result.gas_wanted',
-        'tx_result.gas_used',
-        'tx_result.codespace'
-      ) values (
-        ${tx_result.height},
-        ${getBlockTimeFromTxResult(tx_result)},
-        ${tx_result.txhash},
-        ${index},
-        ${tx_result.code},
-        ${tx_result.data},
-        ${tx_result.rawLog},
-        ${tx_result.info},
-        ${tx_result.gasWanted},
-        ${tx_result.gasUsed},
-        ${tx_result.codespace}
-      )
-    `);
+    INSERT INTO 'tx' (
+      'block.header.height',
+      'block.header.time_unix',
+      'hash',
+      'index',
+      'tx_result.code',
+      'tx_result.data',
+      'tx_result.log',
+      'tx_result.info',
+      'tx_result.gas_wanted',
+      'tx_result.gas_used',
+      'tx_result.codespace'
+    ) values (
+      ${tx_result.height},
+      ${getBlockTimeFromTxResult(tx_result)},
+      ${tx_result.txhash},
+      ${index},
+      ${tx_result.code},
+      ${tx_result.data},
+      ${tx_result.rawLog},
+      ${tx_result.info},
+      ${tx_result.gasWanted},
+      ${tx_result.gasUsed},
+      ${tx_result.codespace}
+    )
+  `);
 }
 
 async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent, index: number) {
@@ -195,183 +195,194 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
   // add event row to specific event table:
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     await db.run(sql`
-          INSERT INTO 'event.TickUpdate' (
-            'block.header.height',
-            'block.header.time_unix',
-            'tx.index',
-            'tx_result.events.index',
+      INSERT INTO 'event.TickUpdate' (
+        'block.header.height',
+        'block.header.time_unix',
+        'tx.index',
+        'tx_result.events.index',
 
-            'Token0',
-            'Token1',
-            'Token',
-            'TickIndex',
-            'Reserves',
+        'Token0',
+        'Token1',
+        'Token',
+        'TickIndex',
+        'Reserves',
 
-            'meta.dex.pair',
-            'meta.dex.token'
-          ) values (
-          ${tx_result.height},
-          ${blockTime},
-          ${index},
-          ${txEvent.index},
+        'meta.dex.pair',
+        'meta.dex.token'
+      ) values (
+        ${tx_result.height},
+        ${blockTime},
+        ${index},
+        ${txEvent.index},
 
-          ${txEvent.attributes['Token0']},
-          ${txEvent.attributes['Token1']},
-          ${txEvent.attributes['TokenIn']},
-          ${txEvent.attributes['TickIndex']},
-          ${txEvent.attributes['Reserves']},
-          ${dexPairId},
-          ${
-            (await db
-              .get(
-                sql`
-              SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
-                'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
-              )
-            `
-              )
-              .then((row) => row?.['id'])) as string
-          }
-        )`);
+        ${txEvent.attributes['Token0']},
+        ${txEvent.attributes['Token1']},
+        ${txEvent.attributes['TokenIn']},
+        ${txEvent.attributes['TickIndex']},
+        ${txEvent.attributes['Reserves']},
+        ${dexPairId},
+        ${
+          // get token ID
+          await db
+            .get(
+              sql`
+                SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+                  'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
+                )
+              `
+            )
+            .then((row) => row?.['id'])
+        }
+      )
+    `);
     // add derivations of TickUpdates before resolving
     await upsertDerivedTickStateRows(tx_result, txEvent, index);
   } else if (isDexMessage && txEvent.attributes.action === 'Swap') {
     await db.run(sql`
-          INSERT INTO 'event.Swap' (
-            'block.header.height',
-            'block.header.time_unix',
-            'tx.index',
-            'tx_result.events.index',
+      INSERT INTO 'event.Swap' (
+        'block.header.height',
+        'block.header.time_unix',
+        'tx.index',
+        'tx_result.events.index',
 
-            'Creator',
-            'Receiver',
-            'Token0',
-            'Token1',
-            'TokenIn',
-            'TokenOut',
-            'AmountIn',
-            'AmountOut',
+        'Creator',
+        'Receiver',
+        'Token0',
+        'Token1',
+        'TokenIn',
+        'TokenOut',
+        'AmountIn',
+        'AmountOut',
 
-            'meta.dex.pair',
-            'meta.dex.tokenIn',
-            'meta.dex.tokenOut'
-          ) values (
-          ${tx_result.height},
-          ${blockTime},
-          ${index},
-          ${txEvent.index},
-          ${txEvent.attributes['Creator']},
-          ${txEvent.attributes['Receiver']},
-          ${txEvent.attributes['Token0']},
-          ${txEvent.attributes['Token1']},
-          ${txEvent.attributes['TokenIn']},
-          ${
-            txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
-              ? txEvent.attributes['Token0']
-              : txEvent.attributes['Token1']
-          },
-          ${txEvent.attributes['AmountIn']},
-          ${txEvent.attributes['AmountOut']},
-          ${dexPairId},
-          ${
-            // todo: this is inconsistent with other queries
-            // it should be converted into a sub query
-            await db
-              .get(
-                sql`
-              SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
-                'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
-              )
-            `
-              )
-              .then((row) => row?.['id'])
-          },
-          ${await db
+        'meta.dex.pair',
+        'meta.dex.tokenIn',
+        'meta.dex.tokenOut'
+      ) values (
+        ${tx_result.height},
+        ${blockTime},
+        ${index},
+        ${txEvent.index},
+
+        ${txEvent.attributes['Creator']},
+        ${txEvent.attributes['Receiver']},
+        ${txEvent.attributes['Token0']},
+        ${txEvent.attributes['Token1']},
+        ${txEvent.attributes['TokenIn']},
+        ${
+          txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
+            ? txEvent.attributes['Token0']
+            : txEvent.attributes['Token1']
+        },
+        ${txEvent.attributes['AmountIn']},
+        ${txEvent.attributes['AmountOut']},
+
+        ${dexPairId},
+        ${
+          // todo: this is inconsistent with other queries
+          // it should be converted into a sub query
+          // get token in ID
+          await db
             .get(
               sql`
-              SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
-                'dex.tokens'.'token' = ${
-                  txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
-                    ? txEvent.attributes['Token0']
-                    : txEvent.attributes['Token1']
-                }
-              )
-            `
+                SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+                  'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
+                )
+              `
             )
-            .then((row) => row['id'])}
-        )`);
+            .then((row) => row?.['id'])
+        },
+        ${
+          // get token out ID
+          await db
+            .get(
+              sql`
+                SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+                  'dex.tokens'.'token' = ${
+                    txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
+                      ? txEvent.attributes['Token0']
+                      : txEvent.attributes['Token1']
+                  }
+                )
+              `
+            )
+            .then((row) => row['id'])
+        }
+      )
+    `);
   } else if (isDexMessage && txEvent.attributes.action === 'Deposit') {
     await db.run(sql`
-          INSERT INTO 'event.Deposit' (
-            'block.header.height',
-            'block.header.time_unix',
-            'tx.index',
-            'tx_result.events.index',
+      INSERT INTO 'event.Deposit' (
+        'block.header.height',
+        'block.header.time_unix',
+        'tx.index',
+        'tx_result.events.index',
 
-            'Creator',
-            'Receiver',
-            'Token0',
-            'Token1',
-            'TickIndex',
-            'Fee',
-            'Reserves0Deposited',
-            'Reserves1Deposited',
-            'SharesMinted',
+        'Creator',
+        'Receiver',
+        'Token0',
+        'Token1',
+        'TickIndex',
+        'Fee',
+        'Reserves0Deposited',
+        'Reserves1Deposited',
+        'SharesMinted',
 
-            'meta.dex.pair'
-          ) values (
-          ${tx_result.height},
-          ${blockTime},
-          ${index},
-          ${txEvent.index},
-          ${txEvent.attributes['Creator']},
-          ${txEvent.attributes['Receiver']},
-          ${txEvent.attributes['Token0']},
-          ${txEvent.attributes['Token1']},
-          ${txEvent.attributes['TickIndex']},
-          ${txEvent.attributes['Fee']},
-          ${txEvent.attributes['Reserves0Deposited']},
-          ${txEvent.attributes['Reserves1Deposited']},
-          ${txEvent.attributes['SharesMinted']},
-          ${dexPairId}
-        )`);
+        'meta.dex.pair'
+      ) values (
+        ${tx_result.height},
+        ${blockTime},
+        ${index},
+        ${txEvent.index},
+        ${txEvent.attributes['Creator']},
+        ${txEvent.attributes['Receiver']},
+        ${txEvent.attributes['Token0']},
+        ${txEvent.attributes['Token1']},
+        ${txEvent.attributes['TickIndex']},
+        ${txEvent.attributes['Fee']},
+        ${txEvent.attributes['Reserves0Deposited']},
+        ${txEvent.attributes['Reserves1Deposited']},
+        ${txEvent.attributes['SharesMinted']},
+        ${dexPairId}
+      )
+    `);
   } else if (isDexMessage && txEvent.attributes.action === 'Withdraw') {
     await db.run(sql`
-          INSERT INTO 'event.Withdraw' (
-            'block.header.height',
-            'block.header.time_unix',
-            'tx.index',
-            'tx_result.events.index',
+      INSERT INTO 'event.Withdraw' (
+        'block.header.height',
+        'block.header.time_unix',
+        'tx.index',
+        'tx_result.events.index',
 
-            'Creator',
-            'Receiver',
-            'Token0',
-            'Token1',
-            'TickIndex',
-            'Fee',
-            'Reserves0Withdrawn',
-            'Reserves1Withdrawn',
-            'SharesRemoved',
+        'Creator',
+        'Receiver',
+        'Token0',
+        'Token1',
+        'TickIndex',
+        'Fee',
+        'Reserves0Withdrawn',
+        'Reserves1Withdrawn',
+        'SharesRemoved',
 
-            'meta.dex.pair'
-          ) values (
-          ${tx_result.height},
-          ${blockTime},
-          ${index},
-          ${txEvent.index},
-          ${txEvent.attributes['Creator']},
-          ${txEvent.attributes['Receiver']},
-          ${txEvent.attributes['Token0']},
-          ${txEvent.attributes['Token1']},
-          ${txEvent.attributes['TickIndex']},
-          ${txEvent.attributes['Fee']},
-          ${txEvent.attributes['Reserves0Withdrawn']},
-          ${
-            txEvent.attributes['Reserves1Withdrawn'] || '0' // hack fix because Reserves1Withdrawn is never emitted
-          },
-          ${txEvent.attributes['SharesRemoved']},
-          ${dexPairId}
-        )`);
+        'meta.dex.pair'
+      ) values (
+        ${tx_result.height},
+        ${blockTime},
+        ${index},
+        ${txEvent.index},
+        ${txEvent.attributes['Creator']},
+        ${txEvent.attributes['Receiver']},
+        ${txEvent.attributes['Token0']},
+        ${txEvent.attributes['Token1']},
+        ${txEvent.attributes['TickIndex']},
+        ${txEvent.attributes['Fee']},
+        ${txEvent.attributes['Reserves0Withdrawn']},
+        ${
+          txEvent.attributes['Reserves1Withdrawn'] || '0' // hack fix because Reserves1Withdrawn is never emitted
+        },
+        ${txEvent.attributes['SharesRemoved']},
+        ${dexPairId}
+      )
+    `);
   }
   return lastID;
 }
@@ -383,47 +394,52 @@ async function upsertDerivedTickStateRows(
 ) {
   const isDexMessage =
     txEvent.type === 'TickUpdate' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
+
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     const blockTime = getBlockTimeFromTxResult(tx_result);
 
     const { lastID } = await db.run(sql`
-        INSERT OR REPLACE INTO 'derived.tick_state' (
-          'meta.dex.pair',
-          'meta.dex.token',
-          'TickIndex',
-          'Reserves'
-        ) values (
-          (SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+      INSERT OR REPLACE INTO 'derived.tick_state' (
+        'meta.dex.pair',
+        'meta.dex.token',
+        'TickIndex',
+        'Reserves'
+      ) values (
+        (
+          SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
             'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
             'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-          )),
-          (SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+          )
+        ),
+        (
+          SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
             'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
-          )),
-          ${txEvent.attributes['TickIndex']},
-          ${txEvent.attributes['Reserves']}
-        )
-      `);
+          )
+        ),
+        ${txEvent.attributes['TickIndex']},
+        ${txEvent.attributes['Reserves']}
+      )
+    `);
 
     // continue logic for several dependent states
     const isForward = txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
     const tickSide = isForward ? 'LowestTick1' : 'HighestTick0';
     // note that previousTickIndex may not exist yet
     const previousPriceData = await db.get(sql`
-            SELECT 'derived.tx_price_data'.'HighestTick0', 'derived.tx_price_data'.'LowestTick1' FROM 'derived.tx_price_data' WHERE (
-              'derived.tx_price_data'.'meta.dex.pair' = (
-                SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
-                  'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-                  'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-                )
-              )
-            )
-            ORDER BY
-              'derived.tx_price_data'.'block.header.height' DESC,
-              'derived.tx_price_data'.'tx.index' DESC,
-              'derived.tx_price_data'.'tx_result.events.index' DESC
-            LIMIT 1
-          `);
+      SELECT 'derived.tx_price_data'.'HighestTick0', 'derived.tx_price_data'.'LowestTick1' FROM 'derived.tx_price_data' WHERE (
+        'derived.tx_price_data'.'meta.dex.pair' = (
+          SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+            'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
+            'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
+          )
+        )
+      )
+      ORDER BY
+        'derived.tx_price_data'.'block.header.height' DESC,
+        'derived.tx_price_data'.'tx.index' DESC,
+        'derived.tx_price_data'.'tx_result.events.index' DESC
+      LIMIT 1
+    `);
     const previousTickIndex = previousPriceData?.[tickSide];
 
     // derive data from entire ticks state (useful for maybe some other calculations)
@@ -431,26 +447,26 @@ async function upsertDerivedTickStateRows(
       .get(
         // append plain SQL (without value substitution) to have conditional query
         sql`
-            SELECT 'derived.tick_state'.'TickIndex' FROM 'derived.tick_state' WHERE (
-              'derived.tick_state'.'meta.dex.pair' = (
-                SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
-                  'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-                  'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-                )
+          SELECT 'derived.tick_state'.'TickIndex' FROM 'derived.tick_state' WHERE (
+            'derived.tick_state'.'meta.dex.pair' = (
+              SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+                'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
+                'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
               )
-              AND
-              'derived.tick_state'.'meta.dex.token' = (
-                SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
-                  'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
-                )
-              )
-              AND
-              'derived.tick_state'.'Reserves' != '0'
             )
-          `.append(`--sql
-            ORDER BY 'derived.tick_state'.'TickIndex' ${isForward ? 'ASC' : 'DESC'}
-            LIMIT 1
-          `)
+            AND
+            'derived.tick_state'.'meta.dex.token' = (
+              SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+                'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
+              )
+            )
+            AND
+            'derived.tick_state'.'Reserves' != '0'
+          )
+        `.append(`--sql
+          ORDER BY 'derived.tick_state'.'TickIndex' ${isForward ? 'ASC' : 'DESC'}
+          LIMIT 1
+        `)
       )
       .then((row) => row?.['TickIndex'] ?? null);
 
@@ -460,33 +476,35 @@ async function upsertDerivedTickStateRows(
         (isForward ? previousPriceData?.['HighestTick0'] : previousPriceData?.['LowestTick1']) ??
         null;
       await db.run(sql`
-              INSERT OR REPLACE INTO 'derived.tx_price_data' (
-                'block.header.height',
-                'block.header.time_unix',
-                'tx.index',
-                'tx_result.events.index',
+        INSERT OR REPLACE INTO 'derived.tx_price_data' (
+          'block.header.height',
+          'block.header.time_unix',
+          'tx.index',
+          'tx_result.events.index',
 
-                'meta.dex.pair',
+          'meta.dex.pair',
 
-                'HighestTick0',
-                'LowestTick1',
-                'LastTick'
-              ) values (
-                ${tx_result.height},
-                ${blockTime},
-                ${-index},
-                ${txEvent.index},
+          'HighestTick0',
+          'LowestTick1',
+          'LastTick'
+        ) values (
+          ${tx_result.height},
+          ${blockTime},
+          ${-index},
+          ${txEvent.index},
 
-                (SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
-                  'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-                  'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-                )),
+          (
+            SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+              'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
+              'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
+            )
+          ),
 
-                ${isForward ? previousOtherSideTickIndex : currentTickIndex},
-                ${isForward ? currentTickIndex : previousOtherSideTickIndex},
-                ${currentTickIndex || previousOtherSideTickIndex}
-              )
-            `);
+          ${isForward ? previousOtherSideTickIndex : currentTickIndex},
+          ${isForward ? currentTickIndex : previousOtherSideTickIndex},
+          ${currentTickIndex || previousOtherSideTickIndex}
+        )
+      `);
     }
 
     return lastID;

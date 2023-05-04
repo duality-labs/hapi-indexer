@@ -22,23 +22,23 @@ async function volume(
   return await db
     .all(
       sql`
-      SELECT
-        'event.Swap'.'block.header.time_unix',
-        'event.Swap'.'AmountOut',
-        'event.Swap'.'TokenOut'
-      FROM 'event.Swap'
-        WHERE
-        'event.Swap'.'meta.dex.pair' = (
-          SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
-            'dex.pairs'.'token0' = ${tokenA} AND
-            'dex.pairs'.'token1' = ${tokenB}
-          ) OR (
-            'dex.pairs'.'token1' = ${tokenA} AND
-            'dex.pairs'.'token0' = ${tokenB}
+        SELECT
+          'event.Swap'.'block.header.time_unix',
+          'event.Swap'.'AmountOut',
+          'event.Swap'.'TokenOut'
+        FROM 'event.Swap'
+          WHERE
+          'event.Swap'.'meta.dex.pair' = (
+            SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+              'dex.pairs'.'token0' = ${tokenA} AND
+              'dex.pairs'.'token1' = ${tokenB}
+            ) OR (
+              'dex.pairs'.'token1' = ${tokenA} AND
+              'dex.pairs'.'token0' = ${tokenB}
+            )
           )
-        )
-        AND 'event.Swap'.'block.header.time_unix' > ${unixStart}
-    `
+          AND 'event.Swap'.'block.header.time_unix' > ${unixStart}
+      `
     )
     .then((rows = []) => {
       return rows.reduce((acc, row) => {
