@@ -221,18 +221,11 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
         ${txEvent.attributes['TickIndex']},
         ${txEvent.attributes['Reserves']},
         ${dexPairId},
-        ${
-          // get token ID
-          await db
-            .get(
-              sql`
-                SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
-                  'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
-                )
-              `
-            )
-            .then((row) => row?.['id'])
-        }
+        (
+          SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+            'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
+          )
+        )
       )
     `);
     // add derivations of TickUpdates before resolving
@@ -277,36 +270,21 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
         ${txEvent.attributes['AmountOut']},
 
         ${dexPairId},
-        ${
-          // todo: this is inconsistent with other queries
-          // it should be converted into a sub query
-          // get token in ID
-          await db
-            .get(
-              sql`
-                SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
-                  'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
-                )
-              `
-            )
-            .then((row) => row?.['id'])
-        },
-        ${
-          // get token out ID
-          await db
-            .get(
-              sql`
-                SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
-                  'dex.tokens'.'token' = ${
-                    txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
-                      ? txEvent.attributes['Token0']
-                      : txEvent.attributes['Token1']
-                  }
-                )
-              `
-            )
-            .then((row) => row['id'])
-        }
+        (
+          SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+            'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
+          )
+        ),
+        (
+          SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+            'dex.tokens'.'Token' = ${
+              // derive TokenOut
+              txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
+                ? txEvent.attributes['Token0']
+                : txEvent.attributes['Token1']
+            }
+          )
+        )
       )
     `);
   } else if (isDexMessage && txEvent.attributes.action === 'Deposit') {
