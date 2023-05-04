@@ -17,7 +17,9 @@ const routes = [
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);
-          return h.response(`something happened: ${err.message || '?'}`).code(500);
+          return h
+            .response(`something happened: ${err.message || '?'}`)
+            .code(500);
         }
         return h.response('An unknown error occurred').code(500);
       }

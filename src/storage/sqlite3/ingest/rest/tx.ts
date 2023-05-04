@@ -16,20 +16,28 @@ interface DecodedTxEvent extends Omit<TxEvent, 'attributes'> {
   attributes: DecodedAttributeMap;
 }
 
-function translateEvents({ type, attributes }: TxEvent, index: number): DecodedTxEvent {
+function translateEvents(
+  { type, attributes }: TxEvent,
+  index: number
+): DecodedTxEvent {
   return {
     index,
     type,
-    attributes: attributes.reduce<DecodedAttributeMap>((acc, { key, value }) => {
-      if (key) {
-        const decodedKey = Buffer.from(`${key}`, 'base64').toString('utf8');
-        const decodedValue = value ? Buffer.from(`${value}`, 'base64').toString('utf8') : null;
-        if (decodedKey) {
-          acc[decodedKey] = decodedValue || '';
+    attributes: attributes.reduce<DecodedAttributeMap>(
+      (acc, { key, value }) => {
+        if (key) {
+          const decodedKey = Buffer.from(`${key}`, 'base64').toString('utf8');
+          const decodedValue = value
+            ? Buffer.from(`${value}`, 'base64').toString('utf8')
+            : null;
+          if (decodedKey) {
+            acc[decodedKey] = decodedValue || '';
+          }
         }
-      }
-      return acc;
-    }, {}),
+        return acc;
+      },
+      {}
+    ),
   };
 }
 
@@ -58,7 +66,10 @@ async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
     txEvent.attributes.Token,
   ]
     .filter(Boolean) // remove falsy
-    .reduce<string[]>((acc, token) => (acc.includes(token) ? acc : acc.concat(token)), []); // remove duplicates
+    .reduce<string[]>(
+      (acc, token) => (acc.includes(token) ? acc : acc.concat(token)),
+      []
+    ); // remove duplicates
   // loop through all found
   if (tokens.length > 0) {
     await Promise.all(
@@ -86,7 +97,9 @@ async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
   }
 }
 
-async function insertDexPairsRows(txEvent: DecodedTxEvent): Promise<number | undefined> {
+async function insertDexPairsRows(
+  txEvent: DecodedTxEvent
+): Promise<number | undefined> {
   // if event has tokens, ensure these tokens are present in the DB
   if (txEvent.attributes.Token0 && txEvent.attributes.Token1) {
     const { id } =
@@ -154,7 +167,11 @@ async function insertTxRows(tx_result: TxResponse, index: number) {
   `);
 }
 
-async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent, index: number) {
+async function insertTxEventRows(
+  tx_result: TxResponse,
+  txEvent: DecodedTxEvent,
+  index: number
+) {
   const isDexMessage =
     tx_result.code === 0 &&
     txEvent.attributes.module === 'dex' &&
@@ -369,7 +386,9 @@ async function upsertDerivedTickStateRows(
   index: number
 ) {
   const isDexMessage =
-    txEvent.type === 'TickUpdate' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
+    txEvent.type === 'TickUpdate' &&
+    txEvent.attributes.module === 'dex' &&
+    tx_result.code === 0;
 
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     const blockTime = getBlockTimeFromTxResult(tx_result);
@@ -398,7 +417,8 @@ async function upsertDerivedTickStateRows(
     `);
 
     // continue logic for several dependent states
-    const isForward = txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
+    const isForward =
+      txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
     const tickSide = isForward ? 'LowestTick1' : 'HighestTick0';
     // note that previousTickIndex may not exist yet
     const previousPriceData = await db.get(sql`
@@ -440,7 +460,9 @@ async function upsertDerivedTickStateRows(
             'derived.tick_state'.'Reserves' != '0'
           )
         `.append(`--sql
-          ORDER BY 'derived.tick_state'.'TickIndex' ${isForward ? 'ASC' : 'DESC'}
+          ORDER BY 'derived.tick_state'.'TickIndex' ${
+            isForward ? 'ASC' : 'DESC'
+          }
           LIMIT 1
         `)
       )
@@ -449,8 +471,9 @@ async function upsertDerivedTickStateRows(
     // if activity has changed current price then update data
     if (previousTickIndex !== currentTickIndex) {
       const previousOtherSideTickIndex =
-        (isForward ? previousPriceData?.['HighestTick0'] : previousPriceData?.['LowestTick1']) ??
-        null;
+        (isForward
+          ? previousPriceData?.['HighestTick0']
+          : previousPriceData?.['LowestTick1']) ?? null;
       await db.run(sql`
         INSERT OR REPLACE INTO 'derived.tx_price_data' (
           'block.header.height',
@@ -488,21 +511,24 @@ async function upsertDerivedTickStateRows(
 }
 
 export default async function ingestTxs(txPage: TxResponse[]) {
-  return await promiseMapInSeries(txPage, async (tx_result: TxResponse, index: number) => {
-    const txEvents = (tx_result.events || []).map(translateEvents);
-    // first add block rows
-    await insertBlockRows(tx_result);
-    // then add token foreign keys
-    await promiseMapInSeries(txEvents, insertDexTokensRows);
-    // then add token foreign keys
-    await promiseMapInSeries(txEvents, insertDexPairsRows);
-    // then add transaction rows
-    await insertTxRows(tx_result, index);
-    // then add transaction event rows
-    await promiseMapInSeries(txEvents, async (txEvent: DecodedTxEvent) => {
-      await insertTxEventRows(tx_result, txEvent, index);
-    });
-  });
+  return await promiseMapInSeries(
+    txPage,
+    async (tx_result: TxResponse, index: number) => {
+      const txEvents = (tx_result.events || []).map(translateEvents);
+      // first add block rows
+      await insertBlockRows(tx_result);
+      // then add token foreign keys
+      await promiseMapInSeries(txEvents, insertDexTokensRows);
+      // then add token foreign keys
+      await promiseMapInSeries(txEvents, insertDexPairsRows);
+      // then add transaction rows
+      await insertTxRows(tx_result, index);
+      // then add transaction event rows
+      await promiseMapInSeries(txEvents, async (txEvent: DecodedTxEvent) => {
+        await insertTxEventRows(tx_result, txEvent, index);
+      });
+    }
+  );
 }
 
 async function promiseMapInSeries<T>(
@@ -510,6 +536,9 @@ async function promiseMapInSeries<T>(
   itemCallback: (item: T, index: number, list: T[]) => Promise<unknown>
 ) {
   return list.reduce<Promise<unknown[]>>(async (listPromise, item, index) => {
-    return Promise.all([...(await listPromise), itemCallback(item, index, list)]);
+    return Promise.all([
+      ...(await listPromise),
+      itemCallback(item, index, list),
+    ]);
   }, new Promise((resolve) => resolve([])));
 }

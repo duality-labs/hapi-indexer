@@ -20,10 +20,14 @@ const debugPath = {
   handler: async (request: Request, h: ResponseToolkit) => {
     // set limit to all or the given number (defaulting to 100)
     const limit =
-      request.params['limitOrAll'] === 'all' ? 0 : Number(request.params['limitOrAll']) || 100;
+      request.params['limitOrAll'] === 'all'
+        ? 0
+        : Number(request.params['limitOrAll']) || 100;
     try {
       const tableNames = await db
-        .all(sql`SELECT name FROM 'sqlite_schema' WHERE type='table' ORDER BY name`)
+        .all(
+          sql`SELECT name FROM 'sqlite_schema' WHERE type='table' ORDER BY name`
+        )
         .then((rows) => rows.map((row) => row.name));
       // return as rows keyed under the table name
       const tableEntries = await Promise.all(
@@ -39,7 +43,9 @@ const debugPath = {
     } catch (err: unknown) {
       if (err instanceof Error) {
         logger.error(err);
-        return h.response(`something happened: ${err.message || '?'}`).code(500);
+        return h
+          .response(`something happened: ${err.message || '?'}`)
+          .code(500);
       }
       return h.response('An unknown error occurred').code(500);
     }

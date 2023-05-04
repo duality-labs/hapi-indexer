@@ -29,7 +29,9 @@ const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
 
 type PageReader = (options: {
   page?: number;
-}) => Promise<[pageItemCount: number, totalItemCount: number, nextOffset: number | null]>;
+}) => Promise<
+  [pageItemCount: number, totalItemCount: number, nextOffset: number | null]
+>;
 
 const defaultLogger = createLogger({
   levels: config.npm.levels,
@@ -81,7 +83,9 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   printProgress(0, 1, 'import starting');
   do {
     // read page data and return counting details
-    const [pageItemCount, totalItemCount, nextPage] = await readPage({ page: currentPage });
+    const [pageItemCount, totalItemCount, nextPage] = await readPage({
+      page: currentPage,
+    });
 
     // update progress
     previousItemCount = currentItemCount;
@@ -103,7 +107,10 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
 
 let maxBlockHeight = 0;
 
-async function catchUpREST({ fromBlockHeight = 0, logger = defaultLogger } = {}) {
+async function catchUpREST({
+  fromBlockHeight = 0,
+  logger = defaultLogger,
+} = {}) {
   // read tx pages
   await iterateThroughPages(async ({ page: offset = 0 }) => {
     // we default starting page to 1 as this API has 1-based page numbers
@@ -152,31 +159,41 @@ async function catchUpREST({ fromBlockHeight = 0, logger = defaultLogger } = {})
     const pageItemCount = txs.length;
     const totalItemCount = (pagination?.total && Number(pagination.total)) || 0;
     const currentItemCount = offset + pageItemCount;
-    const nextOffset = currentItemCount < totalItemCount ? currentItemCount : null;
+    const nextOffset =
+      currentItemCount < totalItemCount ? currentItemCount : null;
     return [pageItemCount, totalItemCount, nextOffset];
   }, logger.child({ label: 'transaction' }));
 }
 
 export async function keepUpREST() {
-  defaultLogger.info(`keeping up: polling from block height: ${maxBlockHeight}`);
+  defaultLogger.info(
+    `keeping up: polling from block height: ${maxBlockHeight}`
+  );
 
   // poll for updates
   async function poll() {
     defaultLogger.info('keeping up: polling');
     const lastBlockHeight = maxBlockHeight;
     const startTime = Date.now();
-    await catchUpREST({ fromBlockHeight: maxBlockHeight + 1, logger: pollingLogger });
+    await catchUpREST({
+      fromBlockHeight: maxBlockHeight + 1,
+      logger: pollingLogger,
+    });
     const duration = Date.now() - startTime;
 
     // log block height increments
     if (maxBlockHeight > lastBlockHeight) {
       defaultLogger.info(
-        `keeping up: last block processed: ${maxBlockHeight} (done in ${(duration / 1000).toFixed(
+        `keeping up: last block processed: ${maxBlockHeight} (done in ${(
+          duration / 1000
+        ).toFixed(3)} seconds)`
+      );
+    } else {
+      defaultLogger.info(
+        `keeping up: no change (done in ${(duration / 1000).toFixed(
           3
         )} seconds)`
       );
-    } else {
-      defaultLogger.info(`keeping up: no change (done in ${(duration / 1000).toFixed(3)} seconds)`);
     }
 
     // poll again after a certain amount of time has passed

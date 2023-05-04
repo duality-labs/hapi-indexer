@@ -68,8 +68,12 @@ export default async function getPricePerSecond(
             'dex.pairs'.'token0' = ${tokenB}
           )
         )
-        AND 'derived.tx_price_data'.'block.header.time_unix' <= ${pagination.before}
-        AND 'derived.tx_price_data'.'block.header.time_unix' >= ${pagination.after}
+        AND 'derived.tx_price_data'.'block.header.time_unix' <= ${
+          pagination.before
+        }
+        AND 'derived.tx_price_data'.'block.header.time_unix' >= ${
+          pagination.after
+        }
       WINDOW seconds_window AS (
         ORDER BY 'derived.tx_price_data'.'block.header.time_unix'
         GROUPS CURRENT ROW
@@ -119,7 +123,10 @@ export default async function getPricePerSecond(
   return {
     shape,
     data: (data || []).map((row) => {
-      return [row['time_unix'], [row['open'], row['high'], row['low'], row['close']]];
+      return [
+        row['time_unix'],
+        [row['open'], row['high'], row['low'], row['close']],
+      ];
     }),
     pagination: {
       'next-key': nextKey,

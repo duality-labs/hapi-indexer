@@ -56,20 +56,38 @@ const routes = [
       try {
         return {
           hours: {
-            1: await volume(request.params['tokenA'], request.params['tokenB'], {
-              lastSeconds: 60 * 60,
-            }),
+            1: await volume(
+              request.params['tokenA'],
+              request.params['tokenB'],
+              {
+                lastSeconds: 60 * 60,
+              }
+            ),
           },
           days: {
-            1: await volume(request.params['tokenA'], request.params['tokenB'], { lastDays: 1 }),
-            7: await volume(request.params['tokenA'], request.params['tokenB'], { lastDays: 7 }),
-            28: await volume(request.params['tokenA'], request.params['tokenB'], { lastDays: 28 }),
+            1: await volume(
+              request.params['tokenA'],
+              request.params['tokenB'],
+              { lastDays: 1 }
+            ),
+            7: await volume(
+              request.params['tokenA'],
+              request.params['tokenB'],
+              { lastDays: 7 }
+            ),
+            28: await volume(
+              request.params['tokenA'],
+              request.params['tokenB'],
+              { lastDays: 28 }
+            ),
           },
         };
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);
-          return h.response(`something happened: ${err.message || '?'}`).code(500);
+          return h
+            .response(`something happened: ${err.message || '?'}`)
+            .code(500);
         }
         return h.response('An unknown error occurred').code(500);
       }

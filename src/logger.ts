@@ -2,7 +2,10 @@ import { createLogger, transports, config, format } from 'winston';
 
 const logFilename = 'combined.log';
 
-export const logFileTransport = new transports.File({ level: 'debug', filename: logFilename });
+export const logFileTransport = new transports.File({
+  level: 'debug',
+  filename: logFilename,
+});
 export const defaultLogger = createLogger({
   levels: config.npm.levels,
   format: format.combine(format.colorize(), format.simple()),
