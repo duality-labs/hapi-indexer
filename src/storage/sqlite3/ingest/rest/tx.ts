@@ -76,7 +76,11 @@ async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
       tokens.map(async (token) => {
         const { id } =
           (await db.get<{ id: number }>(sql`
-            SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
               'dex.tokens'.'token' = ${token}
             )
           `)) || {};
@@ -104,7 +108,11 @@ async function insertDexPairsRows(
   if (txEvent.attributes.Token0 && txEvent.attributes.Token1) {
     const { id } =
       (await db.get<{ id: number }>(sql`
-        SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+        SELECT
+          'dex.pairs'.'id'
+        FROM
+          'dex.pairs'
+        WHERE (
           'dex.pairs'.'token0' = ${txEvent.attributes.Token0} AND
           'dex.pairs'.'token1' = ${txEvent.attributes.Token1}
         )
@@ -239,7 +247,11 @@ async function insertTxEventRows(
         ${txEvent.attributes['Reserves']},
         ${dexPairId},
         (
-          SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+          SELECT
+            'dex.tokens'.'id'
+          FROM
+            'dex.tokens'
+          WHERE (
             'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
           )
         )
@@ -279,6 +291,7 @@ async function insertTxEventRows(
         ${txEvent.attributes['Token1']},
         ${txEvent.attributes['TokenIn']},
         ${
+          // derive TokenOut
           txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
             ? txEvent.attributes['Token0']
             : txEvent.attributes['Token1']
@@ -288,12 +301,20 @@ async function insertTxEventRows(
 
         ${dexPairId},
         (
-          SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+          SELECT
+            'dex.tokens'.'id'
+          FROM
+            'dex.tokens'
+          WHERE (
             'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
           )
         ),
         (
-          SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+          SELECT
+            'dex.tokens'.'id'
+          FROM
+            'dex.tokens'
+          WHERE (
             'dex.tokens'.'Token' = ${
               // derive TokenOut
               txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
@@ -401,13 +422,21 @@ async function upsertDerivedTickStateRows(
         'Reserves'
       ) values (
         (
-          SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+          SELECT
+            'dex.pairs'.'id'
+          FROM
+            'dex.pairs'
+          WHERE (
             'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
             'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
           )
         ),
         (
-          SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+          SELECT
+            'dex.tokens'.'id'
+          FROM
+            'dex.tokens'
+          WHERE (
             'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
           )
         ),
@@ -422,9 +451,18 @@ async function upsertDerivedTickStateRows(
     const tickSide = isForward ? 'LowestTick1' : 'HighestTick0';
     // note that previousTickIndex may not exist yet
     const previousPriceData = await db.get(sql`
-      SELECT 'derived.tx_price_data'.'HighestTick0', 'derived.tx_price_data'.'LowestTick1' FROM 'derived.tx_price_data' WHERE (
+      SELECT
+        'derived.tx_price_data'.'HighestTick0',
+        'derived.tx_price_data'.'LowestTick1'
+      FROM
+        'derived.tx_price_data'
+      WHERE (
         'derived.tx_price_data'.'meta.dex.pair' = (
-          SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+          SELECT
+            'dex.pairs'.'id'
+          FROM
+            'dex.pairs'
+          WHERE (
             'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
             'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
           )
@@ -443,20 +481,30 @@ async function upsertDerivedTickStateRows(
       .get(
         // append plain SQL (without value substitution) to have conditional query
         sql`
-          SELECT 'derived.tick_state'.'TickIndex' FROM 'derived.tick_state' WHERE (
+          SELECT
+            'derived.tick_state'.'TickIndex'
+          FROM
+            'derived.tick_state'
+          WHERE (
             'derived.tick_state'.'meta.dex.pair' = (
-              SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+              SELECT
+                'dex.pairs'.'id'
+              FROM
+                'dex.pairs'
+              WHERE (
                 'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
                 'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
               )
-            )
-            AND
+            ) AND
             'derived.tick_state'.'meta.dex.token' = (
-              SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+              SELECT
+                'dex.tokens'.'id'
+              FROM
+                'dex.tokens'
+              WHERE (
                 'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
               )
-            )
-            AND
+            ) AND
             'derived.tick_state'.'Reserves' != '0'
           )
         `.append(`--sql
@@ -493,7 +541,11 @@ async function upsertDerivedTickStateRows(
           ${txEvent.index},
 
           (
-            SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+            SELECT
+              'dex.pairs'.'id'
+            FROM
+              'dex.pairs'
+            WHERE (
               'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
               'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
             )

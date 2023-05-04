@@ -53,17 +53,24 @@ export default async function getPricePerSecond(
     WITH price_points AS (
       SELECT
         'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',
-        first_value('derived.tx_price_data'.'LastTick') OVER seconds_window as 'first_price',
-        last_value('derived.tx_price_data'.'LastTick') OVER seconds_window as 'last_price',
+        first_value('derived.tx_price_data'.'LastTick')
+          OVER seconds_window as 'first_price',
+        last_value('derived.tx_price_data'.'LastTick')
+          OVER seconds_window as 'last_price',
         'derived.tx_price_data'.'LastTick' as 'price'
       FROM
         'derived.tx_price_data'
       WHERE
         'derived.tx_price_data'.'meta.dex.pair' = (
-          SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+          SELECT
+            'dex.pairs'.'id'
+          FROM
+            'dex.pairs'
+          WHERE (
             'dex.pairs'.'token0' = ${tokenA} AND
             'dex.pairs'.'token1' = ${tokenB}
-          ) OR (
+          )
+          OR (
             'dex.pairs'.'token1' = ${tokenA} AND
             'dex.pairs'.'token0' = ${tokenB}
           )

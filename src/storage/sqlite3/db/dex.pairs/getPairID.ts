@@ -7,7 +7,11 @@ export default async function getPairID(tokenA: string, tokenB: string) {
   return await db
     .get(
       sql`
-        SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
+        SELECT
+          'dex.pairs'.'id'
+        FROM
+          'dex.pairs'
+        WHERE (
           'dex.pairs'.'token0' = ${tokenA} AND
           'dex.pairs'.'token1' = ${tokenB}
         ) OR (
