@@ -377,7 +377,9 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
         ${txEvent.attributes['Fee']},
         ${txEvent.attributes['Reserves0Withdrawn']},
         ${
-          txEvent.attributes['Reserves1Withdrawn'] || '0' // hack fix because Reserves1Withdrawn is never emitted
+          // hack fix because Reserves1Withdrawn is not emitted before v0.2.1
+          // https://github.com/duality-labs/duality/commit/6f6df27db4f3f4fb739fd291cd557737710679e2
+          txEvent.attributes['Reserves1Withdrawn'] || '0'
         },
         ${txEvent.attributes['SharesRemoved']},
         ${dexPairId}
