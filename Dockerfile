@@ -21,9 +21,7 @@ RUN cd node_modules/sqlite3 && \
 # copy app source to destination container
 COPY . .
 
-RUN npm run build
-
 # expose container port
 EXPOSE 8000
 
-CMD ls /usr/src/app/dist/storage/sqlite3 && npm start
+CMD npm start

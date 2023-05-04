@@ -6,10 +6,10 @@
   "type": "module",
   "scripts": {
     "prepare": "husky install",
-    "build": "tsc",
     "docker": "touch .env.local && docker-compose up --build --abort-on-container-exit || true && docker-compose down",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node --experimental-specifier-resolution=node dist/server.js"
+    "build": "tsc",
+    "start": "npm run build && node --experimental-specifier-resolution=node dist/server.js"
   },
   "dependencies": {
     "@hapi/hapi": "^21.3.1",
