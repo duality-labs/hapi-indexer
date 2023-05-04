@@ -8,10 +8,12 @@ and with data stored in [SQLite3](https://www.sqlite.org/).
 To get started
 
 ```sh
-# install (npm ci will not update dependencies and package-lock.json)
-npm ci
+# [optional]: to have packages locally available for your editor
+#   npm ci
 # run
 npm run docker
+# this will install all dependencies inside the Docker container
+# so they will always be correct and consistent
 ```
 
 To connect to a locally running chain in Docker remember to add some local environment settings like this example:
