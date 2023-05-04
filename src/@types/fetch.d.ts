@@ -1,2 +1,2 @@
 // fetch.d.ts
-declare var fetch: typeof import('undici').fetch;
+declare const fetch: typeof import('undici').fetch;
