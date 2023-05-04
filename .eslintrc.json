@@ -1,17 +1,8 @@
 {
-  "extends": [
-    "react-app",
-    "react-app/jest",
-    "plugin:react/recommended",
-    "plugin:react-hooks/recommended",
-    "plugin:@typescript-eslint/recommended",
-    "plugin:jsx-a11y/recommended",
-    "prettier"
-  ],
-  "plugins": ["jsx-a11y"],
+  "extends": ["eslint:recommended", "plugin:@typescript-eslint/recommended", "prettier"],
+  "plugins": ["@typescript-eslint"],
   "rules": {
     "no-console": "warn",
-    "quotes": ["warn", "single"],
-    "react/react-in-jsx-scope": "off"
+    "quotes": ["warn", "single"]
   }
 }
