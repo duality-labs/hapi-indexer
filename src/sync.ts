@@ -10,7 +10,7 @@ interface PlainTxResponse extends Omit<TxResponse, 'rawLog'> {
   gas_used: TxResponse['gasUsed'];
 }
 
-interface PlainV1Beta1GetTxsEventResponse {
+interface V1Beta1GetTxsEventResponse {
   /** txs is the list of queried transactions. */
   txs?: unknown[];
 
@@ -26,20 +26,6 @@ interface PlainV1Beta1GetTxsEventResponse {
 const { REST_API = '', POLLING_INTERVAL_SECONDS = '' } = process.env;
 
 const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
-
-interface V1Beta1GetTxsEventResponse {
-  /** txs is the list of queried transactions. */
-  txs?: unknown[];
-
-  /** tx_responses is the list of queried TxResponses. */
-  tx_responses?: TxResponse[];
-
-  /** pagination defines an pagination for the response. */
-  pagination?: {
-    next_key: string;
-    total: string;
-  };
-}
 
 type PageReader = (options: {
   page?: number;
@@ -137,8 +123,8 @@ async function catchUpREST({ fromBlockHeight = 0, logger = defaultLogger } = {})
       pagination,
       txs = [],
       tx_responses: pageItems = [],
-    } = await (response.json() as Promise<PlainV1Beta1GetTxsEventResponse>).then(
-      ({ pagination, txs, tx_responses }: PlainV1Beta1GetTxsEventResponse) => ({
+    } = await (response.json() as Promise<V1Beta1GetTxsEventResponse>).then(
+      ({ pagination, txs, tx_responses }: V1Beta1GetTxsEventResponse) => ({
         pagination,
         txs,
         tx_responses: tx_responses?.map(
