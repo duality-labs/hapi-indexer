@@ -68,11 +68,11 @@ async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
   // loop through all found
   if (tokens.length > 0) {
     await Promise.all(tokens.map(async token => {
-      const { id } = await db.get(`--sql
-      SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
-        'dex.tokens'.'token' = ?
-      )
-    `, [
+      const { id } = await db.get<{ id: number }>(`--sql
+        SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
+          'dex.tokens'.'token' = ?
+        )
+      `, [
         // 'token' TEXT NOT NULL,
         token,
       ]) || {};
@@ -81,13 +81,16 @@ async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
         }
         // or insert new token
         const { lastID } = await db.run(`--sql
-        INSERT OR IGNORE INTO 'dex.tokens' (
-          'token'
-        ) values (?)
-      `, [
+          INSERT INTO 'dex.tokens' (
+            'token'
+          ) values (?)
+        `, [
           // 'token' TEXT NOT NULL,
           token,
         ]) || {};
+        if (!lastID) {
+          throw new Error('unable to insert dex.tokens id');
+        }
         return lastID;
       })
     );
@@ -95,12 +98,12 @@ async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
 }
 
 
-async function insertDexPairsRows(txEvent: DecodedTxEvent): Promise<void> {
+async function insertDexPairsRows(txEvent: DecodedTxEvent): Promise<number | undefined> {
 
   // if event has tokens, ensure these tokens are present in the DB
   if (txEvent.attributes.Token0 && txEvent.attributes.Token1) {
     const { id } = await
-      db.get(`--sql
+      db.get<{ id: number }>(`--sql
         SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
           'dex.pairs'.'token0' = ? AND
           'dex.pairs'.'token1' = ?
@@ -111,10 +114,14 @@ async function insertDexPairsRows(txEvent: DecodedTxEvent): Promise<void> {
         // 'token1' TEXT NOT NULL,
         txEvent.attributes.Token1,
       ]) || {};
-      if (!id) {
+
+    if (id) {
+      return id;
+    }
+
         // or insert new token
-        await db.run(`--sql
-          INSERT OR IGNORE INTO 'dex.pairs' (
+        const { lastID } = await db.run(`--sql
+          INSERT INTO 'dex.pairs' (
             'token0',
             'token1'
           ) values (?, ?)
@@ -124,7 +131,10 @@ async function insertDexPairsRows(txEvent: DecodedTxEvent): Promise<void> {
           // 'token1' TEXT NOT NULL,
           txEvent.attributes.Token1,
         ]) || {};
-      }
+        if (!lastID) {
+          throw new Error('unable to insert dex.pairs id');
+        }
+        return lastID;
     }
 }
 
@@ -182,23 +192,9 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
   const isDexMessage = tx_result.code === 0 &&
     txEvent.attributes.module === 'dex' &&
     (txEvent.type === 'message' || txEvent.type === 'TickUpdate');
-  const dexPairId = isDexMessage && txEvent.attributes.Token0 && txEvent.attributes.Token1 ? (
-    await
-      db.run(`--sql
-        INSERT OR IGNORE INTO 'dex.pairs' (
-          'token0',
-          'token1'
-        ) values (?, ?)
-      `, [
-        // 'token0' TEXT NOT NULL,
-        txEvent.attributes.Token0,
-        // 'token1' TEXT NOT NULL,
-        txEvent.attributes.Token1,
-      ]).then((row) => {
-        console.log('dex pairts rows', row)
-        return row?.lastID
-      })
-  ) : undefined;
+  const dexPairId = isDexMessage && txEvent.attributes.Token0 && txEvent.attributes.Token1
+    ? insertDexPairsRows(txEvent)
+    : undefined;
 
   const blockTime = getBlockTimeFromTxResult(tx_result);
   const { lastID } = await
@@ -596,7 +592,7 @@ export default async function ingestTxs (txPage: TxResponse[]) {
   });
 };
 
-async function promiseMapInSeries<T>(list: Array<T>, itemCallback: (item: T, index: number, list: T[]) => Promise<void>) {
+async function promiseMapInSeries<T>(list: Array<T>, itemCallback: (item: T, index: number, list: T[]) => Promise<unknown>) {
   return list.reduce<Promise<unknown[]>>(async (listPromise, item, index) => {
     return Promise.all([...await listPromise, itemCallback(item, index, list)]);
   }, new Promise((resolve) => resolve([])));
