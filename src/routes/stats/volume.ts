@@ -1,4 +1,5 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
+import sql from 'sql-template-strings'
 import BigNumber from 'bignumber.js';
 
 import db from '../../storage/sqlite3/db/db';
@@ -13,7 +14,7 @@ async function volume(tokenA: string, tokenB: string, { lastDays = 1, lastSecond
   const unixStart = unixNow - lastSeconds;
 
   return await
-    db.all(`--sql
+    db.all(sql`
       SELECT
         'event.Swap'.'block.header.time_unix',
         'event.Swap'.'AmountOut',
@@ -22,26 +23,15 @@ async function volume(tokenA: string, tokenB: string, { lastDays = 1, lastSecond
         WHERE
         'event.Swap'.'meta.dex.pair' = (
           SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
-            'dex.pairs'.'token0' = ? AND
-            'dex.pairs'.'token1' = ?
+            'dex.pairs'.'token0' = ${tokenA} AND
+            'dex.pairs'.'token1' = ${tokenB}
           ) OR (
-            'dex.pairs'.'token1' = ? AND
-            'dex.pairs'.'token0' = ?
+            'dex.pairs'.'token1' = ${tokenA} AND
+            'dex.pairs'.'token0' = ${tokenB}
           )
         )
-        AND 'event.Swap'.'block.header.time_unix' > ?
-    `, [
-      // 'token0' TEXT NOT NULL,
-      tokenA,
-      // 'token1' TEXT NOT NULL,
-      tokenB,
-      // 'token1' TEXT NOT NULL,
-      tokenA,
-      // 'token0' TEXT NOT NULL,
-      tokenB,
-      // 'block.header.time_unix' INTEGER NOT NULL,
-      unixStart,
-    ])
+        AND 'event.Swap'.'block.header.time_unix' > ${unixStart}
+    `)
     .then((rows=[]) => {
           return rows.reduce((acc, row) => {
             // todo: add conversion to base currency to get real total value

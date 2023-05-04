@@ -1,3 +1,4 @@
+import sql from 'sql-template-strings'
 import db from '../db';
 
 // get pair ID without know which is token0 or token1
@@ -5,24 +6,15 @@ export default async function getPairID(tokenA: string, tokenB: string) {
 
   // wrap response in a promise
   return await
-    db.get(`--sql
+    db.get(sql`
       SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
-        'dex.pairs'.'token0' = ? AND
-        'dex.pairs'.'token1' = ?
+        'dex.pairs'.'token0' = ${tokenA} AND
+        'dex.pairs'.'token1' = ${tokenB}
       ) OR (
-        'dex.pairs'.'token1' = ? AND
-        'dex.pairs'.'token0' = ?
+        'dex.pairs'.'token1' = ${tokenA} AND
+        'dex.pairs'.'token0' = ${tokenB}
       )
-    `, [
-      // 'token0' TEXT NOT NULL,
-      tokenA,
-      // 'token1' TEXT NOT NULL,
-      tokenB,
-      // 'token1' TEXT NOT NULL,
-      tokenA,
-      // 'token0' TEXT NOT NULL,
-      tokenB,
-    ])
+    `)
     .then((result) => {
       // return found id
       return result?.['id'] || undefined;

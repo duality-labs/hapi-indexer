@@ -1,4 +1,5 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
+import sql from 'sql-template-strings'
 
 import db from './storage/sqlite3/db/db';
 import logger from './logger';
@@ -25,7 +26,7 @@ const debugPath = {
     try {
       const tableNames = 
         await db
-          .all(`SELECT name FROM 'sqlite_schema' WHERE type='table' ORDER BY name`, [])
+          .all(sql`SELECT name FROM 'sqlite_schema' WHERE type='table' ORDER BY name`)
           .then((rows) => rows.map(row => row.name));
       // return as rows keyed under the table name
       const tableEntries = await Promise.all(tableNames.filter(name => name !== 'sqlite_sequence').map(async tableName => {
