@@ -1,11 +1,9 @@
-import sql from 'sql-template-strings'
-import db from './db/db.js'
+import sql from 'sql-template-strings';
+import db from './db/db.js';
 
 export default async function init() {
-
   const promises: Array<Promise<unknown>> = [];
   db.getDatabaseInstance().serialize(() => {
-
     // setup module foreign key indexes to be used first
     promises.push(
       db.run(sql`
@@ -367,7 +365,6 @@ export default async function init() {
         );
       `)
     );
-
   });
 
   return await Promise.all(promises);

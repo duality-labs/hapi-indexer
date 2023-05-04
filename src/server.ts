@@ -8,7 +8,6 @@ import * as sync from './sync';
 import routes from './routes';
 
 const init = async () => {
-
   // wait for database to be set up before creating server
   await dbPromise;
   await initDbSchema();
@@ -20,11 +19,12 @@ const init = async () => {
     host: '0.0.0.0',
     routes: {
       cors: {
-        origin: process.env.NODE_ENV !== 'development'
-          ? [ 'app.duality.xyz' ] // production CORS settings
-          : [ '*' ],              // development CORS settings
+        origin:
+          process.env.NODE_ENV !== 'development'
+            ? ['app.duality.xyz'] // production CORS settings
+            : ['*'], // development CORS settings
         headers: ['Accept', 'Content-Type'],
-        additionalHeaders: ['X-Requested-With']
+        additionalHeaders: ['X-Requested-With'],
       },
     },
   });

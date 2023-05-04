@@ -1,6 +1,5 @@
-
-import sql from 'sql-template-strings'
-import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci'
+import sql from 'sql-template-strings';
+import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import { Event as TxEvent } from 'cosmjs-types/tendermint/abci/types';
 
 import db from '../../db/db';
@@ -31,9 +30,8 @@ function translateEvents({ type, attributes }: TxEvent, index: number): DecodedT
       }
       return acc;
     }, {}),
-  }
+  };
 }
-
 
 async function insertBlockRows(tx_result: TxResponse) {
   // activate at run time (after db has been initialized)
@@ -50,9 +48,7 @@ async function insertBlockRows(tx_result: TxResponse) {
   `);
 }
 
-
 async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
-
   // if event has tokens, ensure these tokens are present in the DB
   const tokens = [
     txEvent.attributes.Token0,
@@ -62,22 +58,25 @@ async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
     txEvent.attributes.Token,
   ]
     .filter(Boolean) // remove falsy
-    .reduce<string[]>((acc, token) => acc.includes(token) ? acc : acc.concat(token), []); // remove duplicates
+    .reduce<string[]>((acc, token) => (acc.includes(token) ? acc : acc.concat(token)), []); // remove duplicates
   // loop through all found
   if (tokens.length > 0) {
-    await Promise.all(tokens.map(async token => {
-      const { id } = await db.get<{ id: number }>(sql`
+    await Promise.all(
+      tokens.map(async (token) => {
+        const { id } =
+          (await db.get<{ id: number }>(sql`
         SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
           'dex.tokens'.'token' = ${token}
         )
-      `) || {};
+      `)) || {};
         if (id) {
           return id;
         }
         // or insert new token
-        const { lastID } = await db.run(sql`
+        const { lastID } =
+          (await db.run(sql`
           INSERT INTO 'dex.tokens' ('token') values (${token})
-        `) || {};
+        `)) || {};
         if (!lastID) {
           throw new Error('unable to insert dex.tokens id');
         }
@@ -87,25 +86,24 @@ async function insertDexTokensRows(txEvent: DecodedTxEvent): Promise<void> {
   }
 }
 
-
 async function insertDexPairsRows(txEvent: DecodedTxEvent): Promise<number | undefined> {
-
   // if event has tokens, ensure these tokens are present in the DB
   if (txEvent.attributes.Token0 && txEvent.attributes.Token1) {
-    const { id } = await
-      db.get<{ id: number }>(sql`
+    const { id } =
+      (await db.get<{ id: number }>(sql`
         SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
           'dex.pairs'.'token0' = ${txEvent.attributes.Token0} AND
           'dex.pairs'.'token1' = ${txEvent.attributes.Token1}
         )
-      `) || {};
+      `)) || {};
 
     if (id) {
       return id;
     }
 
-        // or insert new token
-        const { lastID } = await db.run(sql`
+    // or insert new token
+    const { lastID } =
+      (await db.run(sql`
           INSERT INTO 'dex.pairs' (
             'token0',
             'token1'
@@ -113,14 +111,13 @@ async function insertDexPairsRows(txEvent: DecodedTxEvent): Promise<number | und
             ${txEvent.attributes.Token0},
             ${txEvent.attributes.Token1}            
           )
-        `) || {};
-        if (!lastID) {
-          throw new Error('unable to insert dex.pairs id');
-        }
-        return lastID;
+        `)) || {};
+    if (!lastID) {
+      throw new Error('unable to insert dex.pairs id');
     }
+    return lastID;
+  }
 }
-
 
 function getBlockTimeFromTxResult(tx_result: TxResponse) {
   // activate at run time (after db has been initialized)
@@ -128,8 +125,7 @@ function getBlockTimeFromTxResult(tx_result: TxResponse) {
 }
 
 async function insertTxRows(tx_result: TxResponse, index: number) {
-  return await
-    db.run(sql`
+  return await db.run(sql`
       INSERT INTO 'tx' (
         'block.header.height',
         'block.header.time_unix',
@@ -158,19 +154,18 @@ async function insertTxRows(tx_result: TxResponse, index: number) {
     `);
 }
 
-
 async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent, index: number) {
-
-  const isDexMessage = tx_result.code === 0 &&
+  const isDexMessage =
+    tx_result.code === 0 &&
     txEvent.attributes.module === 'dex' &&
     (txEvent.type === 'message' || txEvent.type === 'TickUpdate');
-  const dexPairId = isDexMessage && txEvent.attributes.Token0 && txEvent.attributes.Token1
-    ? await insertDexPairsRows(txEvent)
-    : undefined;
+  const dexPairId =
+    isDexMessage && txEvent.attributes.Token0 && txEvent.attributes.Token1
+      ? await insertDexPairsRows(txEvent)
+      : undefined;
 
   const blockTime = getBlockTimeFromTxResult(tx_result);
-  const { lastID } = await
-    db.run(sql`
+  const { lastID } = await db.run(sql`
     INSERT INTO 'tx_result.events' (
       'block.header.height',
       'block.header.time_unix',
@@ -196,10 +191,10 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
       ${isDexMessage && txEvent.attributes.action === 'Deposit' && dexPairId},
       ${isDexMessage && txEvent.attributes.action === 'Withdraw' && dexPairId}
     )`);
-      // continue logic for several dex events
-      // add event row to specific event table:
-      if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
-        await db.run(sql`
+  // continue logic for several dex events
+  // add event row to specific event table:
+  if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
+    await db.run(sql`
           INSERT INTO 'event.TickUpdate' (
             'block.header.height',
             'block.header.time_unix',
@@ -226,19 +221,22 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
           ${txEvent.attributes['TickIndex']},
           ${txEvent.attributes['Reserves']},
           ${dexPairId},
-          ${await db.get(
-            sql`
+          ${
+            (await db
+              .get(
+                sql`
               SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
                 'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
               )
             `
-          ).then((row) => row?.['id']) as string}
+              )
+              .then((row) => row?.['id'])) as string
+          }
         )`);
-          // add derivations of TickUpdates before resolving
-          await upsertDerivedTickStateRows(tx_result, txEvent, index);
-      }
-      else if (isDexMessage && txEvent.attributes.action === 'Swap') {
-        await db.run(sql`
+    // add derivations of TickUpdates before resolving
+    await upsertDerivedTickStateRows(tx_result, txEvent, index);
+  } else if (isDexMessage && txEvent.attributes.action === 'Swap') {
+    await db.run(sql`
           INSERT INTO 'event.Swap' (
             'block.header.height',
             'block.header.time_unix',
@@ -267,24 +265,30 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
           ${txEvent.attributes['Token0']},
           ${txEvent.attributes['Token1']},
           ${txEvent.attributes['TokenIn']},
-          ${txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
-            ? txEvent.attributes['Token0']
-            : txEvent.attributes['Token1']},
+          ${
+            txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
+              ? txEvent.attributes['Token0']
+              : txEvent.attributes['Token1']
+          },
           ${txEvent.attributes['AmountIn']},
           ${txEvent.attributes['AmountOut']},
           ${dexPairId},
           ${
-          // todo: this is inconsistent with other queries
-          // it should be converted into a sub query
-          await db.get(
-            sql`
+            // todo: this is inconsistent with other queries
+            // it should be converted into a sub query
+            await db
+              .get(
+                sql`
               SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
                 'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
               )
             `
-          ).then((row) => row?.['id'])},
-          ${await db.get(
-            sql`
+              )
+              .then((row) => row?.['id'])
+          },
+          ${await db
+            .get(
+              sql`
               SELECT 'dex.tokens'.'id' FROM 'dex.tokens' WHERE (
                 'dex.tokens'.'token' = ${
                   txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
@@ -293,11 +297,11 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
                 }
               )
             `
-          ).then((row) => row['id'])}
+            )
+            .then((row) => row['id'])}
         )`);
-      }
-      else if (isDexMessage && txEvent.attributes.action === 'Deposit') {
-        await db.run(sql`
+  } else if (isDexMessage && txEvent.attributes.action === 'Deposit') {
+    await db.run(sql`
           INSERT INTO 'event.Deposit' (
             'block.header.height',
             'block.header.time_unix',
@@ -331,9 +335,8 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
           ${txEvent.attributes['SharesMinted']},
           ${dexPairId}
         )`);
-      }
-      else if (isDexMessage && txEvent.attributes.action === 'Withdraw') {
-        await db.run(sql`
+  } else if (isDexMessage && txEvent.attributes.action === 'Withdraw') {
+    await db.run(sql`
           INSERT INTO 'event.Withdraw' (
             'block.header.height',
             'block.header.time_unix',
@@ -369,19 +372,21 @@ async function insertTxEventRows(tx_result: TxResponse, txEvent: DecodedTxEvent,
           ${txEvent.attributes['SharesRemoved']},
           ${dexPairId}
         )`);
-      }
+  }
   return lastID;
 }
 
-
-async function upsertDerivedTickStateRows(tx_result: TxResponse, txEvent: DecodedTxEvent, index: number) {
-
-  const isDexMessage = txEvent.type === 'TickUpdate' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
+async function upsertDerivedTickStateRows(
+  tx_result: TxResponse,
+  txEvent: DecodedTxEvent,
+  index: number
+) {
+  const isDexMessage =
+    txEvent.type === 'TickUpdate' && txEvent.attributes.module === 'dex' && tx_result.code === 0;
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     const blockTime = getBlockTimeFromTxResult(tx_result);
 
-    const { lastID } = await
-      db.run(sql`
+    const { lastID } = await db.run(sql`
         INSERT OR REPLACE INTO 'derived.tick_state' (
           'meta.dex.pair',
           'meta.dex.token',
@@ -400,12 +405,11 @@ async function upsertDerivedTickStateRows(tx_result: TxResponse, txEvent: Decode
         )
       `);
 
-        // continue logic for several dependent states
-        const isForward = txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
-        const tickSide = isForward ? 'LowestTick1': 'HighestTick0';
-        // note that previousTickIndex may not exist yet
-        const previousPriceData = await
-          db.get(sql`
+    // continue logic for several dependent states
+    const isForward = txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
+    const tickSide = isForward ? 'LowestTick1' : 'HighestTick0';
+    // note that previousTickIndex may not exist yet
+    const previousPriceData = await db.get(sql`
             SELECT 'derived.tx_price_data'.'HighestTick0', 'derived.tx_price_data'.'LowestTick1' FROM 'derived.tx_price_data' WHERE (
               'derived.tx_price_data'.'meta.dex.pair' = (
                 SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
@@ -420,11 +424,13 @@ async function upsertDerivedTickStateRows(tx_result: TxResponse, txEvent: Decode
               'derived.tx_price_data'.'tx_result.events.index' DESC
             LIMIT 1
           `);
-        const previousTickIndex = previousPriceData?.[tickSide];
+    const previousTickIndex = previousPriceData?.[tickSide];
 
-        // derive data from entire ticks state (useful for maybe some other calculations)
-        const currentTickIndex = await
-          db.get(sql`
+    // derive data from entire ticks state (useful for maybe some other calculations)
+    const currentTickIndex = await db
+      .get(
+        // append plain SQL (without value substitution) to have conditional query
+        sql`
             SELECT 'derived.tick_state'.'TickIndex' FROM 'derived.tick_state' WHERE (
               'derived.tick_state'.'meta.dex.pair' = (
                 SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
@@ -441,23 +447,19 @@ async function upsertDerivedTickStateRows(tx_result: TxResponse, txEvent: Decode
               AND
               'derived.tick_state'.'Reserves' != '0'
             )
-          `
-          // append plain SQL (without value substitution) to have conditional query
-          .append(`--sql
+          `.append(`--sql
             ORDER BY 'derived.tick_state'.'TickIndex' ${isForward ? 'ASC' : 'DESC'}
             LIMIT 1
-          `)).then((row) => row?.['TickIndex'] ?? null);
+          `)
+      )
+      .then((row) => row?.['TickIndex'] ?? null);
 
-        // if activity has changed current price then update data
-        if (previousTickIndex !== currentTickIndex) {
-
-          const previousOtherSideTickIndex = (
-            isForward
-              ? previousPriceData?.['HighestTick0']
-              : previousPriceData?.['LowestTick1']
-          ) ?? null;
-          await
-            db.run(sql`
+    // if activity has changed current price then update data
+    if (previousTickIndex !== currentTickIndex) {
+      const previousOtherSideTickIndex =
+        (isForward ? previousPriceData?.['HighestTick0'] : previousPriceData?.['LowestTick1']) ??
+        null;
+      await db.run(sql`
               INSERT OR REPLACE INTO 'derived.tx_price_data' (
                 'block.header.height',
                 'block.header.time_unix',
@@ -485,13 +487,13 @@ async function upsertDerivedTickStateRows(tx_result: TxResponse, txEvent: Decode
                 ${currentTickIndex || previousOtherSideTickIndex}
               )
             `);
-        }
+    }
 
     return lastID;
   }
 }
 
-export default async function ingestTxs (txPage: TxResponse[]) {
+export default async function ingestTxs(txPage: TxResponse[]) {
   return await promiseMapInSeries(txPage, async (tx_result: TxResponse, index: number) => {
     const txEvents = (tx_result.events || []).map(translateEvents);
     // first add block rows
@@ -507,10 +509,13 @@ export default async function ingestTxs (txPage: TxResponse[]) {
       await insertTxEventRows(tx_result, txEvent, index);
     });
   });
-};
+}
 
-async function promiseMapInSeries<T>(list: Array<T>, itemCallback: (item: T, index: number, list: T[]) => Promise<unknown>) {
+async function promiseMapInSeries<T>(
+  list: Array<T>,
+  itemCallback: (item: T, index: number, list: T[]) => Promise<unknown>
+) {
   return list.reduce<Promise<unknown[]>>(async (listPromise, item, index) => {
-    return Promise.all([...await listPromise, itemCallback(item, index, list)]);
+    return Promise.all([...(await listPromise), itemCallback(item, index, list)]);
   }, new Promise((resolve) => resolve([])));
 }

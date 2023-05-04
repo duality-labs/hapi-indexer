@@ -17,14 +17,18 @@ interface Pagination {
   after: number;
 }
 
-export default async function getPricePerSecond(tokenA: string, tokenB: string, query: RequestQuery={}) {
+export default async function getPricePerSecond(
+  tokenA: string,
+  tokenB: string,
+  query: RequestQuery = {}
+) {
   // collect pagination keys into a pagination object
   let unsafePagination: UnsafePagination = {
     offset: Number(query['pagination.offset']) || undefined,
     limit: Number(query['pagination.limit']) || undefined,
     before: Number(query['pagination.before']) || undefined,
     after: Number(query['pagination.after']) || undefined,
-  }
+  };
   // use pagination key to replace any other pagination options requested
   try {
     if (query['pagination.key']) {
@@ -32,8 +36,7 @@ export default async function getPricePerSecond(tokenA: string, tokenB: string, 
         Buffer.from(query['pagination.key'], 'base64url').toString('utf8')
       );
     }
-  }
-  catch (e) {
+  } catch (e) {
     logger.error(e);
   }
 
@@ -93,36 +96,33 @@ export default async function getPricePerSecond(tokenA: string, tokenB: string, 
 
   // if result includes an item from the next page then remove it
   // and generate a next key to represent the next page of data
-  const nextKey = data && data.length > pagination.limit
-    ? data.pop() && (
-      Buffer.from(
-        JSON.stringify({
-          'offset': pagination.offset + data.length,
-          'size': pagination.limit,
-          // pass height queries back in exactly as it came
-          // (for consistent processing)
-          ...query['pagination.before'] && {
-            'before': query['pagination.before'],
-          },
-          ...query['pagination.after'] && {
-            'after': query['pagination.after'],
-          },
-        })
-      ).toString('base64url')
-    )
-    : null;
+  const nextKey =
+    data && data.length > pagination.limit
+      ? data.pop() &&
+        Buffer.from(
+          JSON.stringify({
+            offset: pagination.offset + data.length,
+            size: pagination.limit,
+            // pass height queries back in exactly as it came
+            // (for consistent processing)
+            ...(query['pagination.before'] && {
+              before: query['pagination.before'],
+            }),
+            ...(query['pagination.after'] && {
+              after: query['pagination.after'],
+            }),
+          })
+        ).toString('base64url')
+      : null;
 
   const shape = ['time_unix', ['open', 'high', 'low', 'close']];
   return {
     shape,
-    data: (data || []).map(row => {
-      return [
-        row['time_unix'],
-        [row['open'], row['high'], row['low'], row['close']]
-      ];
+    data: (data || []).map((row) => {
+      return [row['time_unix'], [row['open'], row['high'], row['low'], row['close']]];
     }),
     pagination: {
       'next-key': nextKey,
     },
-  }
+  };
 }

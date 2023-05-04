@@ -1,9 +1,12 @@
 # Duality hapi-indexer
+
 A Node.js based indexer for the Duality Cosmos chain made with the [Hapi](https://hapi.dev/) server framework
 and with data stored in [SQLite3](https://www.sqlite.org/).
 
 # Get started
+
 To get started
+
 ```sh
 # install (npm ci will not update dependencies and package-lock.json)
 npm ci
@@ -13,6 +16,7 @@ npm run docker
 
 To connect to a locally running chain in Docker remember to add some local environment settings like this example:
 .env.local
+
 ```.env
 # Add dev endpoints
 NODE_ENV=development
