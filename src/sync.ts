@@ -172,7 +172,7 @@ export async function keepUpREST() {
 
   // poll for updates
   async function poll() {
-    defaultLogger.info('keeping up: polling');
+    defaultLogger.info('keeping up: the polling');
     const lastBlockHeight = maxBlockHeight;
     const startTime = Date.now();
     await catchUpREST({
