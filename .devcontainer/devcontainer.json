@@ -4,6 +4,7 @@
   "name": "Hapi Indexer Container",
   "build": {
     "dockerfile": "../Dockerfile",
+    "context": "../",
     "args": {
       "NODE_ENV": "development"
     }
