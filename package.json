@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "prepare": "husky install",
-    "dev": "touch .env.local && docker-compose up --build --abort-on-container-exit || true && docker-compose down",
+    "dev": "docker-compose up --build --abort-on-container-exit || true && docker-compose down",
     "build": "tsc",
     "start": "npm run build && node --experimental-specifier-resolution=node dist/server.js"
   },
