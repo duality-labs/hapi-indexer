@@ -5,9 +5,12 @@
   "main": "dist/server.js",
   "scripts": {
     "prepare": "husky install",
-    "dev": "docker-compose up --build --abort-on-container-exit || true && docker-compose down",
+    "docker": "docker-compose up --build --abort-on-container-exit || true && docker-compose down",
     "build": "tsc",
     "esbuild": "esbuild src/server.ts --bundle --platform=node --packages=external --outdir=dist",
+    "dev:build": "npm run esbuild -- --watch",
+    "dev:start": "nodemon dist/server.js",
+    "dev": "concurrently npm:dev:*",
     "start": "npm run esbuild && node dist/server.js"
   },
   "dependencies": {
@@ -23,6 +26,7 @@
     "@types/node": "^18.16.3",
     "@typescript-eslint/eslint-plugin": "^5.59.2",
     "@typescript-eslint/parser": "^5.59.2",
+    "concurrently": "^8.0.1",
     "cosmjs-types": "^0.7.2",
     "esbuild": "0.17.18",
     "eslint": "^8.39.0",
@@ -30,6 +34,7 @@
     "formdata-node": "^5.0.0",
     "husky": "^8.0.3",
     "lint-staged": "^13.2.2",
+    "nodemon": "^2.0.22",
     "prettier": "2.8.8",
     "typescript": "^5.0.4",
     "undici": "^5.22.0"

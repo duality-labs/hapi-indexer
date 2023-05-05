@@ -50,7 +50,7 @@ To get started with a local version of the chain:
 
    1. have Node.js (v16+) installed locally
    2. use `npm ci` to install git hooks locally
-   3. use `npm run dev` to run the code in a Docker Compose container
+   3. use `npm run docker` to run the code in a Docker Compose container
 
    ***
 

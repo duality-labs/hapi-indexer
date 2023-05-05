@@ -1,8 +1,10 @@
 version: '3'
 
+#  run development indexer
 services:
   indexer:
     build: .
+    command: 'npm run dev'
     env_file:
       - .env
       - .env.local
