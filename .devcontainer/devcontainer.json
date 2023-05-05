@@ -1,14 +1,9 @@
-// For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
-// https://github.com/microsoft/vscode-dev-containers/tree/v0.238.0/containers/go
+// For format details, see https://aka.ms/devcontainer.json.
+// For variant options, see the README at:
+//   https://github.com/devcontainers/images/tree/main/src/javascript-node
 {
   "name": "Hapi Indexer Container",
-  "build": {
-    "dockerfile": "../Dockerfile",
-    "context": "../",
-    "args": {
-      "NODE_ENV": "development"
-    }
-  },
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:18-bullseye",
   "runArgs": [
     "--env-file=.env",
     "--env-file=.env.local",
@@ -54,5 +49,8 @@
     // optional features: these increase to post-Dockerfile setup time
     // "fish": "latest",
     // "rust": "1.61.0"
-  }
+  },
+
+  "postCreateCommand": "npm ci",
+  "postStartCommand": "npm run dev"
 }
