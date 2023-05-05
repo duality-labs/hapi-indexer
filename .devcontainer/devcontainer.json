@@ -33,6 +33,11 @@
   // Use 'forwardPorts' to make a list of ports inside the container available locally.
   "forwardPorts": [8000],
 
-  // Use 'postCreateCommand' to run commands after the container is created:
-  "postCreateCommand": "npm start"
+  // pass git through and set any other terminals as preferred
+  "features": {
+    "git": "os-provided"
+    // optional features: these increase to post-Dockerfile setup time
+    // "fish": "latest",
+    // "rust": "1.61.0"
+  }
 }

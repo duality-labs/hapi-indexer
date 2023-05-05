@@ -5,6 +5,7 @@ and with data stored in [SQLite3](https://www.sqlite.org/).
 
 # Requirements
 
+- git version >= 2.9 (for git hooks usage)
 - for simple development:
   - VSCode: https://code.visualstudio.com/
   - Docker + Docker compose: https://www.docker.com/products/docker-desktop/
@@ -40,20 +41,23 @@ To get started with a local version of the chain:
       [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
       extension installed, and select to "Reopen in container" when prompted
    2. run `npm start` in the VSCode terminal to start the indexer
+   3. [optional] if you intend to git outside of VSCode
+      - use `npm ci` (with Node.js v16+) locally to install git hooks
 
    ***
 
    ### Docker Compose
 
-   1. have Node.js (any version) installed locally
-   2. use `npm run dev` to run the code in a Docker Compose container
+   1. have Node.js (v16+) installed locally
+   2. use `npm ci` to install git hooks locally
+   3. use `npm run dev` to run the code in a Docker Compose container
 
    ***
 
    ### Local tools
 
    1. Ensure you have the correct Node.js version installed (refer to the Dockerfile node dependency)
-   2. use `npm ci` to install dependencies
+   2. use `npm ci` to install dependencies and git hooks
    3. use `npm start` to run the chain
       - environment variables should be made availble to this command
         - eg. using `NODE_ENV=development npm start`
