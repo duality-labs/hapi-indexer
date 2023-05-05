@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import { open } from 'sqlite';
+import { Database } from 'sqlite';
 
 const { NODE_ENV, DB_FILENAME = '/tmp/database.db' } = process.env;
 
@@ -7,9 +7,13 @@ if (NODE_ENV === 'development') {
   sqlite3.verbose();
 }
 
-export const dbPromise = open({
+export const db = new Database({
   filename: DB_FILENAME,
   driver: sqlite3.Database,
 });
 
-export default await dbPromise;
+export async function init() {
+  await db.open();
+}
+
+export default db;

@@ -3,12 +3,11 @@
   "version": "0.1.0",
   "description": "A Node.js based indexer for the Duality Cosmos chain",
   "main": "dist/server.js",
-  "type": "module",
   "scripts": {
     "prepare": "husky install",
     "dev": "docker-compose up --build --abort-on-container-exit || true && docker-compose down",
     "build": "tsc",
-    "start": "npm run build && node --experimental-specifier-resolution=node dist/server.js"
+    "start": "npm run build && node dist/server.js"
   },
   "dependencies": {
     "@hapi/hapi": "^21.3.1",

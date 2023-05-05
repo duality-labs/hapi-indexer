@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "es5",
+    "target": "ES6",
     "lib": ["esnext"],
     "allowJs": true,
     "esModuleInterop": true,
@@ -8,8 +8,7 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
-    "module": "ES6",
-    "moduleResolution": "node",
+    "module": "CommonJS",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "sourceMap": true,
