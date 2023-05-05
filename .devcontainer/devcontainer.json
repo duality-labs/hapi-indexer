@@ -3,7 +3,10 @@
 {
   "name": "Hapi Indexer Container",
   "build": {
-    "dockerfile": "../Dockerfile"
+    "dockerfile": "../Dockerfile",
+    "args": {
+      "NODE_ENV": "development"
+    }
   },
   "runArgs": [
     "--env-file=.env",

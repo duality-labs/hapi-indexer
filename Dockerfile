@@ -7,7 +7,12 @@ FROM node:18-bullseye
 # this is done before the following COPY command to take advantage of layer caching
 COPY package.json .
 COPY package-lock.json .
-RUN npm ci
+
+# when `npm ci` is run with NODE_ENV=production it will ignore the dev dependencies
+# which will make for a slimmer build size
+ARG NODE_ENV=production
+ENV NODE_ENV=${NODE_ENV}
+RUN NODE_ENV=${NODE_ENV} npm ci
 
 # using build from source will allow the DB engine packages to build their own files
 # and not rely on possibly incorrect downloaded versions
