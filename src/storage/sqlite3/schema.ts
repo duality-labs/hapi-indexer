@@ -1,5 +1,5 @@
 import sql from 'sql-template-strings';
-import db from './db/db.js';
+import db from './db/db';
 
 export default async function init() {
   const promises: Array<Promise<unknown>> = [];

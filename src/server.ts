@@ -1,7 +1,7 @@
 import Hapi from '@hapi/hapi';
 import logger from './logger';
 
-import db, { dbPromise } from './storage/sqlite3/db/db.js';
+import db, { dbPromise } from './storage/sqlite3/db/db';
 import initDbSchema from './storage/sqlite3/schema';
 import * as sync from './sync';
 
