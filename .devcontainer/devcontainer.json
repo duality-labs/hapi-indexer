@@ -17,17 +17,27 @@
   "customizations": {
     // Configure properties specific to VS Code.
     "vscode": {
-      // Set *default* container specific settings.json values on container create.
-      "settings": {
-        "editor.tabSize": 2
-      },
-
       // Add the IDs of extensions you want installed when the container is created.
       "extensions": [
         "dbaeumer.vscode-eslint",
         "iliazeus.vscode-ansi",
-        "qufiwefefwoyn.inline-sql-syntax"
-      ]
+        "qufiwefefwoyn.inline-sql-syntax",
+        "vscode-icons-team.vscode-icons"
+      ],
+
+      // Set *default* container specific settings.json values on container create.
+      "settings": {
+        "editor.tabSize": 2,
+        // set file icons as shown by extension vscode-icons-team.vscode-icons
+        "vsicons.associations.files": [
+          // Add ANSI log file associations (for extension iliazeus.vscode-ansi)
+          {
+            "icon": "log", // or any other icon from vscode-icons
+            "extensions": ["ansi"],
+            "format": "svg"
+          }
+        ]
+      }
     }
   },
 
