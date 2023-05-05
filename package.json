@@ -7,7 +7,8 @@
     "prepare": "husky install",
     "dev": "docker-compose up --build --abort-on-container-exit || true && docker-compose down",
     "build": "tsc",
-    "start": "npm run build && node dist/server.js"
+    "esbuild": "esbuild src/server.ts --bundle --platform=node --packages=external --outdir=dist",
+    "start": "npm run esbuild && node dist/server.js"
   },
   "dependencies": {
     "@hapi/hapi": "^21.3.1",
@@ -23,6 +24,7 @@
     "@typescript-eslint/eslint-plugin": "^5.59.2",
     "@typescript-eslint/parser": "^5.59.2",
     "cosmjs-types": "^0.7.2",
+    "esbuild": "0.17.18",
     "eslint": "^8.39.0",
     "eslint-config-prettier": "^8.8.0",
     "formdata-node": "^5.0.0",
