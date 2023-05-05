@@ -118,14 +118,16 @@ async function catchUpREST({
     const itemsPerPage = 100;
     const response = await fetch(
       `
-      ${REST_API}/cosmos/tx/v1beta1/txs
-        ?events=tx.height>=${fromBlockHeight}
-        ${offset ? `&pagination.offset=${offset}` : ''}
-        &pagination.limit=${itemsPerPage}
-        &pagination.count_total=true
-        &order_by=ORDER_BY_ASC
-    `.replace(/\s+/g, '')
-    ); // remove spaces from URL
+        ${REST_API}/cosmos/tx/v1beta1/txs
+          ?events=tx.height>=${fromBlockHeight}
+          ${offset ? `&pagination.offset=${offset}` : ''}
+          &pagination.limit=${itemsPerPage}
+          &pagination.count_total=true
+          &order_by=ORDER_BY_ASC
+      `
+        // remove spaces from URL
+        .replace(/\s+/g, '')
+    );
     const {
       pagination,
       txs = [],
