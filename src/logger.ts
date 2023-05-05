@@ -1,6 +1,6 @@
 import { createLogger, transports, config, format } from 'winston';
 
-const logFilename = 'combined.log';
+const logFilename = 'logs/combined.log.ansi';
 
 export const logFileTransport = new transports.File({
   level: 'debug',
