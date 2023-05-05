@@ -16,6 +16,7 @@
   "dependencies": {
     "@hapi/hapi": "^21.3.1",
     "bignumber.js": "^9.1.1",
+    "esbuild": "^0.17.18",
     "sql-template-strings": "^2.2.2",
     "sqlite": "^4.2.0",
     "sqlite3": "^5.1.6",
@@ -28,7 +29,6 @@
     "@typescript-eslint/parser": "^5.59.2",
     "concurrently": "^8.0.1",
     "cosmjs-types": "^0.7.2",
-    "esbuild": "0.17.18",
     "eslint": "^8.39.0",
     "eslint-config-prettier": "^8.8.0",
     "formdata-node": "^5.0.0",
