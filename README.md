@@ -40,9 +40,11 @@ To get started with a local version of the chain:
    1. Open this code in VSCode with the
       [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
       extension installed, and select to "Reopen in container" when prompted
-   2. run `npm start` in the VSCode terminal to start the indexer
+   2. The indexer should compile and start running immediately
+      - this process can be exited and another one started
+      - run `npm run dev` in the VSCode terminal to start the indexer
    3. [optional] if you intend to git outside of VSCode
-      - use `npm ci` (with Node.js v16+) locally to install git hooks
+      - use `npm ci` (with Node.js v16+) locally to install git hooks if not available
 
    ***
 
@@ -62,4 +64,12 @@ To get started with a local version of the chain:
       - environment variables should be made availble to this command
         - eg. using `NODE_ENV=development npm start`
         - see `.env` for example environment variables
-      - if there are issues with the SQL driver file please refer to the specific installation workaround detailed in the Dockerfile. The SQL driver must match the system it is running on.
+      - if there are issues with the SQL driver file please refer to
+        [the sqlite3 docs](https://github.com/TryGhost/node-sqlite3#source-install).
+        The SQL driver binary must match the system it is running on.
+
+## Difference between start scripts
+
+- `npm start` will start the indexer
+- `npm run dev` will start the indexer and also listen for code changes
+  and restart the indexer on any detected changes to the JavaScript bundle
