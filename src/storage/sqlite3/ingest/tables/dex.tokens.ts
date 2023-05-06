@@ -1,7 +1,8 @@
 import sql from 'sql-template-strings';
 
 import db from '../../db/db';
-import { DecodedTxEvent } from './tx_result.events';
+
+import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export default async function insertDexTokensRows(
   txEvent: DecodedTxEvent

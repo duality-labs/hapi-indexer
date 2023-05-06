@@ -4,7 +4,8 @@ import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import db from '../../db/db';
 
 import { getBlockTimeFromTxResult } from './block';
-import { DecodedTxEvent } from './tx_result.events';
+
+import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export async function upsertDerivedTickStateRows(
   tx_result: TxResponse,

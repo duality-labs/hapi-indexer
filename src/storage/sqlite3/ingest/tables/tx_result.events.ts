@@ -1,6 +1,5 @@
 import sql from 'sql-template-strings';
 import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
-import { Event as TxEvent } from 'cosmjs-types/tendermint/abci/types';
 
 import db from '../../db/db';
 
@@ -12,42 +11,7 @@ import insertEventDeposit from './event.Deposit';
 import insertEventWithdraw from './event.Withdraw';
 import { upsertDerivedTickStateRows } from './derived.tick_state';
 
-// transform given events
-//   eg. { attributes: [{ key: "dHlwZQ==", value: "bWVzc2FnZQ==", index: true }] }
-// into events with attributes that have been decoded and mapped into an easy to use object
-//   eg. { attributes: { type: "message" } }
-interface DecodedAttributeMap {
-  [key: string]: string;
-}
-export interface DecodedTxEvent extends Omit<TxEvent, 'attributes'> {
-  index: number;
-  attributes: DecodedAttributeMap;
-}
-
-export function decodeEvent(
-  { type, attributes }: TxEvent,
-  index: number
-): DecodedTxEvent {
-  return {
-    index,
-    type,
-    attributes: attributes.reduce<DecodedAttributeMap>(
-      (acc, { key, value }) => {
-        if (key) {
-          const decodedKey = Buffer.from(`${key}`, 'base64').toString('utf8');
-          const decodedValue = value
-            ? Buffer.from(`${value}`, 'base64').toString('utf8')
-            : null;
-          if (decodedKey) {
-            acc[decodedKey] = decodedValue || '';
-          }
-        }
-        return acc;
-      },
-      {}
-    ),
-  };
-}
+import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export default async function insertTxEventRows(
   tx_result: TxResponse,

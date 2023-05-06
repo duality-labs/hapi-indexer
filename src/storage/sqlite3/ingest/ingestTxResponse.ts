@@ -4,10 +4,9 @@ import insertDexTokensRows from './tables/dex.tokens';
 import insertDexPairsRows from './tables/dex.pairs';
 import insertBlockRows from './tables/block';
 import insertTxRows from './tables/tx';
-import insertTxEventRows, {
-  decodeEvent,
-  DecodedTxEvent,
-} from './tables/tx_result.events';
+import insertTxEventRows from './tables/tx_result.events';
+
+import decodeEvent, { DecodedTxEvent } from './utils/decodeEvent';
 
 export default async function ingestTxs(txPage: TxResponse[]) {
   return await promiseMapInSeries(
