@@ -6,12 +6,24 @@ import insertBlockRows from './tables/block';
 import insertTxRows from './tables/tx';
 import insertTxEventRows from './tables/tx_result.events';
 
+import insertEventTickUpdate from './tables/event.TickUpdate';
+import insertEventSwap from './tables/event.Swap';
+import insertEventDeposit from './tables/event.Deposit';
+import insertEventWithdraw from './tables/event.Withdraw';
+import { upsertDerivedTickStateRows } from './tables/derived.tick_state';
+
 import decodeEvent, { DecodedTxEvent } from './utils/decodeEvent';
+import { getDexMessageAction, isValidResult } from './utils/utils';
 
 export default async function ingestTxs(txPage: TxResponse[]) {
   return await promiseMapInSeries(
     txPage,
     async (tx_result: TxResponse, index: number) => {
+      // skip invalid transactions
+      if (!isValidResult(tx_result)) {
+        return;
+      }
+
       const txEvents = (tx_result.events || []).map(decodeEvent);
       // first add block rows
       await insertBlockRows(tx_result);
@@ -24,6 +36,24 @@ export default async function ingestTxs(txPage: TxResponse[]) {
       // then add transaction event rows
       await promiseMapInSeries(txEvents, async (txEvent: DecodedTxEvent) => {
         await insertTxEventRows(tx_result, txEvent, index);
+
+        // continue logic for dex events
+        // if the event was a dex action then use that event to update tables
+        const dexAction = getDexMessageAction(txEvent);
+        if (dexAction) {
+          // add event rows to specific event tables:
+          const rowsToUpdateMap = {
+            TickUpdate: [insertEventTickUpdate, upsertDerivedTickStateRows],
+            Swap: [insertEventSwap],
+            Deposit: [insertEventDeposit],
+            Withdraw: [insertEventWithdraw],
+          };
+          return await Promise.all(
+            rowsToUpdateMap[dexAction].map((insertRowFunc) => {
+              return insertRowFunc(tx_result, txEvent, index);
+            })
+          );
+        }
       });
     }
   );
