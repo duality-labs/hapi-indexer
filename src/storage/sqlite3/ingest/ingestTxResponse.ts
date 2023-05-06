@@ -42,17 +42,21 @@ export default async function ingestTxs(txPage: TxResponse[]) {
         const dexAction = getDexMessageAction(txEvent);
         if (dexAction) {
           // add event rows to specific event tables:
-          const rowsToUpdateMap = {
-            TickUpdate: [insertEventTickUpdate, upsertDerivedTickStateRows],
-            Swap: [insertEventSwap],
-            Deposit: [insertEventDeposit],
-            Withdraw: [insertEventWithdraw],
-          };
-          return await Promise.all(
-            rowsToUpdateMap[dexAction].map((insertRowFunc) => {
-              return insertRowFunc(tx_result, txEvent, index);
-            })
-          );
+          switch (dexAction) {
+            case 'Deposit':
+              await insertEventDeposit(tx_result, txEvent, index);
+              break;
+            case 'Withdraw':
+              await insertEventWithdraw(tx_result, txEvent, index);
+              break;
+            case 'Swap':
+              await insertEventSwap(tx_result, txEvent, index);
+              break;
+            case 'TickUpdate':
+              await insertEventTickUpdate(tx_result, txEvent, index);
+              await upsertDerivedTickStateRows(tx_result, txEvent, index);
+              break;
+          }
         }
       });
     }
