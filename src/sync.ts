@@ -2,7 +2,7 @@ import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import { createLogger, transports, config, format, Logger } from 'winston';
 import { logFileTransport } from './logger';
 
-import ingestRestTxs from './storage/sqlite3/ingest/rest/tx';
+import ingestTxs from './storage/sqlite3/ingest/ingestTxResponse';
 
 interface PlainTxResponse extends Omit<TxResponse, 'rawLog'> {
   raw_log: TxResponse['rawLog'];
@@ -107,7 +107,7 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
 
 let maxBlockHeight = 0;
 
-async function catchUpREST({
+export async function catchUp({
   fromBlockHeight = 0,
   logger = defaultLogger,
 } = {}) {
@@ -156,7 +156,7 @@ async function catchUpREST({
     }
 
     // ingest list
-    await ingestRestTxs(pageItems);
+    await ingestTxs(pageItems);
     // return next page information for page iterating function
     const pageItemCount = txs.length;
     const totalItemCount = (pagination?.total && Number(pagination.total)) || 0;
@@ -167,7 +167,7 @@ async function catchUpREST({
   }, logger.child({ label: 'transaction' }));
 }
 
-export async function keepUpREST() {
+export async function keepUp() {
   defaultLogger.info(
     `keeping up: polling from block height: ${maxBlockHeight}`
   );
@@ -177,7 +177,7 @@ export async function keepUpREST() {
     defaultLogger.info('keeping up: polling');
     const lastBlockHeight = maxBlockHeight;
     const startTime = Date.now();
-    await catchUpREST({
+    await catchUp({
       fromBlockHeight: maxBlockHeight + 1,
       logger: pollingLogger,
     });
@@ -207,7 +207,3 @@ export async function keepUpREST() {
 
   poll();
 }
-
-// choose method to use to catch up to the chain with
-export { catchUpREST as catchUp };
-export { keepUpREST as keepUp };
