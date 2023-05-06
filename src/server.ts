@@ -2,7 +2,7 @@ import Hapi from '@hapi/hapi';
 import logger from './logger';
 
 import db, { init as initDb } from './storage/sqlite3/db/db';
-import initDbSchema from './storage/sqlite3/schema';
+import initDbSchema from './storage/sqlite3/schema/schema';
 import * as sync from './sync';
 
 import routes from './routes';
