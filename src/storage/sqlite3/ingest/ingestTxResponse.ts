@@ -29,7 +29,7 @@ export default async function ingestTxs(txPage: TxResponse[]) {
       await insertBlockRows(tx_result);
       // then add token foreign keys
       await promiseMapInSeries(txEvents, insertDexTokensRows);
-      // then add token foreign keys
+      // then add pair foreign keys
       await promiseMapInSeries(txEvents, insertDexPairsRows);
       // then add transaction rows
       await insertTxRows(tx_result, index);

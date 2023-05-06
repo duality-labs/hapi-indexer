@@ -12,7 +12,7 @@ export default async function insertEventDeposit(
   index: number
 ) {
   return await db.run(sql`
-  INSERT INTO 'event.Deposit' (
+    INSERT INTO 'event.Deposit' (
       'block.header.height',
       'block.header.time_unix',
       'tx.index',
