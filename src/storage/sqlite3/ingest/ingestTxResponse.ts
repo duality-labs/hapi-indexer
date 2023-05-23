@@ -7,7 +7,7 @@ import insertTxRows from './tables/tx';
 import insertTxEventRows from './tables/tx_result.events';
 
 import insertEventTickUpdate from './tables/event.TickUpdate';
-import insertEventSwap from './tables/event.Swap';
+import insertEventPlaceLimitOrder from './tables/event.PlaceLimitOrder';
 import insertEventDeposit from './tables/event.Deposit';
 import insertEventWithdraw from './tables/event.Withdraw';
 import { upsertDerivedTickStateRows } from './tables/derived.tick_state';
@@ -57,8 +57,8 @@ export default async function ingestTxs(txPage: TxResponse[]) {
           case 'Withdraw':
             await insertEventWithdraw(tx_result, txEvent, index);
             break;
-          case 'Swap':
-            await insertEventSwap(tx_result, txEvent, index);
+          case 'PlaceLimitOrder':
+            await insertEventPlaceLimitOrder(tx_result, txEvent, index);
             break;
           case 'TickUpdate':
             await insertEventTickUpdate(tx_result, txEvent, index);

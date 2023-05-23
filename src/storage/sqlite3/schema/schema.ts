@@ -12,7 +12,7 @@ import createTableDexPairs from './tables/dex.pairs.sql';
 // Duality specific events
 import createTableEventDeposit from './tables/event.Deposit.sql';
 import createTableEventWithdraw from './tables/event.Withdraw.sql';
-import createTableEventSwap from './tables/event.Swap.sql';
+import createTableEventPlaceLimitOrder from './tables/event.PlaceLimitOrder.sql';
 import createTableEventTickUpdate from './tables/event.TickUpdate.sql';
 
 // data derived from events
@@ -34,7 +34,7 @@ export default async function init() {
     // Duality specific events
     createTableEventDeposit,
     createTableEventWithdraw,
-    createTableEventSwap,
+    createTableEventPlaceLimitOrder,
     createTableEventTickUpdate,
 
     // data derived from events

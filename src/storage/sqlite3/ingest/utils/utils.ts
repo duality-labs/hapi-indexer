@@ -13,7 +13,11 @@ export function isDexMessage(txEvent: DecodedTxEvent): boolean {
   );
 }
 
-type DexMessageAction = 'Swap' | 'Deposit' | 'Withdraw' | 'TickUpdate';
+type DexMessageAction =
+  | 'PlaceLimitOrder'
+  | 'Deposit'
+  | 'Withdraw'
+  | 'TickUpdate';
 
 export function getDexMessageAction(
   txEvent: DecodedTxEvent

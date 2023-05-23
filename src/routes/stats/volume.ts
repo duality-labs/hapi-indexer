@@ -23,12 +23,12 @@ async function volume(
     .all(
       sql`
         SELECT
-          'event.Swap'.'block.header.time_unix',
-          'event.Swap'.'AmountOut',
-          'event.Swap'.'TokenOut'
-        FROM 'event.Swap'
+          'event.PlaceLimitOrder'.'block.header.time_unix',
+          'event.PlaceLimitOrder'.'AmountIn',
+          'event.PlaceLimitOrder'.'TokenOut'
+        FROM 'event.PlaceLimitOrder'
           WHERE
-          'event.Swap'.'meta.dex.pair' = (
+          'event.PlaceLimitOrder'.'meta.dex.pair' = (
             SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
               'dex.pairs'.'token0' = ${tokenA} AND
               'dex.pairs'.'token1' = ${tokenB}
@@ -37,13 +37,13 @@ async function volume(
               'dex.pairs'.'token0' = ${tokenB}
             )
           )
-          AND 'event.Swap'.'block.header.time_unix' > ${unixStart}
+          AND 'event.PlaceLimitOrder'.'block.header.time_unix' > ${unixStart}
       `
     )
     .then((rows = []) => {
       return rows.reduce((acc, row) => {
         // todo: add conversion to base currency to get real total value
-        return acc.plus(row['AmountOut'] ?? '0');
+        return acc.plus(row['AmountIn'] ?? '0');
       }, new BigNumber(0));
     });
 }
