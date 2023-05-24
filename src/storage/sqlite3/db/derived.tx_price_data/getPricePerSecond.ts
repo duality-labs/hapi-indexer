@@ -4,17 +4,15 @@ import logger from '../../../../logger';
 import db from '../db';
 import { RequestQuery } from '@hapi/hapi';
 
-interface UnsafePagination {
+interface PaginationRequest {
   offset?: number;
   limit?: number;
-  before?: number;
-  after?: number;
+  before?: number; // unix timestamp
+  after?: number; // unix timestamp
 }
-interface Pagination {
-  offset: number;
-  limit: number;
-  before: number;
-  after: number;
+
+interface PaginationResponse {
+  next_key: string | null;
 }
 
 export default async function getPricePerSecond(
@@ -23,7 +21,7 @@ export default async function getPricePerSecond(
   query: RequestQuery = {}
 ) {
   // collect pagination keys into a pagination object
-  let unsafePagination: UnsafePagination = {
+  let unsafePagination: PaginationRequest = {
     offset: Number(query['pagination.offset']) || undefined,
     limit: Number(query['pagination.limit']) || undefined,
     before: Number(query['pagination.before']) || undefined,
@@ -41,7 +39,7 @@ export default async function getPricePerSecond(
   }
 
   // ensure some basic pagination limits are respected
-  const pagination: Pagination = {
+  const pagination: Required<PaginationRequest> = {
     offset: Math.max(0, unsafePagination.offset ?? 0),
     limit: Math.min(1000, unsafePagination.limit ?? 100),
     before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
@@ -109,21 +107,22 @@ export default async function getPricePerSecond(
   // and generate a next key to represent the next page of data
   const nextKey =
     data && data.length > pagination.limit
-      ? data.pop() &&
-        Buffer.from(
-          JSON.stringify({
+      ? (() => {
+          // remove data item intended for next page
+          data.pop();
+          // create next page pagination options to be serialized
+          const nextPagination: PaginationRequest = {
             offset: pagination.offset + data.length,
-            size: pagination.limit,
+            limit: pagination.limit,
             // pass height queries back in exactly as it came
             // (for consistent processing)
-            ...(query['pagination.before'] && {
-              before: query['pagination.before'],
-            }),
-            ...(query['pagination.after'] && {
-              after: query['pagination.after'],
-            }),
-          })
-        ).toString('base64url')
+            before: query['pagination.before'],
+            after: query['pagination.after'],
+          };
+          return Buffer.from(JSON.stringify(nextPagination)).toString(
+            'base64url'
+          );
+        })()
       : null;
 
   const shape = ['time_unix', ['open', 'high', 'low', 'close']];
@@ -136,7 +135,7 @@ export default async function getPricePerSecond(
       ];
     }),
     pagination: {
-      'next-key': nextKey,
-    },
+      next_key: nextKey,
+    } as PaginationResponse,
   };
 }
