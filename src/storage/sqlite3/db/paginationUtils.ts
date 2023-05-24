@@ -4,9 +4,9 @@ import logger from '../../../logger';
 export interface PaginatedRequestQuery extends RequestQuery {
   'pagination.key'?: string;
   'pagination.offset'?: string;
-  'pagination.limit'?: number;
-  'pagination.before'?: number; // unix timestamp
-  'pagination.after'?: number; // unix timestamp
+  'pagination.limit'?: string;
+  'pagination.before'?: string; // unix timestamp
+  'pagination.after'?: string; // unix timestamp
 }
 
 interface PaginationInput {
