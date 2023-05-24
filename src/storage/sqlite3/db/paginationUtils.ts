@@ -9,29 +9,29 @@ export interface PaginatedRequestQuery extends RequestQuery {
   'pagination.after'?: number; // unix timestamp
 }
 
-interface PaginationRequest {
+interface PaginationInput {
   offset?: number;
   limit?: number;
   before?: number; // unix timestamp
   after?: number; // unix timestamp
 }
 
-interface PaginationResponse {
+interface PaginationOutput {
   next_key: string | null;
 }
 
 export interface PaginatedResponse {
-  pagination: PaginationResponse;
+  pagination: PaginationOutput;
 }
 
 export function getPaginationFromQuery(
   query: PaginatedRequestQuery
 ): [
-  pagination: Required<PaginationRequest>,
-  getNextKey: (offsetIncrease: number) => PaginationResponse['next_key']
+  pagination: Required<PaginationInput>,
+  getNextKey: (offsetIncrease: number) => PaginationOutput['next_key']
 ] {
   // collect pagination keys into a pagination object
-  let unsafePagination: PaginationRequest = {
+  let unsafePagination: PaginationInput = {
     offset: Number(query['pagination.offset']) || undefined,
     limit: Number(query['pagination.limit']) || undefined,
     before: Number(query['pagination.before']) || undefined,
@@ -49,7 +49,7 @@ export function getPaginationFromQuery(
   }
 
   // ensure some basic pagination limits are respected
-  const pagination: Required<PaginationRequest> = {
+  const pagination: Required<PaginationInput> = {
     offset: Math.max(0, unsafePagination.offset ?? 0),
     limit: Math.min(1000, unsafePagination.limit ?? 100),
     before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
@@ -57,10 +57,10 @@ export function getPaginationFromQuery(
   };
 
   // add callback to generate the next key from this request easily
-  const getNextKey = (offsetIncrease = 0): PaginationResponse['next_key'] => {
+  const getNextKey = (offsetIncrease = 0): PaginationOutput['next_key'] => {
     // add offset increase and return key
     if (offsetIncrease > 0) {
-      const nextPagination: PaginationRequest = {
+      const nextPagination: PaginationInput = {
         offset: pagination.offset + offsetIncrease,
         limit: pagination.limit,
         // pass height queries back in exactly as it came
