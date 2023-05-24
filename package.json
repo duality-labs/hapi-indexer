@@ -11,6 +11,7 @@
     "dev:build": "npm run esbuild -- --watch",
     "dev:start": "nodemon dist/server.js",
     "dev": "concurrently npm:dev:*",
+    "nodemon" : "nodemon",
     "start": "npm run esbuild && node dist/server.js"
   },
   "dependencies": {

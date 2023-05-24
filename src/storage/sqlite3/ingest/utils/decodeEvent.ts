@@ -1,21 +1,21 @@
 import { Event as TxEvent } from 'cosmjs-types/tendermint/abci/types';
+import { BaseDexEventAttributeMap, DecodedTxEvent } from './eventTypes';
+import { DepositEventAttributeMap } from '../tables/event.Deposit';
+import { SwapEventAttributeMap } from '../tables/event.Swap';
+import { WithdrawEventAttributeMap } from '../tables/event.Withdraw';
+import { TickUpdateEventAttributeMap } from '../tables/event.TickUpdate';
 
-// transform given events
-//   eg. { attributes: [{ key: "dHlwZQ==", value: "bWVzc2FnZQ==", index: true }] }
-// into events with attributes that have been decoded and mapped into an easy to use object
-//   eg. { attributes: { type: "message" } }
-interface DecodedAttributeMap {
-  [key: string]: string;
-}
-export interface DecodedTxEvent extends Omit<TxEvent, 'attributes'> {
-  index: number;
-  attributes: DecodedAttributeMap;
-}
+type DexEvent = SwapEventAttributeMap | DepositEventAttributeMap | WithdrawEventAttributeMap | TickUpdateEventAttributeMap;
 
-export default function decodeEvent(
+// interface DecodedAttributeMap {
+//   [key: string]: string;
+// }
+type DecodedAttributeMap = Record<string, string>
+
+export default function decodeEvent<T = DecodedAttributeMap>(
   { type, attributes }: TxEvent,
   index: number
-): DecodedTxEvent {
+): DecodedTxEvent<T> {
   return {
     index,
     type,
@@ -33,6 +33,6 @@ export default function decodeEvent(
         return acc;
       },
       {}
-    ),
+    ) as T,
   };
 }

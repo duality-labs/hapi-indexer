@@ -7,6 +7,12 @@ import { getBlockTimeFromTxResult } from './block';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 
+let timeout: NodeJS.Timeout;
+function printSoon() {
+  clearTimeout(timeout);
+  timeout = setTimeout(() => console.log('counter', counter), 1000);
+}
+
 export async function upsertDerivedTickStateRows(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
@@ -199,6 +205,11 @@ export async function upsertDerivedTickStateRows(
       `);
     }
 
+
+const counter = {
+  seen: 0,
+  unseen: 0,
+};
     return lastID;
   }
 }

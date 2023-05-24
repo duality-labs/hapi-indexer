@@ -4,11 +4,23 @@ import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import db from '../../db/db';
 import { getBlockTimeFromTxResult } from './block';
 
-import { DecodedTxEvent } from '../utils/decodeEvent';
+import { BaseDexEventAttributeMap, DecodedTxEvent } from '../utils/eventTypes';
+
+export interface DepositEventAttributeMap extends BaseDexEventAttributeMap<'Deposit'> {
+  Creator: string;
+  Receiver: string;
+  Token0: string;
+  Token1: string;
+  TickIndex: string;
+  Fee: string;
+  Reserves0Deposited: string;
+  Reserves1Deposited: string;
+  SharesMinted: string;
+}
 
 export default async function insertEventDeposit(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent,
+  txEvent: DecodedTxEvent<DepositEventAttributeMap>,
   index: number
 ) {
   return await db.run(sql`

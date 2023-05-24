@@ -68,3 +68,9 @@ ON
     'tx.index',
     'tx_result.events.index'
   );
+
+/* add tranch key index for quick lookup */
+CREATE UNIQUE INDEX
+  'event.PlaceLimitOrder--TrancheKey'
+ON
+  'event.PlaceLimitOrder' ('TrancheKey');

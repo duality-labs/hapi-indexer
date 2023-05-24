@@ -4,11 +4,19 @@ import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import db from '../../db/db';
 import { getBlockTimeFromTxResult } from './block';
 
-import { DecodedTxEvent } from '../utils/decodeEvent';
+import { BaseDexEventAttributeMap, DecodedTxEvent } from '../utils/eventTypes';
+
+export interface TickUpdateEventAttributeMap extends BaseDexEventAttributeMap<'TickUpdate'> {
+  Token0: string;
+  Token1: string;
+  TokenIn: string;
+  TickIndex: string;
+  Reserves: string;
+}
 
 export default async function insertEventTickUpdate(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent,
+  txEvent: DecodedTxEvent<TickUpdateEventAttributeMap>,
   index: number
 ) {
   return await db.run(sql`

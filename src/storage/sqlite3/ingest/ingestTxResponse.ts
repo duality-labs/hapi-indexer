@@ -43,6 +43,16 @@ export default async function ingestTxs(txPage: TxResponse[]) {
 
     // then add transaction event rows
     for (const txEvent of txEvents) {
+
+      if (!event.actions.includes(txEvent.attributes['action'])) {
+        console.log('event actions', txEvent.attributes['action']);
+        event.actions.push(txEvent.attributes['action']);
+
+        if (txEvent.attributes['action'] === 'TickUpdate') {
+          console.log('event', txEvent)
+        }
+      }
+
       await insertTxEventRows(tx_result, txEvent, index);
 
       // continue logic for dex events
@@ -69,3 +79,7 @@ export default async function ingestTxs(txPage: TxResponse[]) {
     }
   }
 }
+
+const event = {
+  actions: [] as string[]
+};

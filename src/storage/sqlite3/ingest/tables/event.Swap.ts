@@ -4,11 +4,21 @@ import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import db from '../../db/db';
 import { getBlockTimeFromTxResult } from './block';
 
-import { DecodedTxEvent } from '../utils/decodeEvent';
+import { BaseDexEventAttributeMap, DecodedTxEvent } from '../utils/eventTypes';
+
+export interface SwapEventAttributeMap extends BaseDexEventAttributeMap<'Swap'> {
+  Creator: string;
+  Receiver: string;
+  Token0: string;
+  Token1: string;
+  TokenIn: string;
+  AmountIn: string;
+  AmountOut: string;
+}
 
 export default async function insertEventSwap(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent,
+  txEvent: DecodedTxEvent<SwapEventAttributeMap>,
   index: number
 ) {
   return await db.run(sql`
