@@ -20,7 +20,7 @@ export default async function insertEventTickUpdate(
 
       'Token0',
       'Token1',
-      'Token',
+      'TokenIn',
       'TickIndex',
       'Reserves',
 

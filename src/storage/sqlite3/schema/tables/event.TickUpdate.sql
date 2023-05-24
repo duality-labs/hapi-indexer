@@ -12,7 +12,7 @@ CREATE TABLE 'event.TickUpdate' (
 
   'Token0' TEXT NOT NULL,
   'Token1' TEXT NOT NULL,
-  'Token' TEXT NOT NULL,
+  'TokenIn' TEXT NOT NULL,
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
 
