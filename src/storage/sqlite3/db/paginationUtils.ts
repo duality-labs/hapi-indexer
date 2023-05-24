@@ -10,10 +10,10 @@ export interface PaginatedRequestQuery extends RequestQuery {
 }
 
 interface PaginationInput {
-  offset?: number;
-  limit?: number;
-  before?: number; // unix timestamp
-  after?: number; // unix timestamp
+  offset: number;
+  limit: number;
+  before: number; // unix timestamp
+  after: number; // unix timestamp
 }
 
 interface PaginationOutput {
@@ -27,11 +27,11 @@ export interface PaginatedResponse {
 export function getPaginationFromQuery(
   query: PaginatedRequestQuery
 ): [
-  pagination: Required<PaginationInput>,
+  pagination: PaginationInput,
   getNextKey: (offsetIncrease: number) => PaginationOutput['next_key']
 ] {
   // collect pagination keys into a pagination object
-  let unsafePagination: PaginationInput = {
+  let unsafePagination: Partial<PaginationInput> = {
     offset: Number(query['pagination.offset']) || undefined,
     limit: Number(query['pagination.limit']) || undefined,
     before: Number(query['pagination.before']) || undefined,
@@ -60,7 +60,7 @@ export function getPaginationFromQuery(
   const getNextKey = (offsetIncrease = 0): PaginationOutput['next_key'] => {
     // add offset increase and return key
     if (offsetIncrease > 0) {
-      const nextPagination: PaginationInput = {
+      const nextPagination: Partial<PaginationInput> = {
         offset: pagination.offset + offsetIncrease,
         limit: pagination.limit,
         // pass height queries back in exactly as it came
