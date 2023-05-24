@@ -61,12 +61,13 @@ export function getPaginationFromQuery(
     // add offset increase and return key
     if (offsetIncrease > 0) {
       const nextPagination: Partial<PaginationInput> = {
+        // restrict offset and limit for more controlled next page behavior
         offset: pagination.offset + offsetIncrease,
         limit: pagination.limit,
-        // pass height queries back in exactly as it came
+        // pass height queries back in almost exactly as they came
         // (for consistent processing)
-        before: query['pagination.before'],
-        after: query['pagination.after'],
+        before: unsafePagination.before,
+        after: unsafePagination.after,
       };
       return Buffer.from(JSON.stringify(nextPagination)).toString('base64url');
     }
