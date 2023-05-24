@@ -45,7 +45,11 @@ export default async function insertTxEventRows(
       ${txEvent.type},
       ${JSON.stringify(txEvent.attributes)},
 
-      ${isDexMessage && txEvent.attributes.action === 'Swap' && dexPairId},
+      ${
+        isDexMessage &&
+        txEvent.attributes.action === 'PlaceLimitOrder' &&
+        dexPairId
+      },
       ${isDexMessage && txEvent.attributes.action === 'Deposit' && dexPairId},
       ${isDexMessage && txEvent.attributes.action === 'Withdraw' && dexPairId}
     )`);

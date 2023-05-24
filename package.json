@@ -1,6 +1,6 @@
 {
   "name": "duality-hapi-indexer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Node.js based indexer for the Duality Cosmos chain",
   "main": "dist/server.js",
   "scripts": {

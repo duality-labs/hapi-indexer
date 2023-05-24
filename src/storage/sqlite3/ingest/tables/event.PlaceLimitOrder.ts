@@ -6,13 +6,13 @@ import { getBlockTimeFromTxResult } from './block';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 
-export default async function insertEventSwap(
+export default async function insertEventPlaceLimitOrder(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
   index: number
 ) {
   return await db.run(sql`
-    INSERT INTO 'event.Swap' (
+    INSERT INTO 'event.PlaceLimitOrder' (
       'block.header.height',
       'block.header.time_unix',
       'tx.index',
@@ -25,7 +25,10 @@ export default async function insertEventSwap(
       'TokenIn',
       'TokenOut',
       'AmountIn',
-      'AmountOut',
+      'LimitTick',
+      'OrderType',
+      'Shares',
+      'TrancheKey',
 
       'meta.dex.pair',
       'meta.dex.tokenIn',
@@ -48,7 +51,10 @@ export default async function insertEventSwap(
           : txEvent.attributes['Token1']
       },
       ${txEvent.attributes['AmountIn']},
-      ${txEvent.attributes['AmountOut']},
+      ${txEvent.attributes['LimitTick']},
+      ${txEvent.attributes['OrderType']},
+      ${txEvent.attributes['Shares']},
+      ${txEvent.attributes['TrancheKey']},
 
       (
         SELECT

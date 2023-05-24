@@ -4,7 +4,7 @@
   * these are key values form the event attributes
   * in 'tx_result.events'.'attributes' as JSON blobs
   */
-CREATE TABLE 'event.Swap' (
+CREATE TABLE 'event.PlaceLimitOrder' (
   'block.header.height' INTEGER NOT NULL,
   'block.header.time_unix' INTEGER NOT NULL,
   'tx.index' INTEGER NOT NULL,
@@ -17,7 +17,10 @@ CREATE TABLE 'event.Swap' (
   'TokenIn' TEXT NOT NULL,
   'TokenOut' TEXT NOT NULL,
   'AmountIn' TEXT NOT NULL,
-  'AmountOut' TEXT NOT NULL,
+  'LimitTick' INTEGER NOT NULL,
+  'OrderType' TEXT NOT NULL,
+  'Shares' TEXT NOT NULL,
+  'TrancheKey' TEXT NOT NULL,
 
   'meta.dex.pair' INTEGER NOT NULL,
   'meta.dex.tokenIn' INTEGER NOT NULL,
@@ -61,9 +64,9 @@ CREATE TABLE 'event.Swap' (
 
 /* add unique index constraint */
 CREATE UNIQUE INDEX
-  'event.Swap--block.header.height,tx.index,tx_result.events.index'
+  'event.PlaceLimitOrder--block.header.height,tx.index,tx_result.events.index'
 ON
-  'event.Swap' (
+  'event.PlaceLimitOrder' (
     'block.header.height',
     'tx.index',
     'tx_result.events.index'
