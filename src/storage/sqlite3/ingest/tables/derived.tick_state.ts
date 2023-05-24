@@ -20,6 +20,41 @@ export async function upsertDerivedTickStateRows(
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     const blockTime = getBlockTimeFromTxResult(tx_result);
 
+    const previousStateData = await db.get(sql`
+      SELECT 'derived.tick_state'.'Reserves'
+      FROM 'derived.tick_state'
+      WHERE (
+        'derived.tick_state'.'meta.dex.pair' = (
+          SELECT
+            'dex.pairs'.'id'
+          FROM
+            'dex.pairs'
+          WHERE (
+            'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
+            'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
+          )
+        ) AND
+        'derived.tick_state'.'meta.dex.token' = (
+          SELECT
+            'dex.tokens'.'id'
+          FROM
+            'dex.tokens'
+          WHERE (
+            'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
+          )
+        ) AND
+        'derived.tick_state'.'TickIndex' = ${txEvent.attributes['TickIndex']}
+      )
+    `);
+
+    // check if this data is not an update and exit early
+    if (
+      previousStateData &&
+      previousStateData['Reserves'] === txEvent.attributes['Reserves']
+    ) {
+      return;
+    }
+
     const { lastID } = await db.run(sql`
       INSERT OR REPLACE INTO 'derived.tick_state' (
         'meta.dex.pair',
