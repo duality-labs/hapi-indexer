@@ -113,7 +113,7 @@ export default async function getPricePerSecond(
         Buffer.from(
           JSON.stringify({
             offset: pagination.offset + data.length,
-            size: pagination.limit,
+            limit: pagination.limit,
             // pass height queries back in exactly as it came
             // (for consistent processing)
             ...(query['pagination.before'] && {
