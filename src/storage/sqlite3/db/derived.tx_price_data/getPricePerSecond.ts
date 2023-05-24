@@ -1,53 +1,31 @@
 import sql from 'sql-template-strings';
 
-import logger from '../../../../logger';
 import db from '../db';
-import { RequestQuery } from '@hapi/hapi';
+import {
+  PaginatedRequestQuery,
+  PaginatedResponse,
+  getPaginationFromQuery,
+} from '../paginationUtils';
 
-interface PaginationRequest {
-  offset?: number;
-  limit?: number;
-  before?: number; // unix timestamp
-  after?: number; // unix timestamp
-}
+type Shape = [string, [string, string, string, string]];
+type DataRow = [number, [number, number, number, number]];
 
-interface PaginationResponse {
-  next_key: string | null;
+interface Response extends PaginatedResponse {
+  shape: Shape;
+  data: Array<DataRow>;
 }
 
 export default async function getPricePerSecond(
   tokenA: string,
   tokenB: string,
-  query: RequestQuery = {}
-) {
+  query: PaginatedRequestQuery = {}
+): Promise<Response> {
   // collect pagination keys into a pagination object
-  let unsafePagination: PaginationRequest = {
-    offset: Number(query['pagination.offset']) || undefined,
-    limit: Number(query['pagination.limit']) || undefined,
-    before: Number(query['pagination.before']) || undefined,
-    after: Number(query['pagination.after']) || undefined,
-  };
-  // use pagination key to replace any other pagination options requested
-  try {
-    if (query['pagination.key']) {
-      unsafePagination = JSON.parse(
-        Buffer.from(query['pagination.key'], 'base64url').toString('utf8')
-      );
-    }
-  } catch (e) {
-    logger.error(e);
-  }
-
-  // ensure some basic pagination limits are respected
-  const pagination: Required<PaginationRequest> = {
-    offset: Math.max(0, unsafePagination.offset ?? 0),
-    limit: Math.min(1000, unsafePagination.limit ?? 100),
-    before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
-    after: unsafePagination.after ?? 0,
-  };
+  const [pagination, getPaginationNextKey] = getPaginationFromQuery(query);
 
   // prepare statement at run time (after db has been initialized)
-  const data = await db.all(sql`
+  const data: Array<{ [key: string]: number }> =
+    (await db.all(sql`
     WITH price_points AS (
       SELECT
         'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',
@@ -101,34 +79,24 @@ export default async function getPricePerSecond(
       'price_points'.'time_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
-  `);
+  `)) ?? [];
 
   // if result includes an item from the next page then remove it
   // and generate a next key to represent the next page of data
   const nextKey =
-    data && data.length > pagination.limit
+    data.length > pagination.limit
       ? (() => {
           // remove data item intended for next page
           data.pop();
           // create next page pagination options to be serialized
-          const nextPagination: PaginationRequest = {
-            offset: pagination.offset + data.length,
-            limit: pagination.limit,
-            // pass height queries back in exactly as it came
-            // (for consistent processing)
-            before: query['pagination.before'],
-            after: query['pagination.after'],
-          };
-          return Buffer.from(JSON.stringify(nextPagination)).toString(
-            'base64url'
-          );
+          return getPaginationNextKey(data.length);
         })()
       : null;
 
-  const shape = ['time_unix', ['open', 'high', 'low', 'close']];
+  const shape: Shape = ['time_unix', ['open', 'high', 'low', 'close']];
   return {
     shape,
-    data: (data || []).map((row) => {
+    data: data.map((row): DataRow => {
       return [
         row['time_unix'],
         [row['open'], row['high'], row['low'], row['close']],
@@ -136,6 +104,6 @@ export default async function getPricePerSecond(
     }),
     pagination: {
       next_key: nextKey,
-    } as PaginationResponse,
+    },
   };
 }
