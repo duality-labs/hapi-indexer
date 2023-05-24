@@ -5,7 +5,7 @@
   "main": "dist/server.js",
   "scripts": {
     "prepare": "husky install",
-    "docker": "docker-compose up --build --abort-on-container-exit || true && docker-compose down",
+    "docker": "docker compose up --build --abort-on-container-exit || true && docker compose down",
     "build": "tsc",
     "esbuild": "esbuild src/server.ts --bundle --platform=node --packages=external --loader:.sql=text --outdir=dist",
     "dev:build": "npm run esbuild -- --watch",
