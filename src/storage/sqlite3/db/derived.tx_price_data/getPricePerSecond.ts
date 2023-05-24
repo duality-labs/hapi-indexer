@@ -103,8 +103,10 @@ export default async function getPricePerSecond(
   // and generate a next key to represent the next page of data
   const nextKey =
     data && data.length > pagination.limit
-      ? data.pop() &&
-        (() => {
+      ? (() => {
+          // remove data item intended for next page
+          data.pop();
+          // create next page pagination options to be serialized
           const nextPagination: Pagination = {
             offset: pagination.offset + data.length,
             limit: pagination.limit,
