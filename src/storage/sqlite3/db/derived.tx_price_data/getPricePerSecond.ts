@@ -1,35 +1,18 @@
 import sql from 'sql-template-strings';
 
-import logger from '../../../../logger';
 import db from '../db';
-import { RequestQuery } from '@hapi/hapi';
-
-interface PaginatedRequestQuery extends RequestQuery {
-  'pagination.key'?: string;
-  'pagination.offset'?: string;
-  'pagination.limit'?: number;
-  'pagination.before'?: number; // unix timestamp
-  'pagination.after'?: number; // unix timestamp
-}
-
-interface PaginationRequest {
-  offset?: number;
-  limit?: number;
-  before?: number; // unix timestamp
-  after?: number; // unix timestamp
-}
-
-interface PaginationResponse {
-  next_key: string | null;
-}
+import {
+  PaginatedRequestQuery,
+  PaginatedResponse,
+  getPaginationFromQuery,
+} from '../paginationUtils';
 
 type Shape = [string, [string, string, string, string]];
 type DataRow = [number, [number, number, number, number]];
 
-interface Response {
+interface Response extends PaginatedResponse {
   shape: Shape;
   data: Array<DataRow>;
-  pagination: PaginationResponse;
 }
 
 export default async function getPricePerSecond(
@@ -38,30 +21,7 @@ export default async function getPricePerSecond(
   query: PaginatedRequestQuery = {}
 ): Promise<Response> {
   // collect pagination keys into a pagination object
-  let unsafePagination: PaginationRequest = {
-    offset: Number(query['pagination.offset']) || undefined,
-    limit: Number(query['pagination.limit']) || undefined,
-    before: Number(query['pagination.before']) || undefined,
-    after: Number(query['pagination.after']) || undefined,
-  };
-  // use pagination key to replace any other pagination options requested
-  try {
-    if (query['pagination.key']) {
-      unsafePagination = JSON.parse(
-        Buffer.from(query['pagination.key'], 'base64url').toString('utf8')
-      );
-    }
-  } catch (e) {
-    logger.error(e);
-  }
-
-  // ensure some basic pagination limits are respected
-  const pagination: Required<PaginationRequest> = {
-    offset: Math.max(0, unsafePagination.offset ?? 0),
-    limit: Math.min(1000, unsafePagination.limit ?? 100),
-    before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
-    after: unsafePagination.after ?? 0,
-  };
+  const [pagination, getPaginationNextKey] = getPaginationFromQuery(query);
 
   // prepare statement at run time (after db has been initialized)
   const data: Array<{ [key: string]: number }> =
@@ -129,17 +89,7 @@ export default async function getPricePerSecond(
           // remove data item intended for next page
           data.pop();
           // create next page pagination options to be serialized
-          const nextPagination: PaginationRequest = {
-            offset: pagination.offset + data.length,
-            limit: pagination.limit,
-            // pass height queries back in exactly as it came
-            // (for consistent processing)
-            before: query['pagination.before'],
-            after: query['pagination.after'],
-          };
-          return Buffer.from(JSON.stringify(nextPagination)).toString(
-            'base64url'
-          );
+          return getPaginationNextKey(data.length);
         })()
       : null;
 
