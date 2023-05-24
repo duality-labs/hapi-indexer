@@ -1,0 +1,56 @@
+// For format details, see https://aka.ms/devcontainer.json.
+// For variant options, see the README at:
+//   https://github.com/devcontainers/images/tree/main/src/javascript-node
+{
+  "name": "Hapi Indexer Container",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:18-bullseye",
+  "runArgs": [
+    "--env-file=.env",
+    "--env-file=.env.local",
+    "--cap-add=SYS_PTRACE",
+    "--security-opt",
+    "seccomp=unconfined"
+  ],
+
+  // Configure tool-specific properties.
+  "customizations": {
+    // Configure properties specific to VS Code.
+    "vscode": {
+      // Add the IDs of extensions you want installed when the container is created.
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "iliazeus.vscode-ansi",
+        "qufiwefefwoyn.inline-sql-syntax",
+        "vscode-icons-team.vscode-icons"
+      ],
+
+      // Set *default* container specific settings.json values on container create.
+      "settings": {
+        "editor.tabSize": 2,
+        // set file icons as shown by extension vscode-icons-team.vscode-icons
+        "vsicons.associations.files": [
+          // Add ANSI log file associations (for extension iliazeus.vscode-ansi)
+          {
+            "icon": "log", // or any other icon from vscode-icons
+            "extensions": ["ansi"],
+            "format": "svg"
+          }
+        ]
+      }
+    }
+  },
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  "forwardPorts": [8000],
+
+  // pass git through and set any other terminals as preferred
+  "features": {
+    "git": "os-provided"
+    // optional features: these increase to post-Dockerfile setup time
+    // "fish": "latest",
+    // "rust": "1.61.0"
+  },
+
+  "postCreateCommand": "npm ci",
+  "postStartCommand": "npm run dev"
+}

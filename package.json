@@ -2,12 +2,49 @@
   "name": "duality-hapi-indexer",
   "version": "0.1.0",
   "description": "A Node.js based indexer for the Duality Cosmos chain",
-  "main": "server.mjs",
+  "main": "dist/server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.mjs"
+    "prepare": "husky install",
+    "docker": "docker compose up --build --abort-on-container-exit || true && docker compose down",
+    "build": "tsc",
+    "esbuild": "esbuild src/server.ts --bundle --platform=node --packages=external --loader:.sql=text --outdir=dist",
+    "dev:build": "npm run esbuild -- --watch",
+    "dev:start": "nodemon dist/server.js",
+    "dev": "concurrently npm:dev:*",
+    "start": "npm run esbuild && node dist/server.js"
   },
   "dependencies": {
-    "@hapi/hapi": "^21.3.1"
+    "@hapi/hapi": "^21.3.1",
+    "bignumber.js": "^9.1.1",
+    "esbuild": "^0.17.18",
+    "sql-template-strings": "^2.2.2",
+    "sqlite": "^4.2.0",
+    "sqlite3": "^5.1.6",
+    "winston": "^3.8.2"
+  },
+  "devDependencies": {
+    "@types/hapi": "^18.0.8",
+    "@types/node": "^18.16.3",
+    "@typescript-eslint/eslint-plugin": "^5.59.2",
+    "@typescript-eslint/parser": "^5.59.2",
+    "concurrently": "^8.0.1",
+    "cosmjs-types": "^0.7.2",
+    "eslint": "^8.39.0",
+    "eslint-config-prettier": "^8.8.0",
+    "formdata-node": "^5.0.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^13.2.2",
+    "nodemon": "^2.0.22",
+    "prettier": "2.8.8",
+    "typescript": "^5.0.4",
+    "undici": "^5.22.0"
+  },
+  "lint-staged": {
+    "**/*.{mjs,js,jsx,ts,tsx,json,css,scss,html,md,yaml,yml}": [
+      "prettier --write"
+    ],
+    "**/*.{mjs,js,jsx,ts,tsx}": [
+      "eslint --max-warnings 0"
+    ]
   }
 }
