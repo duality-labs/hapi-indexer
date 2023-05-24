@@ -110,20 +110,19 @@ export default async function getPricePerSecond(
   const nextKey =
     data && data.length > pagination.limit
       ? data.pop() &&
-        Buffer.from(
-          JSON.stringify({
+        (() => {
+          const nextPagination: UnsafePagination = {
             offset: pagination.offset + data.length,
             limit: pagination.limit,
             // pass height queries back in exactly as it came
             // (for consistent processing)
-            ...(query['pagination.before'] && {
-              before: query['pagination.before'],
-            }),
-            ...(query['pagination.after'] && {
-              after: query['pagination.after'],
-            }),
-          })
-        ).toString('base64url')
+            before: query['pagination.before'],
+            after: query['pagination.after'],
+          };
+          return Buffer.from(JSON.stringify(nextPagination)).toString(
+            'base64url'
+          );
+        })()
       : null;
 
   const shape = ['time_unix', ['open', 'high', 'low', 'close']];
