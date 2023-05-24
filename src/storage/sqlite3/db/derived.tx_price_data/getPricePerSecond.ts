@@ -15,11 +15,20 @@ interface PaginationResponse {
   next_key: string | null;
 }
 
+type Shape = [string, [string, string, string, string]];
+type DataRow = [number, [number, number, number, number]];
+
+interface Response {
+  shape: Shape;
+  data: Array<DataRow>;
+  pagination: PaginationResponse;
+}
+
 export default async function getPricePerSecond(
   tokenA: string,
   tokenB: string,
   query: RequestQuery = {}
-) {
+): Promise<Response> {
   // collect pagination keys into a pagination object
   let unsafePagination: PaginationRequest = {
     offset: Number(query['pagination.offset']) || undefined,
@@ -47,7 +56,8 @@ export default async function getPricePerSecond(
   };
 
   // prepare statement at run time (after db has been initialized)
-  const data = await db.all(sql`
+  const data: Array<{ [key: string]: number }> =
+    (await db.all(sql`
     WITH price_points AS (
       SELECT
         'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',
@@ -101,12 +111,12 @@ export default async function getPricePerSecond(
       'price_points'.'time_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
-  `);
+  `)) ?? [];
 
   // if result includes an item from the next page then remove it
   // and generate a next key to represent the next page of data
   const nextKey =
-    data && data.length > pagination.limit
+    data.length > pagination.limit
       ? (() => {
           // remove data item intended for next page
           data.pop();
@@ -125,10 +135,10 @@ export default async function getPricePerSecond(
         })()
       : null;
 
-  const shape = ['time_unix', ['open', 'high', 'low', 'close']];
+  const shape: Shape = ['time_unix', ['open', 'high', 'low', 'close']];
   return {
     shape,
-    data: (data || []).map((row) => {
+    data: data.map((row): DataRow => {
       return [
         row['time_unix'],
         [row['open'], row['high'], row['low'], row['close']],
@@ -136,6 +146,6 @@ export default async function getPricePerSecond(
     }),
     pagination: {
       next_key: nextKey,
-    } as PaginationResponse,
+    },
   };
 }
