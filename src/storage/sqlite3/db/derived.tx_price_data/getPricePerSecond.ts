@@ -129,7 +129,7 @@ export default async function getPricePerSecond(
       ];
     }),
     pagination: {
-      'next-key': nextKey,
+      next_key: nextKey,
     },
   };
 }
