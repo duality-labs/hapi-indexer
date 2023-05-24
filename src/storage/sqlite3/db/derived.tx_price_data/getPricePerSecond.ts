@@ -4,6 +4,14 @@ import logger from '../../../../logger';
 import db from '../db';
 import { RequestQuery } from '@hapi/hapi';
 
+interface PaginatedRequestQuery extends RequestQuery {
+  'pagination.key'?: string;
+  'pagination.offset'?: string;
+  'pagination.limit'?: number;
+  'pagination.before'?: number; // unix timestamp
+  'pagination.after'?: number; // unix timestamp
+}
+
 interface PaginationRequest {
   offset?: number;
   limit?: number;
@@ -27,7 +35,7 @@ interface Response {
 export default async function getPricePerSecond(
   tokenA: string,
   tokenB: string,
-  query: RequestQuery = {}
+  query: PaginatedRequestQuery = {}
 ): Promise<Response> {
   // collect pagination keys into a pagination object
   let unsafePagination: PaginationRequest = {
