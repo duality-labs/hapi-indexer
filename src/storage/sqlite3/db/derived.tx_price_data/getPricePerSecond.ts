@@ -4,11 +4,15 @@ import logger from '../../../../logger';
 import db from '../db';
 import { RequestQuery } from '@hapi/hapi';
 
-interface Pagination {
+interface PaginationRequest {
   offset?: number;
   limit?: number;
   before?: number; // unix timestamp
   after?: number; // unix timestamp
+}
+
+interface PaginationResponse {
+  next_key: string | null;
 }
 
 export default async function getPricePerSecond(
@@ -17,7 +21,7 @@ export default async function getPricePerSecond(
   query: RequestQuery = {}
 ) {
   // collect pagination keys into a pagination object
-  let unsafePagination: Pagination = {
+  let unsafePagination: PaginationRequest = {
     offset: Number(query['pagination.offset']) || undefined,
     limit: Number(query['pagination.limit']) || undefined,
     before: Number(query['pagination.before']) || undefined,
@@ -35,7 +39,7 @@ export default async function getPricePerSecond(
   }
 
   // ensure some basic pagination limits are respected
-  const pagination: Required<Pagination> = {
+  const pagination: Required<PaginationRequest> = {
     offset: Math.max(0, unsafePagination.offset ?? 0),
     limit: Math.min(1000, unsafePagination.limit ?? 100),
     before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
@@ -107,7 +111,7 @@ export default async function getPricePerSecond(
           // remove data item intended for next page
           data.pop();
           // create next page pagination options to be serialized
-          const nextPagination: Pagination = {
+          const nextPagination: PaginationRequest = {
             offset: pagination.offset + data.length,
             limit: pagination.limit,
             // pass height queries back in exactly as it came
@@ -132,6 +136,6 @@ export default async function getPricePerSecond(
     }),
     pagination: {
       next_key: nextKey,
-    },
+    } as PaginationResponse,
   };
 }
