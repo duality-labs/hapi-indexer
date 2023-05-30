@@ -5,6 +5,7 @@ import db from './storage/sqlite3/db/db';
 import logger from './logger';
 
 import timeseriesPriceRoutes from './routes/timeseries/price';
+import timeseriesVolumeRoutes from './routes/timeseries/volume';
 import statVolumeroutes from './routes/stats/volume';
 
 const rootPath = {
@@ -58,6 +59,7 @@ const routes = [
 
   // timeseries routes
   ...timeseriesPriceRoutes,
+  ...timeseriesVolumeRoutes,
 
   // point in time stats
   ...statVolumeroutes,

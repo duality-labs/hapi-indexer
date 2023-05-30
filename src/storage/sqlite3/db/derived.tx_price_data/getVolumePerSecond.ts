@@ -1,0 +1,106 @@
+import sql from 'sql-template-strings';
+
+import db from '../db';
+import {
+  PaginatedRequestQuery,
+  PaginatedResponse,
+  getPaginationFromQuery,
+} from '../paginationUtils';
+
+type Shape = [string, string, string];
+type DataRow = [number, number, string];
+
+interface Response extends PaginatedResponse {
+  shape: Shape;
+  data: Array<DataRow>;
+}
+
+export default async function getVolumePerSecond(
+  tokenA: string,
+  tokenB: string,
+  query: PaginatedRequestQuery = {}
+): Promise<Response> {
+  // collect pagination keys into a pagination object
+  const [pagination, getPaginationNextKey] = getPaginationFromQuery(query);
+
+  // prepare statement at run time (after db has been initialized)
+  const data: Array<{ time_unix: number; amount: string; token: string }> =
+    (await db.all(sql`
+    WITH swap_volume AS (
+      SELECT
+        'event.PlaceLimitOrder'.'block.header.time_unix' as 'time_unix',
+        'event.PlaceLimitOrder'.'AmountIn' as 'amount',
+        'event.PlaceLimitOrder'.'TokenIn' as 'token'
+      FROM
+        'event.PlaceLimitOrder'
+      WHERE
+        'event.PlaceLimitOrder'.'meta.dex.pair' = (
+          SELECT
+            'dex.pairs'.'id'
+          FROM
+            'dex.pairs'
+          WHERE (
+            'dex.pairs'.'token0' = ${tokenA} AND
+            'dex.pairs'.'token1' = ${tokenB}
+          )
+          OR (
+            'dex.pairs'.'token1' = ${tokenA} AND
+            'dex.pairs'.'token0' = ${tokenB}
+          )
+        )
+        AND 'event.PlaceLimitOrder'.'block.header.time_unix' <= ${
+          pagination.before
+        }
+        AND 'event.PlaceLimitOrder'.'block.header.time_unix' >= ${
+          pagination.after
+        }
+      WINDOW seconds_window AS (
+        ORDER BY 'event.PlaceLimitOrder'.'block.header.time_unix'
+        GROUPS CURRENT ROW
+      )
+      ORDER BY
+        'event.PlaceLimitOrder'.'block.header.time_unix' DESC,
+        'event.PlaceLimitOrder'.'tx_result.events.index' DESC
+    )
+    SELECT
+      'swap_volume'.'time_unix' as 'time_unix',
+      'swap_volume'.'amount' as 'amount',
+      'swap_volume'.'token' as 'token'
+    FROM
+      'swap_volume'
+    GROUP BY
+      'swap_volume'.'time_unix'
+    ORDER BY
+      'swap_volume'.'time_unix' DESC
+    LIMIT ${pagination.limit + 1}
+    OFFSET ${pagination.offset}
+  `)) ?? [];
+
+  // if result includes an item from the next page then remove it
+  // and generate a next key to represent the next page of data
+  const nextKey =
+    data.length > pagination.limit
+      ? (() => {
+          // remove data item intended for next page
+          data.pop();
+          // create next page pagination options to be serialized
+          return getPaginationNextKey(data.length);
+        })()
+      : null;
+
+  const shape: Shape = ['time_unix', 'amount', 'token'];
+  return {
+    shape,
+    data: data.map((row): DataRow => {
+      return [
+        row['time_unix'],
+        // convert to float precision here
+        Number(row['amount']),
+        row['token'],
+      ];
+    }),
+    pagination: {
+      next_key: nextKey,
+    },
+  };
+}
