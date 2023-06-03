@@ -1,6 +1,7 @@
 import sql from 'sql-template-strings';
 
 import db from '../db';
+import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
 import {
   PaginatedRequestQuery,
   PaginatedResponse,
@@ -24,8 +25,8 @@ export default async function getPricePerSecond(
   const [pagination, getPaginationNextKey] = getPaginationFromQuery(query);
 
   // prepare statement at run time (after db has been initialized)
-  const data: Array<{ [key: string]: number }> =
-    (await db.all(sql`
+  const dataPromise: Promise<Array<{ [key: string]: number }>> =
+    db.all(sql`
     WITH price_points AS (
       SELECT
         'derived.tx_price_data'.'block.header.time_unix' as 'time_unix',
@@ -79,7 +80,13 @@ export default async function getPricePerSecond(
       'price_points'.'time_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
-  `)) ?? [];
+  `) ?? [];
+
+  const invertedOrderPromise = hasInvertedOrder(tokenA, tokenB);
+  const [data, invertedOrder] = await Promise.all([
+    dataPromise,
+    invertedOrderPromise,
+  ]);
 
   // if result includes an item from the next page then remove it
   // and generate a next key to represent the next page of data
@@ -96,12 +103,23 @@ export default async function getPricePerSecond(
   const shape: Shape = ['time_unix', ['open', 'high', 'low', 'close']];
   return {
     shape,
-    data: data.map((row): DataRow => {
-      return [
-        row['time_unix'],
-        [row['open'], row['high'], row['low'], row['close']],
-      ];
-    }),
+    data: data.map(
+      // invert the indexes depending on which price ratio was asked for
+      !invertedOrder
+        ? (row): DataRow => {
+            return [
+              row['time_unix'],
+              [row['open'], row['high'], row['low'], row['close']],
+            ];
+          }
+        : (row): DataRow => {
+            return [
+              row['time_unix'],
+              // invert the indexes for the asked for price ratio
+              [-row['open'], -row['high'], -row['low'], -row['close']],
+            ];
+          }
+    ),
     pagination: {
       next_key: nextKey,
     },
