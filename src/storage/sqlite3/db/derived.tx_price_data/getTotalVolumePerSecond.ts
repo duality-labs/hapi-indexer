@@ -6,8 +6,9 @@ import {
   PaginatedResponse,
   getPaginationFromQuery,
 } from '../paginationUtils';
+import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
 
-const shape = ['time_unix', 'amount0', 'amount1'] as const;
+const shape = ['time_unix', 'amount0', 'amount1'];
 type DataRow = [time_unix: number, amount0: number, amount1: number];
 
 interface Response extends PaginatedResponse {
@@ -24,8 +25,10 @@ export default async function getTotalVolumePerSecond(
   const [pagination, getPaginationNextKey] = getPaginationFromQuery(query);
 
   // prepare statement at run time (after db has been initialized)
-  const data: Array<{ time_unix: number; amount0: number; amount1: number }> =
-    (await db.all(sql`
+  const dataPromise: Promise<
+    Array<{ time_unix: number; amount0: number; amount1: number }>
+  > =
+    db.all(sql`
     WITH total_volume AS (
       SELECT
         'derived.tx_volume_data'.'block.header.time_unix' as 'time_unix',
@@ -76,7 +79,13 @@ export default async function getTotalVolumePerSecond(
       'total_volume'.'time_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
-  `)) ?? [];
+  `) ?? [];
+
+  const invertedOrderPromise = hasInvertedOrder(tokenA, tokenB);
+  const [data, invertedOrder] = await Promise.all([
+    dataPromise,
+    invertedOrderPromise,
+  ]);
 
   // if result includes an item from the next page then remove it
   // and generate a next key to represent the next page of data
@@ -91,10 +100,17 @@ export default async function getTotalVolumePerSecond(
       : null;
 
   return {
-    shape,
-    data: data.map((row): DataRow => {
-      return [row['time_unix'], row['amount0'], row['amount1']];
-    }),
+    shape: ['time_unix', `amount ${tokenA}`, `amount ${tokenB}`],
+    data: data.map(
+      // invert the indexes depend on which price ratio was asked for
+      !invertedOrder
+        ? (row): DataRow => {
+            return [row['time_unix'], row['amount0'], row['amount1']];
+          }
+        : (row): DataRow => {
+            return [row['time_unix'], row['amount1'], row['amount0']];
+          }
+    ),
     pagination: {
       next_key: nextKey,
     },
