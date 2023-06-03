@@ -29,7 +29,7 @@ export default async function getSwapVolumePerSecond(
     WITH swap_volume AS (
       SELECT
         'event.PlaceLimitOrder'.'block.header.time_unix' as 'time_unix',
-        'event.PlaceLimitOrder'.'AmountIn' as 'amount',
+        CAST ('event.PlaceLimitOrder'.'AmountIn' AS FLOAT) as 'amount',
         'event.PlaceLimitOrder'.'TokenIn' as 'token'
       FROM
         'event.PlaceLimitOrder'
@@ -54,22 +54,16 @@ export default async function getSwapVolumePerSecond(
         AND 'event.PlaceLimitOrder'.'block.header.time_unix' >= ${
           pagination.after
         }
-      WINDOW seconds_window AS (
-        ORDER BY 'event.PlaceLimitOrder'.'block.header.time_unix'
-        GROUPS CURRENT ROW
-      )
-      ORDER BY
-        'event.PlaceLimitOrder'.'block.header.time_unix' DESC,
-        'event.PlaceLimitOrder'.'tx_result.events.index' DESC
     )
     SELECT
       'swap_volume'.'time_unix' as 'time_unix',
-      'swap_volume'.'amount' as 'amount',
+      SUM('swap_volume'.'amount') as 'amount',
       'swap_volume'.'token' as 'token'
     FROM
       'swap_volume'
     GROUP BY
-      'swap_volume'.'time_unix'
+      'swap_volume'.'time_unix',
+      'swap_volume'.'token'
     ORDER BY
       'swap_volume'.'time_unix' DESC
     LIMIT ${pagination.limit + 1}
