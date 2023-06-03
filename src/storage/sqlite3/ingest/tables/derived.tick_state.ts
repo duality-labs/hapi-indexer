@@ -4,6 +4,7 @@ import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import db from '../../db/db';
 
 import upsertDerivedPriceData from './derived.tx_price_data';
+import upsertDerivedVolumeData from './derived.tx_volume_data';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 
@@ -86,7 +87,10 @@ export async function upsertDerivedTickStateRows(
     `);
 
     // continue logic for several dependent states
-    await Promise.all([upsertDerivedPriceData(tx_result, txEvent, index)]);
+    await Promise.all([
+      upsertDerivedPriceData(tx_result, txEvent, index),
+      upsertDerivedVolumeData(tx_result, txEvent, index),
+    ]);
 
     return lastID;
   }
