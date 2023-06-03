@@ -178,7 +178,11 @@ export async function upsertDerivedTickStateRows(
         ) values (
           ${tx_result.height},
           ${blockTime},
-          ${-index},
+          ${
+            // we use a negative index here to keep a reference
+            // but not use it as a JOIN-able link as its not real data
+            -index
+          },
           ${txEvent.index},
 
           (
