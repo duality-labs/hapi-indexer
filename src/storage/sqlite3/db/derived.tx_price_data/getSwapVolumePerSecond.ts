@@ -7,11 +7,10 @@ import {
   getPaginationFromQuery,
 } from '../paginationUtils';
 
-const shape = ['time_unix', 'amount', 'token'] as const;
-type DataRow = [time_unix: number, amount: number, token: string];
+type DataRow = [time_unix: number, amountA: number, amountB: number];
 
 interface Response extends PaginatedResponse {
-  shape: typeof shape;
+  shape: ['time_unix', string, string];
   data: Array<DataRow>;
 }
 
@@ -83,13 +82,13 @@ export default async function getSwapVolumePerSecond(
       : null;
 
   return {
-    shape,
+    shape: ['time_unix', `amount ${tokenA}`, `amount ${tokenB}`],
     data: data.map((row): DataRow => {
       return [
         row['time_unix'],
         // convert to float precision here
-        Number(row['amount']),
-        row['token'],
+        row['token'] === tokenA ? Number(row['amount']) : 0,
+        row['token'] === tokenB ? Number(row['amount']) : 0,
       ];
     }),
     pagination: {

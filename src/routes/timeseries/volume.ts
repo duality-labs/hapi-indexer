@@ -4,24 +4,20 @@ import logger from '../../logger';
 import getSwapVolumePerSecond from '../../storage/sqlite3/db/derived.tx_price_data/getSwapVolumePerSecond';
 import getTotalVolumePerSecond from '../../storage/sqlite3/db/derived.tx_price_data/getTotalVolumePerSecond';
 
-interface DataRow {
-  timestamp: string;
-  tokenA: number;
-  tokenB: number;
-}
+type DataRow = [timeUnix: number, amountA: number, amountB: number];
 type Data = Array<DataRow>;
 
-function accumulateData(data: Data, { timestamp, tokenA, tokenB }: DataRow) {
-  const dataLast = data[data.length - 1];
-  if (dataLast && dataLast.timestamp === timestamp) {
-    if (tokenA) {
-      dataLast.tokenA += tokenA;
+function accumulateData(data: Data, [timeUnix, amountA, amountB]: DataRow) {
+  const lastData = data[data.length - 1];
+  if (lastData && lastData[0] === timeUnix) {
+    if (amountA) {
+      lastData[1] += amountA;
     }
-    if (tokenB) {
-      dataLast.tokenB += tokenB;
+    if (amountB) {
+      lastData[2] += amountB;
     }
   } else {
-    data.push({ timestamp, tokenA, tokenB });
+    data.push([timeUnix, amountA, amountB]);
   }
   return data;
 }
@@ -39,60 +35,72 @@ const routes = [
         );
 
         const volumePerHour = volumePerSecond.data.reduceRight<Data>(
-          (data, [timeUnix, amount, token]) => {
+          (data, [timeUnix, amountA, amountB]) => {
             const date = new Date(timeUnix * 1000);
-            date.setMilliseconds(0);
             date.setSeconds(0);
             date.setMinutes(0);
-            const row: DataRow = {
-              timestamp: date.toISOString(),
-              tokenA: token === request.params['tokenA'] ? amount : 0,
-              tokenB: token === request.params['tokenB'] ? amount : 0,
-            };
-            return accumulateData(data, row);
+            return accumulateData(data, [
+              date.valueOf() / 1000,
+              amountA,
+              amountB,
+            ]);
           },
           []
         );
 
         const volumePerDay = volumePerHour.reduceRight<Data>(
-          (data, { timestamp, tokenA, tokenB }) => {
-            const date = new Date(timestamp);
+          (data, [timeUnix, amountA, amountB]) => {
+            const date = new Date(timeUnix * 1000);
             date.setHours(0);
-            return accumulateData(data, {
-              timestamp: date.toISOString(),
-              tokenA,
-              tokenB,
-            });
+            return accumulateData(data, [
+              date.valueOf() / 1000,
+              amountA,
+              amountB,
+            ]);
           },
           []
         );
 
         const volumePerWeek = volumePerDay.reduceRight<Data>(
-          (data, { timestamp, tokenA, tokenB }) => {
-            const date = new Date(timestamp);
+          (data, [timeUnix, amountA, amountB]) => {
+            const date = new Date(timeUnix * 1000);
             const dayOfWeek = date.getDay();
             // set day of month to first of a week by using dayOfWeek
             date.setDate(date.getDate() - dayOfWeek);
-            return accumulateData(data, {
-              timestamp: date.toISOString(),
-              tokenA,
-              tokenB,
-            });
+            return accumulateData(data, [
+              date.valueOf() / 1000,
+              amountA,
+              amountB,
+            ]);
           },
           []
         );
 
+        const shape = [
+          'time_unix',
+          `amount ${request.params['tokenA']}`,
+          `amount ${request.params['tokenB']}`,
+        ];
+
         return {
-          '24H': { resolution: 'hour', data: volumePerHour.slice(0, 24) },
-          '1W': { resolution: 'hour', data: volumePerHour.slice(0, 24 * 7) },
-          '1M': { resolution: 'day', data: volumePerDay.slice(0, 28) },
-          '1Y': { resolution: 'week', data: volumePerWeek.slice(0, 52) },
+          '24H': {
+            shape,
+            resolution: 'hour',
+            data: volumePerHour.slice(0, 24),
+          },
+          '1W': {
+            shape,
+            resolution: 'hour',
+            data: volumePerHour.slice(0, 24 * 7),
+          },
+          '1M': { shape, resolution: 'day', data: volumePerDay.slice(0, 28) },
+          '1Y': { shape, resolution: 'week', data: volumePerWeek.slice(0, 52) },
           ALL:
             volumePerWeek.length > 52
-              ? { resolution: 'week', data: volumePerWeek }
+              ? { shape, resolution: 'week', data: volumePerWeek }
               : volumePerDay.length > 28
-              ? { resolution: 'day', data: volumePerDay }
-              : { resolution: 'hour', data: volumePerHour },
+              ? { shape, resolution: 'day', data: volumePerDay }
+              : { shape, resolution: 'hour', data: volumePerHour },
         };
       } catch (err: unknown) {
         if (err instanceof Error) {
