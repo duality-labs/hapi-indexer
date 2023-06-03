@@ -7,11 +7,11 @@ import {
   getPaginationFromQuery,
 } from '../paginationUtils';
 
-type Shape = [string, string, string];
-type DataRow = [number, number, string];
+const shape = ['time_unix', 'amount', 'token'] as const;
+type DataRow = [time_unix: number, amount: number, token: string];
 
 interface Response extends PaginatedResponse {
-  shape: Shape;
+  shape: typeof shape;
   data: Array<DataRow>;
 }
 
@@ -88,7 +88,6 @@ export default async function getVolumePerSecond(
         })()
       : null;
 
-  const shape: Shape = ['time_unix', 'amount', 'token'];
   return {
     shape,
     data: data.map((row): DataRow => {
