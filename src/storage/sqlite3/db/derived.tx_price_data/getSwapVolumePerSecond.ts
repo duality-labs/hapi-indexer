@@ -15,7 +15,7 @@ interface Response extends PaginatedResponse {
   data: Array<DataRow>;
 }
 
-export default async function getVolumePerSecond(
+export default async function getSwapVolumePerSecond(
   tokenA: string,
   tokenB: string,
   query: PaginatedRequestQuery = {}

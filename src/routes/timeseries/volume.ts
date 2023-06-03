@@ -1,7 +1,7 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../../logger';
-import getVolumePerSecond from '../../storage/sqlite3/db/derived.tx_price_data/getVolumePerSecond';
+import getSwapVolumePerSecond from '../../storage/sqlite3/db/derived.tx_price_data/getSwapVolumePerSecond';
 
 interface DataRow {
   timestamp: string;
@@ -31,7 +31,7 @@ const routes = [
     path: '/timeseries/volume/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        const volumePerSecond = await getVolumePerSecond(
+        const volumePerSecond = await getSwapVolumePerSecond(
           request.params['tokenA'],
           request.params['tokenB'],
           request.query // the time extents and frequency and such
