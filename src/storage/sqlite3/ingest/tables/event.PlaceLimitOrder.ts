@@ -25,8 +25,6 @@ export default async function insertEventPlaceLimitOrder(
       'Shares',
       'TrancheKey',
 
-      'related.block',
-      'related.tx',
       'related.tx_result.events',
       'related.dex.pair',
       'related.dex.tokenIn',
@@ -50,33 +48,6 @@ export default async function insertEventPlaceLimitOrder(
       ${txEvent.attributes['Shares']},
       ${txEvent.attributes['TrancheKey']},
 
-      (
-        SELECT
-          'block'.'id'
-        FROM
-          'block'
-        WHERE (
-          'block'.'header.height' = ${tx_result.height}
-        )
-      ),
-      (
-        SELECT
-          'tx'.'id'
-        FROM
-          'tx'
-        WHERE (
-          'tx'.'index' = ${index} AND
-          'tx'.'related.block' = (
-            SELECT
-              'block'.'id'
-            FROM
-              'block'
-            WHERE (
-              'block'.'header.height' = ${tx_result.height}
-            )
-          )
-        )
-      ),
       (
         SELECT
           'tx_result.events'.'id'

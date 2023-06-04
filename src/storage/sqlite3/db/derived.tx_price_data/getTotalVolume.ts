@@ -52,9 +52,19 @@ export default async function getTotalVolume(
       FROM
         'derived.tx_volume_data'
       INNER JOIN
+        'tx_result.events'
+      ON (
+        'tx_result.events'.'id' = 'derived.tx_volume_data'.'related.tx_result.events'
+      )
+      INNER JOIN
+        'tx'
+      ON (
+        'tx'.'id' = 'tx_result.events'.'related.tx'
+      )
+      INNER JOIN
         'block'
       ON (
-        'block'.'id' = 'derived.tx_volume_data'.'related.block'
+        'block'.'id' = 'tx'.'related.block'
       )
       WHERE
         'block'.'header.time_unix' <= ${pagination.before} AND

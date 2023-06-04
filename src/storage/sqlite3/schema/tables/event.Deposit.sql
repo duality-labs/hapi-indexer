@@ -17,16 +17,8 @@ CREATE TABLE 'event.Deposit' (
   'Reserves1Deposited' TEXT NOT NULL,
   'SharesMinted' TEXT NOT NULL,
 
-  'related.block' INTEGER NOT NULL,
-  'related.tx' INTEGER NOT NULL,
   'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,
-
-  FOREIGN KEY ('related.block')
-    REFERENCES 'block'('id'),
-
-  FOREIGN KEY ('related.tx')
-    REFERENCES 'tx'('id'),
 
   FOREIGN KEY ('related.tx_result.events')
     REFERENCES 'tx_result.events'('id'),

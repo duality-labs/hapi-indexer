@@ -34,9 +34,19 @@ export default async function getSwapVolumePerSecond(
       FROM
         'event.PlaceLimitOrder'
       INNER JOIN
+        'tx_result.events'
+      ON (
+        'tx_result.events'.'id' = 'event.PlaceLimitOrder'.'related.tx_result.events'
+      )
+      INNER JOIN
+        'tx'
+      ON (
+        'tx'.'id' = 'tx_result.events'.'related.tx'
+      )
+      INNER JOIN
         'block'
       ON (
-        'block'.'id' = 'event.PlaceLimitOrder'.'related.block'
+        'block'.'id' = 'tx'.'related.block'
       )
       WHERE
         'block'.'header.time_unix' <= ${pagination.before} AND

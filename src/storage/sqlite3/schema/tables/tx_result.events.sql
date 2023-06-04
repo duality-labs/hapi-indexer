@@ -11,14 +11,10 @@ CREATE TABLE 'tx_result.events' (
   'type' TEXT NOT NULL,
   'attributes' TEXT NOT NULL,
 
-  'related.block' INTEGER NOT NULL,
   'related.tx' INTEGER NOT NULL,
   'related.dex.pair_swap' INTEGER NOT NULL,
   'related.dex.pair_deposit' INTEGER NOT NULL,
   'related.dex.pair_withdraw' INTEGER NOT NULL,
-
-  FOREIGN KEY ('related.block')
-    REFERENCES 'block'('id'),
 
   FOREIGN KEY ('related.tx')
     REFERENCES 'tx'('id'),
@@ -33,12 +29,11 @@ CREATE TABLE 'tx_result.events' (
     REFERENCES 'dex.pairs'('id')
 );
 
-/* ensure block + tx + event combination is unique */
+/* ensure tx + event combination is unique */
 CREATE UNIQUE INDEX
-  'tx_result.events--related.block,related.tx,index'
+  'tx_result.events--related.tx,index'
 ON
   'tx_result.events' (
-    'related.block',
     'related.tx',
     'index'
   );

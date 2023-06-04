@@ -27,7 +27,6 @@ export default async function insertTxEventRows(
       'type',
       'attributes',
 
-      'related.block',
       'related.tx',
       'related.dex.pair_swap',
       'related.dex.pair_deposit',
@@ -38,15 +37,6 @@ export default async function insertTxEventRows(
       ${txEvent.type},
       ${JSON.stringify(txEvent.attributes)},
 
-      (
-        SELECT
-          'block'.'id'
-        FROM
-          'block'
-        WHERE (
-          'block'.'header.height' = ${tx_result.height}
-        )
-      ),
       (
         SELECT
           'tx'.'id'

@@ -23,8 +23,6 @@ export default async function insertEventDeposit(
       'Reserves1Deposited',
       'SharesMinted',
 
-      'related.block',
-      'related.tx',
       'related.tx_result.events',
       'related.dex.pair'
     ) values (
@@ -38,33 +36,6 @@ export default async function insertEventDeposit(
       ${txEvent.attributes['Reserves1Deposited']},
       ${txEvent.attributes['SharesMinted']},
 
-      (
-        SELECT
-          'block'.'id'
-        FROM
-          'block'
-        WHERE (
-          'block'.'header.height' = ${tx_result.height}
-        )
-      ),
-      (
-        SELECT
-          'tx'.'id'
-        FROM
-          'tx'
-        WHERE (
-          'tx'.'index' = ${index} AND
-          'tx'.'related.block' = (
-            SELECT
-              'block'.'id'
-            FROM
-              'block'
-            WHERE (
-              'block'.'header.height' = ${tx_result.height}
-            )
-          )
-        )
-      ),
       (
         SELECT
           'tx_result.events'.'id'

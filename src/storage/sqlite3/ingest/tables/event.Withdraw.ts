@@ -23,8 +23,6 @@ export default async function insertEventWithdraw(
       'Reserves1Withdrawn',
       'SharesRemoved',
 
-      'related.block',
-      'related.tx',
       'related.tx_result.events',
       'related.dex.pair'
     ) values (
@@ -39,33 +37,6 @@ export default async function insertEventWithdraw(
       ${txEvent.attributes['Reserves1Withdrawn']},
       ${txEvent.attributes['SharesRemoved']},
 
-      (
-        SELECT
-          'block'.'id'
-        FROM
-          'block'
-        WHERE (
-          'block'.'header.height' = ${tx_result.height}
-        )
-      ),
-      (
-        SELECT
-          'tx'.'id'
-        FROM
-          'tx'
-        WHERE (
-          'tx'.'index' = ${index} AND
-          'tx'.'related.block' = (
-            SELECT
-              'block'.'id'
-            FROM
-              'block'
-            WHERE (
-              'block'.'header.height' = ${tx_result.height}
-            )
-          )
-        )
-      ),
       (
         SELECT
           'tx_result.events'.'id'

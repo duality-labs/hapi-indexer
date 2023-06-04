@@ -98,8 +98,6 @@ export default async function upsertDerivedPriceData(
           'LowestTick1',
           'LastTick',
 
-          'related.block',
-          'related.tx',
           'related.tx_result.events',
           'related.dex.pair'
 
@@ -109,33 +107,6 @@ export default async function upsertDerivedPriceData(
           ${isForward ? currentTickIndex : previousOtherSideTickIndex},
           ${currentTickIndex || previousOtherSideTickIndex},
 
-          (
-            SELECT
-              'block'.'id'
-            FROM
-              'block'
-            WHERE (
-              'block'.'header.height' = ${tx_result.height}
-            )
-          ),
-          (
-            SELECT
-              'tx'.'id'
-            FROM
-              'tx'
-            WHERE (
-              'tx'.'index' = ${index} AND
-              'tx'.'related.block' = (
-                SELECT
-                  'block'.'id'
-                FROM
-                  'block'
-                WHERE (
-                  'block'.'header.height' = ${tx_result.height}
-                )
-              )
-            )
-          ),
           (
             SELECT
               'tx_result.events'.'id'

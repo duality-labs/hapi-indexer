@@ -92,8 +92,6 @@ export default async function upsertDerivedVolumeData(
           'ReservesFloat0',
           'ReservesFloat1',
 
-          'related.block',
-          'related.tx',
           'related.tx_result.events',
           'related.dex.pair'
         ) values (
@@ -101,33 +99,6 @@ export default async function upsertDerivedVolumeData(
           ${isForward ? previousOtherSideReserves : currentReserves},
           ${isForward ? currentReserves : previousOtherSideReserves},
 
-          (
-            SELECT
-              'block'.'id'
-            FROM
-              'block'
-            WHERE (
-              'block'.'header.height' = ${tx_result.height}
-            )
-          ),
-          (
-            SELECT
-              'tx'.'id'
-            FROM
-              'tx'
-            WHERE (
-              'tx'.'index' = ${index} AND
-              'tx'.'related.block' = (
-                SELECT
-                  'block'.'id'
-                FROM
-                  'block'
-                WHERE (
-                  'block'.'header.height' = ${tx_result.height}
-                )
-              )
-            )
-          ),
           (
             SELECT
               'tx_result.events'.'id'
