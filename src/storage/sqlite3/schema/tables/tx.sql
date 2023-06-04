@@ -1,6 +1,7 @@
 
 /* setup transactions table with block height foreign key */
 CREATE TABLE 'tx' (
+  'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   'block.header.height' INTEGER NOT NULL,
   'block.header.time_unix' INTEGER NOT NULL,
   'hash' TEXT NOT NULL,

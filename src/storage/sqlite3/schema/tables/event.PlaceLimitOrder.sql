@@ -5,6 +5,7 @@
   * in 'tx_result.events'.'attributes' as JSON blobs
   */
 CREATE TABLE 'event.PlaceLimitOrder' (
+  'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   'block.header.height' INTEGER NOT NULL,
   'block.header.time_unix' INTEGER NOT NULL,
   'tx.index' INTEGER NOT NULL,

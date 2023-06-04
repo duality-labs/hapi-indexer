@@ -5,6 +5,7 @@
   *   they need to be extracted out into BigNumbers to be useful anyway)
   */
 CREATE TABLE 'tx_result.events' (
+  'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
   'block.header.height' INTEGER NOT NULL,
   'block.header.time_unix' INTEGER NOT NULL,
   'tx.index' INTEGER NOT NULL,
