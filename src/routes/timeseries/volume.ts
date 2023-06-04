@@ -2,7 +2,7 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../../logger';
 import getSwapVolumePerSecond from '../../storage/sqlite3/db/derived.tx_price_data/getSwapVolumePerSecond';
-import getTotalVolumePerMinute from '../../storage/sqlite3/db/derived.tx_price_data/getTotalVolumePerSecond';
+import getTotalVolume from '../../storage/sqlite3/db/derived.tx_price_data/getTotalVolume';
 
 import { accumulateDataSorted } from './utils';
 import { DataRow } from '../../storage/sqlite3/db/derived.tx_price_data/getSwapVolumePerSecond';
@@ -85,12 +85,13 @@ const routes = [
 
   {
     method: 'GET',
-    path: '/timeseries/tvl/{tokenA}/{tokenB}',
+    path: '/timeseries/tvl/{tokenA}/{tokenB}/{resolution?}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        return await getTotalVolumePerMinute(
+        return await getTotalVolume(
           request.params['tokenA'],
           request.params['tokenB'],
+          request.params['resolution'],
           request.query // the time extents and frequency and such
         );
       } catch (err: unknown) {
