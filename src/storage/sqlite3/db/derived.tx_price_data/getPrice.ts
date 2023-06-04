@@ -83,6 +83,7 @@ export default async function getPrice(
         )
         ORDER BY
           'derived.tx_price_data'.'block.header.time_unix' ASC,
+          'derived.tx_price_data'.'tx.index' ASC,
           'derived.tx_price_data'.'tx_result.events.index' ASC
         ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
       )

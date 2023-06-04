@@ -84,6 +84,7 @@ export default async function getTotalVolume(
         )
         ORDER BY
           'derived.tx_volume_data'.'block.header.time_unix' ASC,
+          'derived.tx_volume_data'.'tx.index' ASC,
           'derived.tx_volume_data'.'tx_result.events.index' ASC
         ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
       )
