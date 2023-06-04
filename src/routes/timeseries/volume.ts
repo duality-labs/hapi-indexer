@@ -2,7 +2,7 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../../logger';
 import getSwapVolumePerSecond from '../../storage/sqlite3/db/derived.tx_price_data/getSwapVolumePerSecond';
-import getTotalVolumePerSecond from '../../storage/sqlite3/db/derived.tx_price_data/getTotalVolumePerSecond';
+import getTotalVolumePerMinute from '../../storage/sqlite3/db/derived.tx_price_data/getTotalVolumePerSecond';
 
 type DataRow = [timeUnix: number, amountA: number, amountB: number];
 type Data = Array<DataRow>;
@@ -18,16 +18,6 @@ function accumulateData(data: Data, [timeUnix, amountA, amountB]: DataRow) {
     }
   } else {
     data.push([timeUnix, amountA, amountB]);
-  }
-  return data;
-}
-
-function accumulateLatestDataDescending(data: Data, row: DataRow) {
-  const dataLast = data[data.length - 1];
-  // if data is ordered in descending timestamp form then the first version of
-  // a timestamp that is seen is the latest time in the resolved timestamp
-  if (!dataLast || dataLast[0] !== row[0]) {
-    data.push(row);
   }
   return data;
 }
@@ -129,27 +119,11 @@ const routes = [
     path: '/timeseries/tvl/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        const volumeAtSecond = await getTotalVolumePerSecond(
+        return await getTotalVolumePerMinute(
           request.params['tokenA'],
           request.params['tokenB'],
           request.query // the time extents and frequency and such
         );
-
-        const volumeAtMinute = volumeAtSecond.data.reduce<Data>(
-          (data, [timeUnix, amountA, amountB]) => {
-            const date = new Date(timeUnix * 1000);
-            date.setMilliseconds(0);
-            date.setSeconds(0);
-            return accumulateLatestDataDescending(data, [
-              date.valueOf() / 1000,
-              amountA,
-              amountB,
-            ]);
-          },
-          []
-        );
-
-        return volumeAtMinute;
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);

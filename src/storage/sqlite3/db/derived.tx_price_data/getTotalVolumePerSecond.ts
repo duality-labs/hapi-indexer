@@ -16,7 +16,7 @@ interface Response extends PaginatedResponse {
   data: Array<DataRow>;
 }
 
-export default async function getTotalVolumePerSecond(
+export default async function getTotalVolumePerMinute(
   tokenA: string,
   tokenB: string,
   query: PaginatedRequestQuery = {}
@@ -31,13 +31,23 @@ export default async function getTotalVolumePerSecond(
     db.all(sql`
     WITH total_volume AS (
       SELECT
-        'derived.tx_volume_data'.'block.header.time_unix' as 'time_unix',
+        unixepoch (
+          strftime(
+            '%Y-%m-%d %H:%M:00',
+            'block'.'header.height'
+          )
+        ) as 'minute_unix',
         last_value('derived.tx_volume_data'.'ReservesFloat0')
-          OVER seconds_window as 'last_amount_0',
+          OVER minute_window as 'last_amount_0',
         last_value('derived.tx_volume_data'.'ReservesFloat1')
-          OVER seconds_window as 'last_amount_1'
+          OVER minute_window as 'last_amount_1'
       FROM
         'derived.tx_volume_data'
+      INNER JOIN
+        'block'
+      ON (
+        'block'.'header.height' = 'derived.tx_volume_data'.'block.header.height'
+      )
       WHERE
         'derived.tx_volume_data'.'meta.dex.pair' = (
         SELECT
@@ -59,24 +69,29 @@ export default async function getTotalVolumePerSecond(
         AND 'derived.tx_volume_data'.'block.header.time_unix' >= ${
           pagination.after
         }
-      WINDOW seconds_window AS (
-        ORDER BY 'derived.tx_volume_data'.'block.header.time_unix'
-        GROUPS CURRENT ROW
+      WINDOW minute_window AS (
+        PARTITION BY strftime(
+          '%Y-%m-%d %H:%M:00',
+          'block'.'header.height'
+        )
+        ORDER BY
+          'derived.tx_volume_data'.'block.header.time_unix' ASC,
+          'derived.tx_volume_data'.'tx_result.events.index' ASC
+        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
       )
       ORDER BY
-        'derived.tx_volume_data'.'block.header.time_unix' DESC,
-        'derived.tx_volume_data'.'tx_result.events.index' DESC
+        'derived.tx_volume_data'.'block.header.time_unix' DESC
     )
     SELECT
-      'total_volume'.'time_unix' as 'time_unix',
+      'total_volume'.'minute_unix' as 'time_unix',
       'total_volume'.'last_amount_0' as 'amount0',
       'total_volume'.'last_amount_1' as 'amount1'
     FROM
       'total_volume'
     GROUP BY
-      'total_volume'.'time_unix'
+      'total_volume'.'minute_unix'
     ORDER BY
-      'total_volume'.'time_unix' DESC
+      'total_volume'.'minute_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
   `) ?? [];

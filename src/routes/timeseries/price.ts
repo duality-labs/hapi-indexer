@@ -1,7 +1,7 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../../logger';
-import getPricePerSecond from '../../storage/sqlite3/db/derived.tx_price_data/getPricePerSecond';
+import getPricePerMinute from '../../storage/sqlite3/db/derived.tx_price_data/getPricePerSecond';
 
 const routes = [
   {
@@ -9,7 +9,7 @@ const routes = [
     path: '/timeseries/price/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        return await getPricePerSecond(
+        return await getPricePerMinute(
           request.params['tokenA'],
           request.params['tokenB'],
           request.query // the time extents and frequency and such

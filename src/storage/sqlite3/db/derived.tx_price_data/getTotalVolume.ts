@@ -1,54 +1,63 @@
 import sql from 'sql-template-strings';
 
 import db from '../db';
-import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
 import {
   PaginatedRequestQuery,
   PaginatedResponse,
   getPaginationFromQuery,
 } from '../paginationUtils';
+import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
+import { Resolution, resolutionTimeFormats } from './utils';
 
-type Shape = [string, [string, string, string, string]];
-type DataRow = [number, [number, number, number, number]];
+type AmountValues = [amountA: number, amountB: number];
+type DataRow = [timeUnix: number, amounts: AmountValues];
+
+const shape = ['time_unix', 'amount0', 'amount1'];
 
 interface Response extends PaginatedResponse {
-  shape: Shape;
+  shape: typeof shape;
   data: Array<DataRow>;
 }
 
-export default async function getPricePerMinute(
+export default async function getTotalVolume(
   tokenA: string,
   tokenB: string,
+  resolution: Resolution,
   query: PaginatedRequestQuery = {}
 ): Promise<Response> {
+  // get asked for resolution or default to minute resolution
+  const partitionTimeFormat =
+    resolutionTimeFormats[resolution] || resolutionTimeFormats['minute'];
+
   // collect pagination keys into a pagination object
   const [pagination, getPaginationNextKey] = getPaginationFromQuery(query);
 
   // prepare statement at run time (after db has been initialized)
-  const dataPromise: Promise<Array<{ [key: string]: number }>> =
+  const dataPromise: Promise<
+    Array<{ time_unix: number; amount0: number; amount1: number }>
+  > =
     db.all(sql`
-    WITH price_points AS (
+    WITH total_volume AS (
       SELECT
         unixepoch (
           strftime(
-            '%Y-%m-%d %H:%M:00',
+            ${partitionTimeFormat},
             'block'.'header.time'
           )
-        ) as 'minute_unix',
-        first_value('derived.tx_price_data'.'LastTick')
-          OVER minute_window as 'first_price',
-        last_value('derived.tx_price_data'.'LastTick')
-          OVER minute_window as 'last_price',
-        'derived.tx_price_data'.'LastTick' as 'price'
+        ) as 'resolution_unix',
+        last_value('derived.tx_volume_data'.'ReservesFloat0')
+          OVER resolution_window as 'last_amount_0',
+        last_value('derived.tx_volume_data'.'ReservesFloat1')
+          OVER resolution_window as 'last_amount_1'
       FROM
-        'derived.tx_price_data'
+        'derived.tx_volume_data'
       INNER JOIN
         'block'
       ON (
-        'block'.'header.height' = 'derived.tx_price_data'.'block.header.height'
+        'block'.'header.height' = 'derived.tx_volume_data'.'block.header.height'
       )
       WHERE
-        'derived.tx_price_data'.'meta.dex.pair' = (
+        'derived.tx_volume_data'.'meta.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
           FROM
@@ -62,37 +71,35 @@ export default async function getPricePerMinute(
             'dex.pairs'.'token0' = ${tokenB}
           )
         )
-        AND 'derived.tx_price_data'.'block.header.time_unix' <= ${
+        AND 'derived.tx_volume_data'.'block.header.time_unix' <= ${
           pagination.before
         }
-        AND 'derived.tx_price_data'.'block.header.time_unix' >= ${
+        AND 'derived.tx_volume_data'.'block.header.time_unix' >= ${
           pagination.after
         }
-      WINDOW minute_window AS (
+      WINDOW resolution_window AS (
         PARTITION BY strftime(
-          '%Y-%m-%d %H:%M:00',
+          ${partitionTimeFormat},
           'block'.'header.time'
         )
         ORDER BY
-          'derived.tx_price_data'.'block.header.time_unix' ASC,
-          'derived.tx_price_data'.'tx_result.events.index' ASC
+          'derived.tx_volume_data'.'block.header.time_unix' ASC,
+          'derived.tx_volume_data'.'tx_result.events.index' ASC
         ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
       )
       ORDER BY
-        'derived.tx_price_data'.'block.header.time_unix' DESC
+        'derived.tx_volume_data'.'block.header.time_unix' DESC
     )
     SELECT
-      'price_points'.'minute_unix' as 'time_unix',
-      'price_points'.'first_price' as 'open',
-      'price_points'.'last_price' as 'close',
-      min('price_points'.'price') as 'low',
-      max('price_points'.'price') as 'high'
+      'total_volume'.'resolution_unix' as 'time_unix',
+      'total_volume'.'last_amount_0' as 'amount0',
+      'total_volume'.'last_amount_1' as 'amount1'
     FROM
-      'price_points'
+      'total_volume'
     GROUP BY
-      'price_points'.'minute_unix'
+      'total_volume'.'resolution_unix'
     ORDER BY
-      'price_points'.'minute_unix' DESC
+      'total_volume'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
   `) ?? [];
@@ -115,24 +122,16 @@ export default async function getPricePerMinute(
         })()
       : null;
 
-  const shape: Shape = ['time_unix', ['open', 'high', 'low', 'close']];
   return {
-    shape,
+    shape: ['time_unix', `amount ${tokenA}`, `amount ${tokenB}`],
     data: data.map(
-      // invert the indexes depending on which price ratio was asked for
+      // invert the indexes depend on which price ratio was asked for
       !invertedOrder
         ? (row): DataRow => {
-            return [
-              row['time_unix'],
-              [row['open'], row['high'], row['low'], row['close']],
-            ];
+            return [row['time_unix'], [row['amount0'], row['amount1']]];
           }
         : (row): DataRow => {
-            return [
-              row['time_unix'],
-              // invert the indexes for the asked for price ratio
-              [-row['open'], -row['high'], -row['low'], -row['close']],
-            ];
+            return [row['time_unix'], [row['amount1'], row['amount0']]];
           }
     ),
     pagination: {
