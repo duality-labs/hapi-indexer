@@ -28,7 +28,7 @@ export default async function insertEventDeposit(
       'Reserves1Deposited',
       'SharesMinted',
 
-      'meta.dex.pair'
+      'related.dex.pair'
     ) values (
       ${tx_result.height},
       ${getBlockTimeFromTxResult(tx_result)},

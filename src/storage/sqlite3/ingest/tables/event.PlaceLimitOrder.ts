@@ -30,9 +30,9 @@ export default async function insertEventPlaceLimitOrder(
       'Shares',
       'TrancheKey',
 
-      'meta.dex.pair',
-      'meta.dex.tokenIn',
-      'meta.dex.tokenOut'
+      'related.dex.pair',
+      'related.dex.tokenIn',
+      'related.dex.tokenOut'
     ) values (
       ${tx_result.height},
       ${getBlockTimeFromTxResult(tx_result)},

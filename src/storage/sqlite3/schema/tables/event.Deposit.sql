@@ -20,7 +20,7 @@ CREATE TABLE 'event.Deposit' (
   'Reserves1Deposited' TEXT NOT NULL,
   'SharesMinted' TEXT NOT NULL,
 
-  'meta.dex.pair' INTEGER NOT NULL,
+  'related.dex.pair' INTEGER NOT NULL,
 
   FOREIGN KEY
     ('block.header.height')
@@ -43,7 +43,7 @@ CREATE TABLE 'event.Deposit' (
     'tx_result.events'('index'),
 
   FOREIGN KEY
-    ('meta.dex.pair')
+    ('related.dex.pair')
   REFERENCES
     'dex.pairs'('id')
 );

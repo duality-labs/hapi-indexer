@@ -33,7 +33,7 @@ export default async function upsertDerivedVolumeData(
       FROM
         'derived.tx_volume_data'
       WHERE (
-        'derived.tx_volume_data'.'meta.dex.pair' = (
+        'derived.tx_volume_data'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
           FROM
@@ -62,7 +62,7 @@ export default async function upsertDerivedVolumeData(
           FROM
             'derived.tick_state'
           WHERE (
-            'derived.tick_state'.'meta.dex.pair' = (
+            'derived.tick_state'.'related.dex.pair' = (
               SELECT
                 'dex.pairs'.'id'
               FROM
@@ -72,7 +72,7 @@ export default async function upsertDerivedVolumeData(
                 'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
               )
             ) AND
-            'derived.tick_state'.'meta.dex.token' = (
+            'derived.tick_state'.'related.dex.token' = (
               SELECT
                 'dex.tokens'.'id'
               FROM
@@ -84,8 +84,8 @@ export default async function upsertDerivedVolumeData(
             'derived.tick_state'.'Reserves' != '0'
           )
           GROUP BY
-            'derived.tick_state'.'meta.dex.pair',
-            'derived.tick_state'.'meta.dex.token'
+            'derived.tick_state'.'related.dex.pair',
+            'derived.tick_state'.'related.dex.token'
         `
       )
       .then((row) => row?.['ReservesFloat'] ?? null);
@@ -100,7 +100,7 @@ export default async function upsertDerivedVolumeData(
           'tx.index',
           'tx_result.events.index',
 
-          'meta.dex.pair',
+          'related.dex.pair',
 
           'ReservesFloat0',
           'ReservesFloat1'

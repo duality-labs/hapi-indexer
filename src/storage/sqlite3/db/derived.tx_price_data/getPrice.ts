@@ -56,7 +56,7 @@ export default async function getPrice(
         'block'.'header.height' = 'derived.tx_price_data'.'block.header.height'
       )
       WHERE
-        'derived.tx_price_data'.'meta.dex.pair' = (
+        'derived.tx_price_data'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
           FROM

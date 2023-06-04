@@ -16,8 +16,8 @@ CREATE TABLE 'event.TickUpdate' (
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
 
-  'meta.dex.pair' INTEGER NOT NULL,
-  'meta.dex.token' INTEGER NOT NULL,
+  'related.dex.pair' INTEGER NOT NULL,
+  'related.dex.token' INTEGER NOT NULL,
 
   FOREIGN KEY
     ('block.header.height')
@@ -40,12 +40,12 @@ CREATE TABLE 'event.TickUpdate' (
     'tx_result.events'('index'),
 
   FOREIGN KEY
-    ('meta.dex.pair')
+    ('related.dex.pair')
   REFERENCES
     'dex.pairs'('id'),
 
   FOREIGN KEY
-    ('meta.dex.token')
+    ('related.dex.token')
   REFERENCES
     'dex.tokens'('id')
 );
@@ -62,9 +62,9 @@ ON
 
 /* add index for timeseries lookups, ie. lookup by pair id and then time */
 CREATE INDEX
-  'event.TickUpdate--meta.dex.pair,block.header.time_unix'
+  'event.TickUpdate--related.dex.pair,block.header.time_unix'
 ON
   'event.TickUpdate' (
-    'meta.dex.pair',
+    'related.dex.pair',
     'block.header.time_unix'
   );

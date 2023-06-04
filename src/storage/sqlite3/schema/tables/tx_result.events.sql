@@ -14,9 +14,9 @@ CREATE TABLE 'tx_result.events' (
   'type' TEXT NOT NULL,
   'attributes' TEXT NOT NULL,
 
-  'meta.dex.pair_swap' INTEGER NOT NULL,
-  'meta.dex.pair_deposit' INTEGER NOT NULL,
-  'meta.dex.pair_withdraw' INTEGER NOT NULL,
+  'related.dex.pair_swap' INTEGER NOT NULL,
+  'related.dex.pair_deposit' INTEGER NOT NULL,
+  'related.dex.pair_withdraw' INTEGER NOT NULL,
 
   FOREIGN KEY
     ('block.header.height')
@@ -40,17 +40,17 @@ CREATE TABLE 'tx_result.events' (
 
 
   FOREIGN KEY
-    ('meta.dex.pair_swap')
+    ('related.dex.pair_swap')
   REFERENCES
     'dex.pairs'('id'),
 
   FOREIGN KEY
-    ('meta.dex.pair_deposit')
+    ('related.dex.pair_deposit')
   REFERENCES
     'dex.pairs'('id'),
 
   FOREIGN KEY
-    ('meta.dex.pair_withdraw')
+    ('related.dex.pair_withdraw')
   REFERENCES
     'dex.pairs'('id')
 );

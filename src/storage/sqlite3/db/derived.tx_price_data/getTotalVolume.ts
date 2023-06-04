@@ -57,7 +57,7 @@ export default async function getTotalVolume(
         'block'.'header.height' = 'derived.tx_volume_data'.'block.header.height'
       )
       WHERE
-        'derived.tx_volume_data'.'meta.dex.pair' = (
+        'derived.tx_volume_data'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
           FROM

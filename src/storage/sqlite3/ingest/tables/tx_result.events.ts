@@ -32,9 +32,9 @@ export default async function insertTxEventRows(
       'index',
       'type',
       'attributes',
-      'meta.dex.pair_swap',
-      'meta.dex.pair_deposit',
-      'meta.dex.pair_withdraw'
+      'related.dex.pair_swap',
+      'related.dex.pair_deposit',
+      'related.dex.pair_withdraw'
     ) values (
       ${tx_result.height},
       ${blockTime},

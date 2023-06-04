@@ -34,7 +34,7 @@ export default async function getSwapVolumePerSecond(
       FROM
         'event.PlaceLimitOrder'
       WHERE
-        'event.PlaceLimitOrder'.'meta.dex.pair' = (
+        'event.PlaceLimitOrder'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
           FROM

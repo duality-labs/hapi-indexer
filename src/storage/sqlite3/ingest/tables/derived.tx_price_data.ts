@@ -32,7 +32,7 @@ export default async function upsertDerivedPriceData(
       FROM
         'derived.tx_price_data'
       WHERE (
-        'derived.tx_price_data'.'meta.dex.pair' = (
+        'derived.tx_price_data'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
           FROM
@@ -61,7 +61,7 @@ export default async function upsertDerivedPriceData(
           FROM
             'derived.tick_state'
           WHERE (
-            'derived.tick_state'.'meta.dex.pair' = (
+            'derived.tick_state'.'related.dex.pair' = (
               SELECT
                 'dex.pairs'.'id'
               FROM
@@ -71,7 +71,7 @@ export default async function upsertDerivedPriceData(
                 'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
               )
             ) AND
-            'derived.tick_state'.'meta.dex.token' = (
+            'derived.tick_state'.'related.dex.token' = (
               SELECT
                 'dex.tokens'.'id'
               FROM
@@ -104,7 +104,7 @@ export default async function upsertDerivedPriceData(
           'tx.index',
           'tx_result.events.index',
 
-          'meta.dex.pair',
+          'related.dex.pair',
 
           'HighestTick0',
           'LowestTick1',

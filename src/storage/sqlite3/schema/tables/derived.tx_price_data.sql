@@ -9,7 +9,7 @@ CREATE TABLE 'derived.tx_price_data' (
   'tx.index' INTEGER NOT NULL,
   'tx_result.events.index' INTEGER NOT NULL,
 
-  'meta.dex.pair' INTEGER NOT NULL,
+  'related.dex.pair' INTEGER NOT NULL,
 
   'HighestTick0' INTEGER,
   'LowestTick1' INTEGER,
@@ -36,7 +36,7 @@ CREATE TABLE 'derived.tx_price_data' (
     'tx_result.events'('index'),
 
   FOREIGN KEY
-    ('meta.dex.pair')
+    ('related.dex.pair')
   REFERENCES
     'dex.pairs'('id')
 );
@@ -53,9 +53,9 @@ ON
 
 /* add index for timeseries lookups, ie. lookup by pair id and then time */
 CREATE INDEX
-  'derived.tx_price_data--meta.dex.pair,block.header.time_unix'
+  'derived.tx_price_data--related.dex.pair,block.header.time_unix'
 ON
   'derived.tx_price_data' (
-    'meta.dex.pair',
+    'related.dex.pair',
     'block.header.time_unix'
   );

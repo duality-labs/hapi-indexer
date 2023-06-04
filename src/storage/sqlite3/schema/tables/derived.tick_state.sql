@@ -4,29 +4,29 @@
  * all ticks throughout time
  */
 CREATE TABLE 'derived.tick_state' (
-  'meta.dex.pair' INTEGER NOT NULL,
-  'meta.dex.token' INTEGER NOT NULL,
+  'related.dex.pair' INTEGER NOT NULL,
+  'related.dex.token' INTEGER NOT NULL,
 
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
 
   FOREIGN KEY
-    ('meta.dex.pair')
+    ('related.dex.pair')
   REFERENCES
     'dex.pairs'('id'),
 
   FOREIGN KEY
-    ('meta.dex.token')
+    ('related.dex.token')
   REFERENCES
     'dex.tokens'('id')
 );
 
 /* add unique index for tick state to ensure no duplicate tick state */
 CREATE UNIQUE INDEX
-  'derived.tick_state--meta.dex.pair,meta.dex.token,TickIndex'
+  'derived.tick_state--related.dex.pair,related.dex.token,TickIndex'
 ON
   'derived.tick_state' (
-    'meta.dex.pair',
-    'meta.dex.token',
+    'related.dex.pair',
+    'related.dex.token',
     'TickIndex'
   );

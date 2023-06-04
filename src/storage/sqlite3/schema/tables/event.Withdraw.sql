@@ -20,7 +20,7 @@ CREATE TABLE 'event.Withdraw' (
   'Reserves1Withdrawn' TEXT NOT NULL,
   'SharesRemoved' TEXT NOT NULL,
 
-  'meta.dex.pair' INTEGER NOT NULL,
+  'related.dex.pair' INTEGER NOT NULL,
 
   FOREIGN KEY
     ('block.header.height')
@@ -43,7 +43,7 @@ CREATE TABLE 'event.Withdraw' (
     'tx_result.events'('index'),
 
   FOREIGN KEY
-    ('meta.dex.pair')
+    ('related.dex.pair')
   REFERENCES
     'dex.pairs'('id')
 );

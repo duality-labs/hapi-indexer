@@ -24,8 +24,8 @@ export default async function insertEventTickUpdate(
       'TickIndex',
       'Reserves',
 
-      'meta.dex.pair',
-      'meta.dex.token'
+      'related.dex.pair',
+      'related.dex.token'
     ) values (
       ${tx_result.height},
       ${getBlockTimeFromTxResult(tx_result)},

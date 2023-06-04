@@ -22,9 +22,9 @@ CREATE TABLE 'event.PlaceLimitOrder' (
   'Shares' TEXT NOT NULL,
   'TrancheKey' TEXT NOT NULL,
 
-  'meta.dex.pair' INTEGER NOT NULL,
-  'meta.dex.tokenIn' INTEGER NOT NULL,
-  'meta.dex.tokenOut' INTEGER NOT NULL,
+  'related.dex.pair' INTEGER NOT NULL,
+  'related.dex.tokenIn' INTEGER NOT NULL,
+  'related.dex.tokenOut' INTEGER NOT NULL,
 
   FOREIGN KEY
     ('block.header.height')
@@ -47,17 +47,17 @@ CREATE TABLE 'event.PlaceLimitOrder' (
     'tx_result.events'('index'),
 
   FOREIGN KEY
-    ('meta.dex.pair')
+    ('related.dex.pair')
   REFERENCES
     'dex.pairs'('id'),
 
   FOREIGN KEY
-    ('meta.dex.tokenIn')
+    ('related.dex.tokenIn')
   REFERENCES
     'dex.tokens'('id'),
 
   FOREIGN KEY
-    ('meta.dex.tokenOut')
+    ('related.dex.tokenOut')
   REFERENCES
     'dex.tokens'('id')
 );

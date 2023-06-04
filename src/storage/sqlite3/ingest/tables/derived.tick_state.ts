@@ -24,7 +24,7 @@ export async function upsertDerivedTickStateRows(
       SELECT 'derived.tick_state'.'Reserves'
       FROM 'derived.tick_state'
       WHERE (
-        'derived.tick_state'.'meta.dex.pair' = (
+        'derived.tick_state'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
           FROM
@@ -34,7 +34,7 @@ export async function upsertDerivedTickStateRows(
             'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
           )
         ) AND
-        'derived.tick_state'.'meta.dex.token' = (
+        'derived.tick_state'.'related.dex.token' = (
           SELECT
             'dex.tokens'.'id'
           FROM
@@ -57,8 +57,8 @@ export async function upsertDerivedTickStateRows(
 
     const { lastID } = await db.run(sql`
       INSERT OR REPLACE INTO 'derived.tick_state' (
-        'meta.dex.pair',
-        'meta.dex.token',
+        'related.dex.pair',
+        'related.dex.token',
         'TickIndex',
         'Reserves'
       ) values (

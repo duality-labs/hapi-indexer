@@ -9,7 +9,7 @@ CREATE TABLE 'derived.tx_volume_data' (
   'tx.index' INTEGER NOT NULL,
   'tx_result.events.index' INTEGER NOT NULL,
 
-  'meta.dex.pair' INTEGER NOT NULL,
+  'related.dex.pair' INTEGER NOT NULL,
 
   'ReservesFloat0' REAL NOT NULL DEFAULT 0,
   'ReservesFloat1' REAL NOT NULL DEFAULT 0,
@@ -35,7 +35,7 @@ CREATE TABLE 'derived.tx_volume_data' (
     'tx_result.events'('index'),
 
   FOREIGN KEY
-    ('meta.dex.pair')
+    ('related.dex.pair')
   REFERENCES
     'dex.pairs'('id')
 );
@@ -52,9 +52,9 @@ ON
 
 /* add index for timeseries lookups, ie. lookup by pair id and then time */
 CREATE INDEX
-  'derived.tx_volume_data--meta.dex.pair,block.header.time_unix'
+  'derived.tx_volume_data--related.dex.pair,block.header.time_unix'
 ON
   'derived.tx_volume_data' (
-    'meta.dex.pair',
+    'related.dex.pair',
     'block.header.time_unix'
   );
