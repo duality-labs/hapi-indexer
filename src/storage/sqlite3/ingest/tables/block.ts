@@ -8,9 +8,20 @@ export function getBlockTimeFromTxResult(tx_result: TxResponse): number {
   return Math.round(new Date(tx_result.timestamp).valueOf() / 1000);
 }
 
-export default async function insertBlockRows(tx_result: TxResponse) {
-  // activate at run time (after db has been initialized)
-  return await db.run(sql`
+async function get(tx_result: TxResponse) {
+  return db.get<{ lastID: number }>(sql`
+    SELECT
+      'block'.'id' as 'lastID'
+    FROM
+      'block'
+    WHERE (
+      'header.height' = ${tx_result.height}
+    )
+  `);
+}
+
+async function set(tx_result: TxResponse) {
+  return db.run(sql`
     INSERT OR IGNORE INTO 'block' (
       'header.height',
       'header.time',
@@ -21,4 +32,12 @@ export default async function insertBlockRows(tx_result: TxResponse) {
       ${getBlockTimeFromTxResult(tx_result)}
     )
   `);
+}
+
+export default async function insertBlockRows(tx_result: TxResponse) {
+  const { lastID } = (await get(tx_result)) || (await set(tx_result));
+  if (!lastID) {
+    throw new Error('unable to insert dex.pairs id');
+  }
+  return lastID;
 }
