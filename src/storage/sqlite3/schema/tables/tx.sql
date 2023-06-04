@@ -7,7 +7,6 @@ CREATE TABLE 'tx' (
   'index' INTEGER NOT NULL,
   'tx_result.code' INTEGER NOT NULL,
   'tx_result.data' TEXT,
-  'tx_result.log' TEXT NOT NULL,
   'tx_result.info' TEXT,
   'tx_result.gas_wanted' TEXT NOT NULL,
   'tx_result.gas_used' TEXT NOT NULL,
