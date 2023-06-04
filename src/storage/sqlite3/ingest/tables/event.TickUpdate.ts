@@ -27,9 +27,15 @@ export default async function insertEventTickUpdate(
     LIMIT 1
   `);
 
-  const previousReserves = previousTickUpdate?.Reserves;
+  const previousReserves = previousTickUpdate?.['Reserves'] || '0';
+  const currentReserves = txEvent.attributes['Reserves'] || '0';
 
-  return await db.run(sql`
+  if (currentReserves === previousReserves) {
+    // skip adding of non-update
+    return;
+  }
+
+  await db.run(sql`
     INSERT INTO 'event.TickUpdate' (
 
       'Token0',
@@ -53,7 +59,7 @@ export default async function insertEventTickUpdate(
 
       -- derive the difference in reserves from the previous tick state
       ${
-        previousReserves && previousReserves !== '0'
+        previousReserves !== '0'
           ? new BigNumber(txEvent.attributes['Reserves'])
               .minus(previousReserves)
               .toFixed(0)
