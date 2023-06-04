@@ -7,6 +7,7 @@ import {
   PaginatedResponse,
   getPaginationFromQuery,
 } from '../paginationUtils';
+import { Resolution, resolutionTimeFormats } from './utils';
 
 type PriceValues = [open: number, high: number, low: number, close: number];
 type DataRow = [time_unix: number, prices: PriceValues];
@@ -18,11 +19,16 @@ interface Response extends PaginatedResponse {
   data: Array<DataRow>;
 }
 
-export default async function getPricePerMinute(
+export default async function getPrice(
   tokenA: string,
   tokenB: string,
+  resolution: Resolution,
   query: PaginatedRequestQuery = {}
 ): Promise<Response> {
+  // get asked for resolution or default to minute resolution
+  const partitionTimeFormat =
+    resolutionTimeFormats[resolution] || resolutionTimeFormats['minute'];
+
   // collect pagination keys into a pagination object
   const [pagination, getPaginationNextKey] = getPaginationFromQuery(query);
 
@@ -33,14 +39,14 @@ export default async function getPricePerMinute(
       SELECT
         unixepoch (
           strftime(
-            '%Y-%m-%d %H:%M:00',
+            ${partitionTimeFormat},
             'block'.'header.time'
           )
-        ) as 'minute_unix',
+        ) as 'resolution_unix',
         first_value('derived.tx_price_data'.'LastTick')
-          OVER minute_window as 'first_price',
+          OVER resolution_window as 'first_price',
         last_value('derived.tx_price_data'.'LastTick')
-          OVER minute_window as 'last_price',
+          OVER resolution_window as 'last_price',
         'derived.tx_price_data'.'LastTick' as 'price'
       FROM
         'derived.tx_price_data'
@@ -70,9 +76,9 @@ export default async function getPricePerMinute(
         AND 'derived.tx_price_data'.'block.header.time_unix' >= ${
           pagination.after
         }
-      WINDOW minute_window AS (
+      WINDOW resolution_window AS (
         PARTITION BY strftime(
-          '%Y-%m-%d %H:%M:00',
+          ${partitionTimeFormat},
           'block'.'header.time'
         )
         ORDER BY
@@ -84,7 +90,7 @@ export default async function getPricePerMinute(
         'derived.tx_price_data'.'block.header.time_unix' DESC
     )
     SELECT
-      'price_points'.'minute_unix' as 'time_unix',
+      'price_points'.'resolution_unix' as 'time_unix',
       'price_points'.'first_price' as 'open',
       'price_points'.'last_price' as 'close',
       min('price_points'.'price') as 'low',
@@ -92,9 +98,9 @@ export default async function getPricePerMinute(
     FROM
       'price_points'
     GROUP BY
-      'price_points'.'minute_unix'
+      'price_points'.'resolution_unix'
     ORDER BY
-      'price_points'.'minute_unix' DESC
+      'price_points'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
   `) ?? [];
