@@ -8,7 +8,12 @@ import { DecodedTxEvent } from '../utils/decodeEvent';
 export default async function insertEventTickUpdate(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
-  index: number
+  index: number,
+  {
+    lastEventDepositID,
+    lastEventWithdrawID,
+    lastEventPlaceLimitOrderID,
+  }: Record<string, number | false | undefined> = {}
 ) {
   return await db.run(sql`
     INSERT INTO 'event.TickUpdate' (
@@ -21,7 +26,10 @@ export default async function insertEventTickUpdate(
 
       'related.tx_result.events',
       'related.dex.pair',
-      'related.dex.token'
+      'related.dex.token',
+      'related.event.Deposit',
+      'related.event.Withdraw',
+      'related.event.PlaceLimitOrder'
     ) values (
 
       ${txEvent.attributes['Token0']},
@@ -75,7 +83,10 @@ export default async function insertEventTickUpdate(
         WHERE (
           'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
         )
-      )
+      ),
+      ${lastEventDepositID || null},
+      ${lastEventWithdrawID || null},
+      ${lastEventPlaceLimitOrderID || null}
     )
   `);
 }

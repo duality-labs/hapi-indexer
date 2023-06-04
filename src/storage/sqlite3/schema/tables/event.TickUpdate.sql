@@ -15,6 +15,10 @@ CREATE TABLE 'event.TickUpdate' (
   'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,
   'related.dex.token' INTEGER NOT NULL,
+  -- expect to reference either a deposit, withdrawal, or limit order event
+  'related.event.Deposit' INTEGER,
+  'related.event.Withdraw' INTEGER,
+  'related.event.PlaceLimitOrder' INTEGER,
 
   FOREIGN KEY ('related.tx_result.events')
     REFERENCES 'tx_result.events'('id'),
@@ -24,6 +28,15 @@ CREATE TABLE 'event.TickUpdate' (
 
   FOREIGN KEY ('related.dex.token')
     REFERENCES 'dex.tokens'('id')
+
+  FOREIGN KEY ('related.event.Deposit')
+    REFERENCES 'event.Deposit'('id')
+
+  FOREIGN KEY ('related.event.Withdraw')
+    REFERENCES 'event.Withdraw'('id')
+
+  FOREIGN KEY ('related.event.PlaceLimitOrder')
+    REFERENCES 'event.PlaceLimitOrder'('id')
 );
 
 /* add unique index constraint */

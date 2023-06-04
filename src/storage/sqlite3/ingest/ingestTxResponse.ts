@@ -13,7 +13,11 @@ import insertEventWithdraw from './tables/event.Withdraw';
 import { upsertDerivedTickStateRows } from './tables/derived.tick_state';
 
 import decodeEvent from './utils/decodeEvent';
-import { getDexMessageAction, isValidResult } from './utils/utils';
+import {
+  DexMessageAction,
+  getDexMessageAction,
+  isValidResult,
+} from './utils/utils';
 
 export default async function ingestTxs(txPage: TxResponse[]) {
   for (const [index, tx_result] of txPage.entries()) {
@@ -42,6 +46,7 @@ export default async function ingestTxs(txPage: TxResponse[]) {
     await insertTxRows(tx_result, index);
 
     // then add transaction event rows
+    let lastEvent: LastEvent | undefined;
     for (const txEvent of txEvents) {
       await insertTxEventRows(tx_result, txEvent, index);
 
@@ -49,23 +54,56 @@ export default async function ingestTxs(txPage: TxResponse[]) {
       // if the event was a dex action then use that event to update tables
       const dexAction = getDexMessageAction(txEvent);
       if (dexAction) {
+        // get the last event ID for insertEventTickUpdate
+        const { type, id } = lastEvent || {};
+        const eventIDs = {
+          lastEventDepositID: type === 'Deposit' && id,
+          lastEventWithdrawID: type === 'Withdraw' && id,
+          lastEventPlaceLimitOrderID: type === 'PlaceLimitOrder' && id,
+        };
         // add event rows to specific event tables:
         switch (dexAction) {
           case 'Deposit':
-            await insertEventDeposit(tx_result, txEvent, index);
+            lastEvent = getLastEventID(
+              dexAction,
+              await insertEventDeposit(tx_result, txEvent, index)
+            );
             break;
           case 'Withdraw':
-            await insertEventWithdraw(tx_result, txEvent, index);
+            lastEvent = getLastEventID(
+              dexAction,
+              await insertEventWithdraw(tx_result, txEvent, index)
+            );
             break;
           case 'PlaceLimitOrder':
-            await insertEventPlaceLimitOrder(tx_result, txEvent, index);
+            lastEvent = getLastEventID(
+              dexAction,
+              await insertEventPlaceLimitOrder(tx_result, txEvent, index)
+            );
+
             break;
           case 'TickUpdate':
-            await insertEventTickUpdate(tx_result, txEvent, index);
+            await insertEventTickUpdate(tx_result, txEvent, index, eventIDs);
             await upsertDerivedTickStateRows(tx_result, txEvent, index);
             break;
         }
       }
     }
+  }
+}
+
+interface LastEvent {
+  type: DexMessageAction;
+  id: number;
+}
+function getLastEventID(
+  type: DexMessageAction,
+  { lastID }: { lastID?: number }
+): LastEvent | undefined {
+  if (lastID) {
+    return {
+      type,
+      id: lastID,
+    };
   }
 }
