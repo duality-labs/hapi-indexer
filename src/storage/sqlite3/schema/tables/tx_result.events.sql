@@ -15,6 +15,7 @@ CREATE TABLE 'tx_result.events' (
   'related.dex.pair_swap' INTEGER NOT NULL,
   'related.dex.pair_deposit' INTEGER NOT NULL,
   'related.dex.pair_withdraw' INTEGER NOT NULL,
+  'related.tx_msg' INTEGER,
 
   FOREIGN KEY ('related.tx')
     REFERENCES 'tx'('id'),
@@ -26,7 +27,10 @@ CREATE TABLE 'tx_result.events' (
     REFERENCES 'dex.pairs'('id'),
 
   FOREIGN KEY ('related.dex.pair_withdraw')
-    REFERENCES 'dex.pairs'('id')
+    REFERENCES 'dex.pairs'('id'),
+
+  FOREIGN KEY ('related.tx_msg')
+    REFERENCES 'tx_msg'('id')
 );
 
 /* ensure tx + event combination is unique */

@@ -3,6 +3,7 @@ import db from '../db/db';
 // Cosmos standard objects
 import createTableBlock from './tables/block.sql';
 import createTableTx from './tables/tx.sql';
+import createTableTxMsg from './tables/tx_msg.sql';
 import createTableTxResultEvents from './tables/tx_result.events.sql';
 
 // Duality specific primitives
@@ -26,6 +27,7 @@ export default async function init() {
     // Cosmos standard objects
     createTableBlock,
     createTableTx,
+    createTableTxMsg,
     createTableTxResultEvents,
 
     // Duality specific primitives

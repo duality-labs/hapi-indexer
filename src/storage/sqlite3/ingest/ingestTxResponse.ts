@@ -4,6 +4,7 @@ import insertDexTokensRows from './tables/dex.tokens';
 import insertDexPairsRows from './tables/dex.pairs';
 import insertBlockRows from './tables/block';
 import insertTxRows from './tables/tx';
+import insertTxMsgRows from './tables/tx_msg';
 import insertTxEventRows from './tables/tx_result.events';
 
 import insertEventTickUpdate from './tables/event.TickUpdate';
@@ -42,8 +43,14 @@ export default async function ingestTxs(txPage: TxResponse[]) {
     await insertTxRows(tx_result, index);
 
     // then add transaction event rows
+    let lastMsgID: number | undefined = undefined;
     for (const txEvent of txEvents) {
-      await insertTxEventRows(tx_result, txEvent, index);
+      // get new or last know related Msg id
+      const newMsg = await insertTxMsgRows(txEvent);
+      lastMsgID = newMsg ? newMsg.lastID : lastMsgID;
+
+      // add transaction event
+      await insertTxEventRows(tx_result, txEvent, index, lastMsgID);
 
       // continue logic for dex events
       // if the event was a dex action then use that event to update tables

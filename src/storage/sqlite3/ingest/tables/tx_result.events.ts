@@ -10,7 +10,8 @@ import { DecodedTxEvent } from '../utils/decodeEvent';
 export default async function insertTxEventRows(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
-  index: number
+  index: number,
+  lastMsgID: number | undefined
 ) {
   const isDexMessage =
     tx_result.code === 0 &&
@@ -30,7 +31,8 @@ export default async function insertTxEventRows(
       'related.tx',
       'related.dex.pair_swap',
       'related.dex.pair_deposit',
-      'related.dex.pair_withdraw'
+      'related.dex.pair_withdraw',
+      'related.tx_msg'
     ) values (
 
       ${txEvent.index},
@@ -61,7 +63,8 @@ export default async function insertTxEventRows(
         dexPairId
       },
       ${isDexMessage && txEvent.attributes.action === 'Deposit' && dexPairId},
-      ${isDexMessage && txEvent.attributes.action === 'Withdraw' && dexPairId}
+      ${isDexMessage && txEvent.attributes.action === 'Withdraw' && dexPairId},
+      ${lastMsgID || null}
     )`);
   return lastID;
 }
