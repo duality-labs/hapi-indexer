@@ -28,11 +28,16 @@ export default async function getSwapVolumePerSecond(
     (await db.all(sql`
     WITH swap_volume AS (
       SELECT
-        'event.PlaceLimitOrder'.'block.header.time_unix' as 'time_unix',
+        'block'.'header.time_unix' as 'time_unix',
         CAST ('event.PlaceLimitOrder'.'AmountIn' AS FLOAT) as 'amount',
         'event.PlaceLimitOrder'.'TokenIn' as 'token'
       FROM
         'event.PlaceLimitOrder'
+      INNER JOIN
+        'block'
+      ON (
+        'block'.'id' = 'event.PlaceLimitOrder'.'related.block'
+      )
       WHERE
         'event.PlaceLimitOrder'.'related.dex.pair' = (
           SELECT
@@ -48,12 +53,8 @@ export default async function getSwapVolumePerSecond(
             'dex.pairs'.'token0' = ${tokenB}
           )
         )
-        AND 'event.PlaceLimitOrder'.'block.header.time_unix' <= ${
-          pagination.before
-        }
-        AND 'event.PlaceLimitOrder'.'block.header.time_unix' >= ${
-          pagination.after
-        }
+        AND 'block'.'header.time_unix' <= ${pagination.before}
+        AND 'block'.'header.time_unix' >= ${pagination.after}
     )
     SELECT
       'swap_volume'.'time_unix' as 'time_unix',

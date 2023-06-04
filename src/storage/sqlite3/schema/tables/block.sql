@@ -7,3 +7,10 @@ CREATE TABLE 'block' (
 
   'header.time_unix' INTEGER UNIQUE NOT NULL
 );
+
+CREATE INDEX
+  'block--header.time_unix'
+ON
+  'block' (
+    'header.time_unix'
+  );

@@ -3,8 +3,6 @@ import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 
 import db from '../../db/db';
 
-import { getBlockTimeFromTxResult } from './block';
-
 import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export default async function upsertDerivedPriceData(
@@ -19,8 +17,6 @@ export default async function upsertDerivedPriceData(
     tx_result.code === 0;
 
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
-    const blockTime = getBlockTimeFromTxResult(tx_result);
-
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
     const tickSide = isForward ? 'LowestTick1' : 'HighestTick0';
@@ -44,9 +40,7 @@ export default async function upsertDerivedPriceData(
         )
       )
       ORDER BY
-        'derived.tx_price_data'.'block.header.height' DESC,
-        'derived.tx_price_data'.'tx.index' DESC,
-        'derived.tx_price_data'.'tx_result.events.index' DESC
+        'derived.tx_price_data'.'related.tx_result.events' DESC
       LIMIT 1
     `);
     const previousTickIndex = previousPriceData?.[tickSide];
@@ -99,26 +93,76 @@ export default async function upsertDerivedPriceData(
           : previousPriceData?.['LowestTick1']) ?? null;
       await db.run(sql`
         INSERT OR REPLACE INTO 'derived.tx_price_data' (
-          'block.header.height',
-          'block.header.time_unix',
-          'tx.index',
-          'tx_result.events.index',
-
-          'related.dex.pair',
 
           'HighestTick0',
           'LowestTick1',
-          'LastTick'
-        ) values (
-          ${tx_result.height},
-          ${blockTime},
-          ${
-            // we use a negative index here to keep a reference
-            // but not use it as a JOIN-able link as its not real data
-            -index
-          },
-          ${txEvent.index},
+          'LastTick',
 
+          'related.block',
+          'related.tx',
+          'related.tx_result.events',
+          'related.dex.pair'
+
+        ) values (
+
+          ${isForward ? previousOtherSideTickIndex : currentTickIndex},
+          ${isForward ? currentTickIndex : previousOtherSideTickIndex},
+          ${currentTickIndex || previousOtherSideTickIndex},
+
+          (
+            SELECT
+              'block'.'id'
+            FROM
+              'block'
+            WHERE (
+              'block'.'header.height' = ${tx_result.height}
+            )
+          ),
+          (
+            SELECT
+              'tx'.'id'
+            FROM
+              'tx'
+            WHERE (
+              'tx'.'index' = ${index} AND
+              'tx'.'related.block' = (
+                SELECT
+                  'block'.'id'
+                FROM
+                  'block'
+                WHERE (
+                  'block'.'header.height' = ${tx_result.height}
+                )
+              )
+            )
+          ),
+          (
+            SELECT
+              'tx_result.events'.'id'
+            FROM
+              'tx_result.events'
+            WHERE (
+              'tx_result.events'.'index' = ${txEvent.index} AND
+              'tx_result.events'.'related.tx' = (
+                SELECT
+                  'tx'.'id'
+                FROM
+                  'tx'
+                WHERE (
+                  'tx'.'index' = ${index} AND
+                  'tx'.'related.block' = (
+                    SELECT
+                      'block'.'id'
+                    FROM
+                      'block'
+                    WHERE (
+                      'block'.'header.height' = ${tx_result.height}
+                    )
+                  )
+                )
+              )
+            )
+          ),
           (
             SELECT
               'dex.pairs'.'id'
@@ -128,11 +172,7 @@ export default async function upsertDerivedPriceData(
               'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
               'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
             )
-          ),
-
-          ${isForward ? previousOtherSideTickIndex : currentTickIndex},
-          ${isForward ? currentTickIndex : previousOtherSideTickIndex},
-          ${currentTickIndex || previousOtherSideTickIndex}
+          )
         )
       `);
     }

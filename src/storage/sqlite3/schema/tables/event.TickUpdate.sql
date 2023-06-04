@@ -5,10 +5,6 @@
   * in 'tx_result.events'.'attributes' as JSON blobs
   */
 CREATE TABLE 'event.TickUpdate' (
-  'block.header.height' INTEGER NOT NULL,
-  'block.header.time_unix' INTEGER NOT NULL,
-  'tx.index' INTEGER NOT NULL,
-  'tx_result.events.index' INTEGER NOT NULL,
 
   'Token0' TEXT NOT NULL,
   'Token1' TEXT NOT NULL,
@@ -16,20 +12,20 @@ CREATE TABLE 'event.TickUpdate' (
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
 
+  'related.block' INTEGER NOT NULL,
+  'related.tx' INTEGER NOT NULL,
+  'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,
   'related.dex.token' INTEGER NOT NULL,
 
-  FOREIGN KEY ('block.header.height')
-    REFERENCES 'block'('header.height'),
+  FOREIGN KEY ('related.block')
+    REFERENCES 'block'('id'),
 
-  FOREIGN KEY ('block.header.time_unix')
-    REFERENCES 'block'('header.time_unix'),
+  FOREIGN KEY ('related.tx')
+    REFERENCES 'tx'('id'),
 
-  FOREIGN KEY ('tx.index')
-    REFERENCES 'tx'('index'),
-
-  FOREIGN KEY ('tx_result.events.index')
-    REFERENCES 'tx_result.events'('index'),
+  FOREIGN KEY ('related.tx_result.events')
+    REFERENCES 'tx_result.events'('id'),
 
   FOREIGN KEY ('related.dex.pair')
     REFERENCES 'dex.pairs'('id'),
@@ -40,19 +36,17 @@ CREATE TABLE 'event.TickUpdate' (
 
 /* add unique index constraint */
 CREATE UNIQUE INDEX
-  'event.TickUpdate--block.header.height,tx.index,tx_result.events.index'
+  'event.TickUpdate--related.tx_result.events'
 ON
   'event.TickUpdate' (
-    'block.header.height',
-    'tx.index',
-    'tx_result.events.index'
+    'related.tx_result.events'
   );
 
 /* add index for timeseries lookups, ie. lookup by pair id and then time */
 CREATE INDEX
-  'event.TickUpdate--related.dex.pair,block.header.time_unix'
+  'event.TickUpdate--related.dex.pair,related.tx_result.events'
 ON
   'event.TickUpdate' (
     'related.dex.pair',
-    'block.header.time_unix'
+    'related.tx_result.events'
   );

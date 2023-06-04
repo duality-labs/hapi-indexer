@@ -53,7 +53,7 @@ export default async function getPrice(
       INNER JOIN
         'block'
       ON (
-        'block'.'header.height' = 'derived.tx_price_data'.'block.header.height'
+        'block'.'id' = 'derived.tx_price_data'.'related.block'
       )
       WHERE
         'derived.tx_price_data'.'related.dex.pair' = (
@@ -70,25 +70,19 @@ export default async function getPrice(
             'dex.pairs'.'token0' = ${tokenB}
           )
         )
-        AND 'derived.tx_price_data'.'block.header.time_unix' <= ${
-          pagination.before
-        }
-        AND 'derived.tx_price_data'.'block.header.time_unix' >= ${
-          pagination.after
-        }
+        AND 'block'.'header.time_unix' <= ${pagination.before}
+        AND 'block'.'header.time_unix' >= ${pagination.after}
       WINDOW resolution_window AS (
         PARTITION BY strftime(
           ${partitionTimeFormat},
           'block'.'header.time'
         )
         ORDER BY
-          'derived.tx_price_data'.'block.header.time_unix' ASC,
-          'derived.tx_price_data'.'tx.index' ASC,
-          'derived.tx_price_data'.'tx_result.events.index' ASC
+          'derived.tx_price_data'.'related.tx_result.events' ASC
         ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
       )
       ORDER BY
-        'derived.tx_price_data'.'block.header.time_unix' DESC
+        'block'.'header.time_unix' DESC
     )
     SELECT
       'windowed_table'.'resolution_unix' as 'time_unix',

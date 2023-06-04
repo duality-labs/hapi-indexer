@@ -3,7 +3,6 @@ import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 
 import db from '../../db/db';
 
-import { getBlockTimeFromTxResult } from './block';
 import insertDexPairsRows from './dex.pairs';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
@@ -22,29 +21,50 @@ export default async function insertTxEventRows(
       ? await insertDexPairsRows(txEvent)
       : undefined;
 
-  const blockTime = getBlockTimeFromTxResult(tx_result);
   const { lastID } = await db.run(sql`
     INSERT INTO 'tx_result.events' (
-      'block.header.height',
-      'block.header.time_unix',
-      'tx.index',
-      'tx.tx_result.code',
       'index',
       'type',
       'attributes',
+
+      'related.block',
+      'related.tx',
       'related.dex.pair_swap',
       'related.dex.pair_deposit',
       'related.dex.pair_withdraw'
     ) values (
-      ${tx_result.height},
-      ${blockTime},
-      ${index},
-      ${tx_result.code},
 
       ${txEvent.index},
       ${txEvent.type},
       ${JSON.stringify(txEvent.attributes)},
 
+      (
+        SELECT
+          'block'.'id'
+        FROM
+          'block'
+        WHERE (
+          'block'.'header.height' = ${tx_result.height}
+        )
+      ),
+      (
+        SELECT
+          'tx'.'id'
+        FROM
+          'tx'
+        WHERE (
+          'tx'.'index' = ${index} AND
+          'tx'.'related.block' = (
+            SELECT
+              'block'.'id'
+            FROM
+              'block'
+            WHERE (
+              'block'.'header.height' = ${tx_result.height}
+            )
+          )
+        )
+      ),
       ${
         isDexMessage &&
         txEvent.attributes.action === 'PlaceLimitOrder' &&

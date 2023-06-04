@@ -3,8 +3,6 @@ import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 
 import db from '../../db/db';
 
-import { getBlockTimeFromTxResult } from './block';
-
 import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export default async function upsertDerivedVolumeData(
@@ -19,8 +17,6 @@ export default async function upsertDerivedVolumeData(
     tx_result.code === 0;
 
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
-    const blockTime = getBlockTimeFromTxResult(tx_result);
-
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
     const queriedColumn = isForward ? 'ReservesFloat1' : 'ReservesFloat0';
@@ -45,9 +41,7 @@ export default async function upsertDerivedVolumeData(
         )
       )
       ORDER BY
-        'derived.tx_volume_data'.'block.header.height' DESC,
-        'derived.tx_volume_data'.'tx.index' DESC,
-        'derived.tx_volume_data'.'tx_result.events.index' DESC
+        'derived.tx_volume_data'.'related.tx_result.events' DESC
       LIMIT 1
     `);
     const previousReserves = previousData?.[queriedColumn];
@@ -95,25 +89,72 @@ export default async function upsertDerivedVolumeData(
       const previousOtherSideReserves = previousData?.[otherColumn] ?? 0;
       await db.run(sql`
         INSERT OR REPLACE INTO 'derived.tx_volume_data' (
-          'block.header.height',
-          'block.header.time_unix',
-          'tx.index',
-          'tx_result.events.index',
-
-          'related.dex.pair',
-
           'ReservesFloat0',
-          'ReservesFloat1'
-        ) values (
-          ${tx_result.height},
-          ${blockTime},
-          ${
-            // we use a negative index here to keep a reference
-            // but not use it as a JOIN-able link as its not real data
-            -index
-          },
-          ${txEvent.index},
+          'ReservesFloat1',
 
+          'related.block',
+          'related.tx',
+          'related.tx_result.events',
+          'related.dex.pair'
+        ) values (
+
+          ${isForward ? previousOtherSideReserves : currentReserves},
+          ${isForward ? currentReserves : previousOtherSideReserves},
+
+          (
+            SELECT
+              'block'.'id'
+            FROM
+              'block'
+            WHERE (
+              'block'.'header.height' = ${tx_result.height}
+            )
+          ),
+          (
+            SELECT
+              'tx'.'id'
+            FROM
+              'tx'
+            WHERE (
+              'tx'.'index' = ${index} AND
+              'tx'.'related.block' = (
+                SELECT
+                  'block'.'id'
+                FROM
+                  'block'
+                WHERE (
+                  'block'.'header.height' = ${tx_result.height}
+                )
+              )
+            )
+          ),
+          (
+            SELECT
+              'tx_result.events'.'id'
+            FROM
+              'tx_result.events'
+            WHERE (
+              'tx_result.events'.'index' = ${txEvent.index} AND
+              'tx_result.events'.'related.tx' = (
+                SELECT
+                  'tx'.'id'
+                FROM
+                  'tx'
+                WHERE (
+                  'tx'.'index' = ${index} AND
+                  'tx'.'related.block' = (
+                    SELECT
+                      'block'.'id'
+                    FROM
+                      'block'
+                    WHERE (
+                      'block'.'header.height' = ${tx_result.height}
+                    )
+                  )
+                )
+              )
+            )
+          ),
           (
             SELECT
               'dex.pairs'.'id'
@@ -123,10 +164,7 @@ export default async function upsertDerivedVolumeData(
               'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
               'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
             )
-          ),
-
-          ${isForward ? previousOtherSideReserves : currentReserves},
-          ${isForward ? currentReserves : previousOtherSideReserves}
+          )
         )
       `);
     }

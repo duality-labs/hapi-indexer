@@ -6,10 +6,6 @@
   */
 CREATE TABLE 'event.Withdraw' (
   'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-  'block.header.height' INTEGER NOT NULL,
-  'block.header.time_unix' INTEGER NOT NULL,
-  'tx.index' INTEGER NOT NULL,
-  'tx_result.events.index' INTEGER NOT NULL,
 
   'Creator' TEXT NOT NULL,
   'Receiver' TEXT NOT NULL,
@@ -21,19 +17,19 @@ CREATE TABLE 'event.Withdraw' (
   'Reserves1Withdrawn' TEXT NOT NULL,
   'SharesRemoved' TEXT NOT NULL,
 
+  'related.block' INTEGER NOT NULL,
+  'related.tx' INTEGER NOT NULL,
+  'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,
 
-  FOREIGN KEY ('block.header.height')
-    REFERENCES 'block'('header.height'),
+  FOREIGN KEY ('related.block')
+    REFERENCES 'block'('id'),
 
-  FOREIGN KEY ('block.header.time_unix')
-    REFERENCES 'block'('header.time_unix'),
+  FOREIGN KEY ('related.tx')
+    REFERENCES 'tx'('id'),
 
-  FOREIGN KEY ('tx.index')
-    REFERENCES 'tx'('index'),
-
-  FOREIGN KEY ('tx_result.events.index')
-    REFERENCES 'tx_result.events'('index'),
+  FOREIGN KEY ('related.tx_result.events')
+    REFERENCES 'tx_result.events'('id'),
 
   FOREIGN KEY ('related.dex.pair')
     REFERENCES 'dex.pairs'('id')
@@ -41,10 +37,8 @@ CREATE TABLE 'event.Withdraw' (
 
 /* add unique index constraint */
 CREATE UNIQUE INDEX
-  'event.Withdraw--block.header.height,tx.index,tx_result.events.index'
+  'event.Withdraw--related.tx_result.events'
 ON
   'event.Withdraw' (
-    'block.header.height',
-    'tx.index',
-    'tx_result.events.index'
+    'related.tx_result.events'
   );

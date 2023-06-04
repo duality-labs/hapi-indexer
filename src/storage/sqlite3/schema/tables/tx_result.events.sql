@@ -6,31 +6,22 @@
   */
 CREATE TABLE 'tx_result.events' (
   'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-  'block.header.height' INTEGER NOT NULL,
-  'block.header.time_unix' INTEGER NOT NULL,
-  'tx.index' INTEGER NOT NULL,
-  'tx.tx_result.code' INTEGER NOT NULL,
 
   'index' INTEGER NOT NULL,
   'type' TEXT NOT NULL,
   'attributes' TEXT NOT NULL,
 
+  'related.block' INTEGER NOT NULL,
+  'related.tx' INTEGER NOT NULL,
   'related.dex.pair_swap' INTEGER NOT NULL,
   'related.dex.pair_deposit' INTEGER NOT NULL,
   'related.dex.pair_withdraw' INTEGER NOT NULL,
 
-  FOREIGN KEY ('block.header.height')
-    REFERENCES 'block'('header.height'),
+  FOREIGN KEY ('related.block')
+    REFERENCES 'block'('id'),
 
-  FOREIGN KEY ('block.header.time_unix')
-    REFERENCES 'block'('header.time_unix'),
-
-  FOREIGN KEY ('tx.index')
-    REFERENCES 'tx'('index'),
-
-  FOREIGN KEY ('tx.tx_result.code')
-    REFERENCES 'tx'('tx_result.code'),
-
+  FOREIGN KEY ('related.tx')
+    REFERENCES 'tx'('id'),
 
   FOREIGN KEY ('related.dex.pair_swap')
     REFERENCES 'dex.pairs'('id'),
@@ -42,12 +33,12 @@ CREATE TABLE 'tx_result.events' (
     REFERENCES 'dex.pairs'('id')
 );
 
-/* ensure block.height + tx.index combination is unique */
+/* ensure block + tx + event combination is unique */
 CREATE UNIQUE INDEX
-  'tx_result.events--block.header.height,tx.index,index'
+  'tx_result.events--related.block,related.tx,index'
 ON
   'tx_result.events' (
-    'block.header.height',
-    'tx.index',
+    'related.block',
+    'related.tx',
     'index'
   );

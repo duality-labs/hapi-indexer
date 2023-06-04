@@ -2,7 +2,6 @@ import sql from 'sql-template-strings';
 import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 
 import db from '../../db/db';
-import { getBlockTimeFromTxResult } from './block';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 
@@ -13,10 +12,6 @@ export default async function insertEventWithdraw(
 ) {
   return await db.run(sql`
     INSERT INTO 'event.Withdraw' (
-      'block.header.height',
-      'block.header.time_unix',
-      'tx.index',
-      'tx_result.events.index',
 
       'Creator',
       'Receiver',
@@ -28,12 +23,12 @@ export default async function insertEventWithdraw(
       'Reserves1Withdrawn',
       'SharesRemoved',
 
+      'related.block',
+      'related.tx',
+      'related.tx_result.events',
       'related.dex.pair'
     ) values (
-      ${tx_result.height},
-      ${getBlockTimeFromTxResult(tx_result)},
-      ${index},
-      ${txEvent.index},
+
       ${txEvent.attributes['Creator']},
       ${txEvent.attributes['Receiver']},
       ${txEvent.attributes['Token0']},
@@ -44,6 +39,60 @@ export default async function insertEventWithdraw(
       ${txEvent.attributes['Reserves1Withdrawn']},
       ${txEvent.attributes['SharesRemoved']},
 
+      (
+        SELECT
+          'block'.'id'
+        FROM
+          'block'
+        WHERE (
+          'block'.'header.height' = ${tx_result.height}
+        )
+      ),
+      (
+        SELECT
+          'tx'.'id'
+        FROM
+          'tx'
+        WHERE (
+          'tx'.'index' = ${index} AND
+          'tx'.'related.block' = (
+            SELECT
+              'block'.'id'
+            FROM
+              'block'
+            WHERE (
+              'block'.'header.height' = ${tx_result.height}
+            )
+          )
+        )
+      ),
+      (
+        SELECT
+          'tx_result.events'.'id'
+        FROM
+          'tx_result.events'
+        WHERE (
+          'tx_result.events'.'index' = ${txEvent.index} AND
+          'tx_result.events'.'related.tx' = (
+            SELECT
+              'tx'.'id'
+            FROM
+              'tx'
+            WHERE (
+              'tx'.'index' = ${index} AND
+              'tx'.'related.block' = (
+                SELECT
+                  'block'.'id'
+                FROM
+                  'block'
+                WHERE (
+                  'block'.'header.height' = ${tx_result.height}
+                )
+              )
+            )
+          )
+        )
+      ),
       (
         SELECT
           'dex.pairs'.'id'

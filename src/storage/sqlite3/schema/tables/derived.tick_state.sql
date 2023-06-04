@@ -4,11 +4,12 @@
  * all ticks throughout time
  */
 CREATE TABLE 'derived.tick_state' (
-  'related.dex.pair' INTEGER NOT NULL,
-  'related.dex.token' INTEGER NOT NULL,
 
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
+
+  'related.dex.pair' INTEGER NOT NULL,
+  'related.dex.token' INTEGER NOT NULL,
 
   FOREIGN KEY ('related.dex.pair')
     REFERENCES 'dex.pairs'('id'),

@@ -4,28 +4,24 @@
   * all price data throughout time
   */
 CREATE TABLE 'derived.tx_price_data' (
-  'block.header.height' INTEGER NOT NULL,
-  'block.header.time_unix' INTEGER NOT NULL,
-  'tx.index' INTEGER NOT NULL,
-  'tx_result.events.index' INTEGER NOT NULL,
-
-  'related.dex.pair' INTEGER NOT NULL,
 
   'HighestTick0' INTEGER,
   'LowestTick1' INTEGER,
   'LastTick' INTEGER NOT NULL,
 
-  FOREIGN KEY ('block.header.height')
-    REFERENCES 'block'('header.height'),
+  'related.block' INTEGER NOT NULL,
+  'related.tx' INTEGER NOT NULL,
+  'related.tx_result.events' INTEGER NOT NULL,
+  'related.dex.pair' INTEGER NOT NULL,
 
-  FOREIGN KEY ('block.header.time_unix')
-    REFERENCES 'block'('header.time_unix'),
+  FOREIGN KEY ('related.block')
+    REFERENCES 'block'('id'),
 
-  FOREIGN KEY ('tx.index')
-    REFERENCES 'tx'('index'),
+  FOREIGN KEY ('related.tx')
+    REFERENCES 'tx'('id'),
 
-  FOREIGN KEY ('tx_result.events.index')
-    REFERENCES 'tx_result.events'('index'),
+  FOREIGN KEY ('related.tx_result.events')
+    REFERENCES 'tx_result.events'('id'),
 
   FOREIGN KEY ('related.dex.pair')
     REFERENCES 'dex.pairs'('id')
@@ -33,19 +29,17 @@ CREATE TABLE 'derived.tx_price_data' (
 
 /* add unique index constraint */
 CREATE UNIQUE INDEX
-  'derived.tx_price_data--block.header.height,tx.index,tx_result.events.index'
+  'derived.tx_price_data--related.tx_result.events'
 ON
   'derived.tx_price_data' (
-    'block.header.height',
-    'tx.index',
-    'tx_result.events.index'
+    'related.tx_result.events'
   );
 
 /* add index for timeseries lookups, ie. lookup by pair id and then time */
 CREATE INDEX
-  'derived.tx_price_data--related.dex.pair,block.header.time_unix'
+  'derived.tx_price_data--related.dex.pair,related.block'
 ON
   'derived.tx_price_data' (
     'related.dex.pair',
-    'block.header.time_unix'
+    'related.block'
   );
