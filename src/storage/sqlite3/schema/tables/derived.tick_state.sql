@@ -10,15 +10,11 @@ CREATE TABLE 'derived.tick_state' (
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
 
-  FOREIGN KEY
-    ('related.dex.pair')
-  REFERENCES
-    'dex.pairs'('id'),
+  FOREIGN KEY ('related.dex.pair')
+    REFERENCES 'dex.pairs'('id'),
 
-  FOREIGN KEY
-    ('related.dex.token')
-  REFERENCES
-    'dex.tokens'('id')
+  FOREIGN KEY ('related.dex.token')
+    REFERENCES 'dex.tokens'('id')
 );
 
 /* add unique index for tick state to ensure no duplicate tick state */

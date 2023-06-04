@@ -13,15 +13,11 @@ CREATE TABLE 'tx' (
   'tx_result.gas_used' TEXT NOT NULL,
   'tx_result.codespace' TEXT,
 
-  FOREIGN KEY
-    ('block.header.height')
-  REFERENCES
-    'block'('header.height'),
+  FOREIGN KEY ('block.header.height')
+    REFERENCES 'block'('header.height'),
 
-  FOREIGN KEY
-    ('block.header.time_unix')
-  REFERENCES
-    'block'('header.time_unix')
+  FOREIGN KEY ('block.header.time_unix')
+    REFERENCES 'block'('header.time_unix')
 );
 
 /* ensure block.height + tx.index combination is unique */

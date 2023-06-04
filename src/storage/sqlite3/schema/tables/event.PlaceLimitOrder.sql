@@ -26,40 +26,26 @@ CREATE TABLE 'event.PlaceLimitOrder' (
   'related.dex.tokenIn' INTEGER NOT NULL,
   'related.dex.tokenOut' INTEGER NOT NULL,
 
-  FOREIGN KEY
-    ('block.header.height')
-  REFERENCES
-    'block'('header.height'),
+  FOREIGN KEY ('block.header.height')
+    REFERENCES 'block'('header.height'),
 
-  FOREIGN KEY
-    ('block.header.time_unix')
-  REFERENCES
-    'block'('header.time_unix'),
+  FOREIGN KEY ('block.header.time_unix')
+    REFERENCES 'block'('header.time_unix'),
 
-  FOREIGN KEY
-    ('tx.index')
-  REFERENCES
-    'tx'('index'),
+  FOREIGN KEY ('tx.index')
+    REFERENCES 'tx'('index'),
 
-  FOREIGN KEY
-    ('tx_result.events.index')
-  REFERENCES
-    'tx_result.events'('index'),
+  FOREIGN KEY ('tx_result.events.index')
+    REFERENCES 'tx_result.events'('index'),
 
-  FOREIGN KEY
-    ('related.dex.pair')
-  REFERENCES
-    'dex.pairs'('id'),
+  FOREIGN KEY ('related.dex.pair')
+    REFERENCES 'dex.pairs'('id'),
 
-  FOREIGN KEY
-    ('related.dex.tokenIn')
-  REFERENCES
-    'dex.tokens'('id'),
+  FOREIGN KEY ('related.dex.tokenIn')
+    REFERENCES 'dex.tokens'('id'),
 
-  FOREIGN KEY
-    ('related.dex.tokenOut')
-  REFERENCES
-    'dex.tokens'('id')
+  FOREIGN KEY ('related.dex.tokenOut')
+    REFERENCES 'dex.tokens'('id')
 );
 
 /* add unique index constraint */

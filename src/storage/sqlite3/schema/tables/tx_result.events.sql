@@ -18,41 +18,27 @@ CREATE TABLE 'tx_result.events' (
   'related.dex.pair_deposit' INTEGER NOT NULL,
   'related.dex.pair_withdraw' INTEGER NOT NULL,
 
-  FOREIGN KEY
-    ('block.header.height')
-  REFERENCES
-    'block'('header.height'),
+  FOREIGN KEY ('block.header.height')
+    REFERENCES 'block'('header.height'),
 
-  FOREIGN KEY
-    ('block.header.time_unix')
-  REFERENCES
-    'block'('header.time_unix'),
+  FOREIGN KEY ('block.header.time_unix')
+    REFERENCES 'block'('header.time_unix'),
 
-  FOREIGN KEY
-    ('tx.index')
-  REFERENCES
-    'tx'('index'),
+  FOREIGN KEY ('tx.index')
+    REFERENCES 'tx'('index'),
 
-  FOREIGN KEY
-    ('tx.tx_result.code')
-  REFERENCES
-    'tx'('tx_result.code'),
+  FOREIGN KEY ('tx.tx_result.code')
+    REFERENCES 'tx'('tx_result.code'),
 
 
-  FOREIGN KEY
-    ('related.dex.pair_swap')
-  REFERENCES
-    'dex.pairs'('id'),
+  FOREIGN KEY ('related.dex.pair_swap')
+    REFERENCES 'dex.pairs'('id'),
 
-  FOREIGN KEY
-    ('related.dex.pair_deposit')
-  REFERENCES
-    'dex.pairs'('id'),
+  FOREIGN KEY ('related.dex.pair_deposit')
+    REFERENCES 'dex.pairs'('id'),
 
-  FOREIGN KEY
-    ('related.dex.pair_withdraw')
-  REFERENCES
-    'dex.pairs'('id')
+  FOREIGN KEY ('related.dex.pair_withdraw')
+    REFERENCES 'dex.pairs'('id')
 );
 
 /* ensure block.height + tx.index combination is unique */

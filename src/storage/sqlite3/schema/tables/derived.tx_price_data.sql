@@ -15,30 +15,20 @@ CREATE TABLE 'derived.tx_price_data' (
   'LowestTick1' INTEGER,
   'LastTick' INTEGER NOT NULL,
 
-  FOREIGN KEY
-    ('block.header.height')
-  REFERENCES
-    'block'('header.height'),
+  FOREIGN KEY ('block.header.height')
+    REFERENCES 'block'('header.height'),
 
-  FOREIGN KEY
-    ('block.header.time_unix')
-  REFERENCES
-    'block'('header.time_unix'),
+  FOREIGN KEY ('block.header.time_unix')
+    REFERENCES 'block'('header.time_unix'),
 
-  FOREIGN KEY
-    ('tx.index')
-  REFERENCES
-    'tx'('index'),
+  FOREIGN KEY ('tx.index')
+    REFERENCES 'tx'('index'),
 
-  FOREIGN KEY
-    ('tx_result.events.index')
-  REFERENCES
-    'tx_result.events'('index'),
+  FOREIGN KEY ('tx_result.events.index')
+    REFERENCES 'tx_result.events'('index'),
 
-  FOREIGN KEY
-    ('related.dex.pair')
-  REFERENCES
-    'dex.pairs'('id')
+  FOREIGN KEY ('related.dex.pair')
+    REFERENCES 'dex.pairs'('id')
 );
 
 /* add unique index constraint */
