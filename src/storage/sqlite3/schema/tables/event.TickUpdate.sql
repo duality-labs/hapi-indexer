@@ -12,6 +12,9 @@ CREATE TABLE 'event.TickUpdate' (
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
 
+  -- derive the difference in reserves from the previous tick state
+  'derived.ReservesDiff' TEXT NOT NULL,
+
   'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,
   'related.dex.token' INTEGER NOT NULL,
@@ -40,5 +43,17 @@ CREATE INDEX
 ON
   'event.TickUpdate' (
     'related.dex.pair',
+    'related.tx_result.events'
+  );
+
+/* add index for ingestion lookups, ie. lookup previous tickUpdate */
+CREATE INDEX
+  'event.TickUpdate--Token0,Token1,TokenIn,TickIndex,related.tx_result.events'
+ON
+  'event.TickUpdate' (
+    'Token0',
+    'Token1',
+    'TokenIn',
+    'TickIndex',
     'related.tx_result.events'
   );

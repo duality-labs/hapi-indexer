@@ -1,3 +1,4 @@
+import BigNumber from 'bignumber.js';
 import sql from 'sql-template-strings';
 import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 
@@ -10,6 +11,24 @@ export default async function insertEventTickUpdate(
   txEvent: DecodedTxEvent,
   index: number
 ) {
+  const previousTickUpdate = await db.get<{ Reserves: string }>(sql`
+    SELECT
+      'event.TickUpdate'.'Reserves'
+    FROM
+      'event.TickUpdate'
+    WHERE (
+      'event.TickUpdate'.'Token0' = ${txEvent.attributes['Token0']} AND
+      'event.TickUpdate'.'Token1' = ${txEvent.attributes['Token1']} AND
+      'event.TickUpdate'.'TokenIn' = ${txEvent.attributes['TokenIn']} AND
+      'event.TickUpdate'.'TickIndex' = ${txEvent.attributes['TickIndex']}
+    )
+    ORDER BY
+      'event.TickUpdate'.'related.tx_result.events' DESC
+    LIMIT 1
+  `);
+
+  const previousReserves = previousTickUpdate?.Reserves;
+
   return await db.run(sql`
     INSERT INTO 'event.TickUpdate' (
 
@@ -18,6 +37,8 @@ export default async function insertEventTickUpdate(
       'TokenIn',
       'TickIndex',
       'Reserves',
+
+      'derived.ReservesDiff',
 
       'related.tx_result.events',
       'related.dex.pair',
@@ -30,6 +51,15 @@ export default async function insertEventTickUpdate(
       ${txEvent.attributes['TickIndex']},
       ${txEvent.attributes['Reserves']},
 
+      -- derive the difference in reserves from the previous tick state
+      ${
+        previousReserves && previousReserves !== '0'
+          ? new BigNumber(txEvent.attributes['Reserves'])
+              .minus(previousReserves)
+              .toFixed(0)
+          : txEvent.attributes['Reserves']
+      },
+  
       (
         SELECT
           'tx_result.events'.'id'
