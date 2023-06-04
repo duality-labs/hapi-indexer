@@ -39,6 +39,8 @@ export default async function getSwapVolumePerSecond(
         'block'.'id' = 'event.PlaceLimitOrder'.'related.block'
       )
       WHERE
+        'block'.'header.time_unix' <= ${pagination.before} AND
+        'block'.'header.time_unix' >= ${pagination.after} AND
         'event.PlaceLimitOrder'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
@@ -53,8 +55,6 @@ export default async function getSwapVolumePerSecond(
             'dex.pairs'.'token0' = ${tokenB}
           )
         )
-        AND 'block'.'header.time_unix' <= ${pagination.before}
-        AND 'block'.'header.time_unix' >= ${pagination.after}
     )
     SELECT
       'swap_volume'.'time_unix' as 'time_unix',

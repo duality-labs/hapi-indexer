@@ -57,6 +57,8 @@ export default async function getTotalVolume(
         'block'.'id' = 'derived.tx_volume_data'.'related.block'
       )
       WHERE
+        'block'.'header.time_unix' <= ${pagination.before} AND
+        'block'.'header.time_unix' >= ${pagination.after} AND
         'derived.tx_volume_data'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
@@ -71,8 +73,6 @@ export default async function getTotalVolume(
             'dex.pairs'.'token0' = ${tokenB}
           )
         )
-        AND 'block'.'header.time_unix' <= ${pagination.before}
-        AND 'block'.'header.time_unix' >= ${pagination.after}
       WINDOW resolution_window AS (
         PARTITION BY strftime(
           ${partitionTimeFormat},
