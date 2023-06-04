@@ -35,7 +35,7 @@ export default async function getPrice(
   // prepare statement at run time (after db has been initialized)
   const dataPromise: Promise<Array<{ [key: string]: number }>> =
     db.all(sql`
-    WITH price_points AS (
+    WITH windowed_table AS (
       SELECT
         unixepoch (
           strftime(
@@ -90,17 +90,17 @@ export default async function getPrice(
         'derived.tx_price_data'.'block.header.time_unix' DESC
     )
     SELECT
-      'price_points'.'resolution_unix' as 'time_unix',
-      'price_points'.'first_price' as 'open',
-      'price_points'.'last_price' as 'close',
-      min('price_points'.'price') as 'low',
-      max('price_points'.'price') as 'high'
+      'windowed_table'.'resolution_unix' as 'time_unix',
+      'windowed_table'.'first_price' as 'open',
+      'windowed_table'.'last_price' as 'close',
+      min('windowed_table'.'price') as 'low',
+      max('windowed_table'.'price') as 'high'
     FROM
-      'price_points'
+      'windowed_table'
     GROUP BY
-      'price_points'.'resolution_unix'
+      'windowed_table'.'resolution_unix'
     ORDER BY
-      'price_points'.'resolution_unix' DESC
+      'windowed_table'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
   `) ?? [];

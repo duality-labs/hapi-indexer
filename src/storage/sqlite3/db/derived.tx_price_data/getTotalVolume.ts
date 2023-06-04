@@ -37,7 +37,7 @@ export default async function getTotalVolume(
     Array<{ time_unix: number; amount0: number; amount1: number }>
   > =
     db.all(sql`
-    WITH total_volume AS (
+    WITH windowed_table AS (
       SELECT
         unixepoch (
           strftime(
@@ -91,15 +91,15 @@ export default async function getTotalVolume(
         'derived.tx_volume_data'.'block.header.time_unix' DESC
     )
     SELECT
-      'total_volume'.'resolution_unix' as 'time_unix',
-      'total_volume'.'last_amount_0' as 'amount0',
-      'total_volume'.'last_amount_1' as 'amount1'
+      'windowed_table'.'resolution_unix' as 'time_unix',
+      'windowed_table'.'last_amount_0' as 'amount0',
+      'windowed_table'.'last_amount_1' as 'amount1'
     FROM
-      'total_volume'
+      'windowed_table'
     GROUP BY
-      'total_volume'.'resolution_unix'
+      'windowed_table'.'resolution_unix'
     ORDER BY
-      'total_volume'.'resolution_unix' DESC
+      'windowed_table'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
   `) ?? [];
