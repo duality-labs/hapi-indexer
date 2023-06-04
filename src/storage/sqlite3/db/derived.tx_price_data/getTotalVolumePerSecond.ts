@@ -8,8 +8,10 @@ import {
 } from '../paginationUtils';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
 
+type AmountValues = [amountA: number, amountB: number];
+type DataRow = [timeUnix: number, amounts: AmountValues];
+
 const shape = ['time_unix', 'amount0', 'amount1'];
-type DataRow = [time_unix: number, amount0: number, amount1: number];
 
 interface Response extends PaginatedResponse {
   shape: typeof shape;
@@ -120,10 +122,10 @@ export default async function getTotalVolumePerMinute(
       // invert the indexes depend on which price ratio was asked for
       !invertedOrder
         ? (row): DataRow => {
-            return [row['time_unix'], row['amount0'], row['amount1']];
+            return [row['time_unix'], [row['amount0'], row['amount1']]];
           }
         : (row): DataRow => {
-            return [row['time_unix'], row['amount1'], row['amount0']];
+            return [row['time_unix'], [row['amount1'], row['amount0']]];
           }
     ),
     pagination: {

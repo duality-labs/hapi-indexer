@@ -7,7 +7,8 @@ import {
   getPaginationFromQuery,
 } from '../paginationUtils';
 
-type DataRow = [time_unix: number, amountA: number, amountB: number];
+export type AmountValues = [amountA: number, amountB: number];
+export type DataRow = [timeUnix: number, amounts: AmountValues];
 
 interface Response extends PaginatedResponse {
   shape: ['time_unix', string, string];
@@ -87,8 +88,10 @@ export default async function getSwapVolumePerSecond(
       return [
         row['time_unix'],
         // convert to float precision here
-        row['token'] === tokenA ? Number(row['amount']) : 0,
-        row['token'] === tokenB ? Number(row['amount']) : 0,
+        [
+          row['token'] === tokenA ? Number(row['amount']) : 0,
+          row['token'] === tokenB ? Number(row['amount']) : 0,
+        ],
       ];
     }),
     pagination: {

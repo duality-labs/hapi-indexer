@@ -4,23 +4,10 @@ import logger from '../../logger';
 import getSwapVolumePerSecond from '../../storage/sqlite3/db/derived.tx_price_data/getSwapVolumePerSecond';
 import getTotalVolumePerMinute from '../../storage/sqlite3/db/derived.tx_price_data/getTotalVolumePerSecond';
 
-type DataRow = [timeUnix: number, amountA: number, amountB: number];
-type Data = Array<DataRow>;
+import { accumulateDataSorted } from './utils';
+import { DataRow } from '../../storage/sqlite3/db/derived.tx_price_data/getSwapVolumePerSecond';
 
-function accumulateData(data: Data, [timeUnix, amountA, amountB]: DataRow) {
-  const lastData = data[data.length - 1];
-  if (lastData && lastData[0] === timeUnix) {
-    if (amountA) {
-      lastData[1] += amountA;
-    }
-    if (amountB) {
-      lastData[2] += amountB;
-    }
-  } else {
-    data.push([timeUnix, amountA, amountB]);
-  }
-  return data;
-}
+type Data = Array<DataRow>;
 
 const routes = [
   {
@@ -28,59 +15,41 @@ const routes = [
     path: '/timeseries/volume/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        const volumePerSecond = await getSwapVolumePerSecond(
+        const { shape, data: volumePerSecond } = await getSwapVolumePerSecond(
           request.params['tokenA'],
           request.params['tokenB'],
           request.query // the time extents and frequency and such
         );
 
-        const volumePerHour = volumePerSecond.data.reduceRight<Data>(
-          (data, [timeUnix, amountA, amountB]) => {
+        const volumePerHour = volumePerSecond.reduceRight<Data>(
+          (data, [timeUnix, amounts]) => {
             const date = new Date(timeUnix * 1000);
             date.setSeconds(0);
             date.setMinutes(0);
-            return accumulateData(data, [
-              date.valueOf() / 1000,
-              amountA,
-              amountB,
-            ]);
+            return accumulateDataSorted(data, [date.valueOf() / 1000, amounts]);
           },
           []
         );
 
         const volumePerDay = volumePerHour.reduceRight<Data>(
-          (data, [timeUnix, amountA, amountB]) => {
+          (data, [timeUnix, amounts]) => {
             const date = new Date(timeUnix * 1000);
             date.setHours(0);
-            return accumulateData(data, [
-              date.valueOf() / 1000,
-              amountA,
-              amountB,
-            ]);
+            return accumulateDataSorted(data, [date.valueOf() / 1000, amounts]);
           },
           []
         );
 
         const volumePerWeek = volumePerDay.reduceRight<Data>(
-          (data, [timeUnix, amountA, amountB]) => {
+          (data, [timeUnix, amounts]) => {
             const date = new Date(timeUnix * 1000);
             const dayOfWeek = date.getDay();
             // set day of month to first of a week by using dayOfWeek
             date.setDate(date.getDate() - dayOfWeek);
-            return accumulateData(data, [
-              date.valueOf() / 1000,
-              amountA,
-              amountB,
-            ]);
+            return accumulateDataSorted(data, [date.valueOf() / 1000, amounts]);
           },
           []
         );
-
-        const shape = [
-          'time_unix',
-          `amount ${request.params['tokenA']}`,
-          `amount ${request.params['tokenB']}`,
-        ];
 
         return {
           '24H': {

@@ -8,11 +8,13 @@ import {
   getPaginationFromQuery,
 } from '../paginationUtils';
 
-type Shape = [string, [string, string, string, string]];
-type DataRow = [number, [number, number, number, number]];
+type PriceValues = [open: number, high: number, low: number, close: number];
+type DataRow = [time_unix: number, prices: PriceValues];
+
+const shape = ['time_unix', ['open', 'high', 'low', 'close']] as const;
 
 interface Response extends PaginatedResponse {
-  shape: Shape;
+  shape: typeof shape;
   data: Array<DataRow>;
 }
 
@@ -115,7 +117,6 @@ export default async function getPricePerMinute(
         })()
       : null;
 
-  const shape: Shape = ['time_unix', ['open', 'high', 'low', 'close']];
   return {
     shape,
     data: data.map(
