@@ -157,13 +157,12 @@ export default async function getSwapVolume(
     data: data.map(
       // invert the indexes depend on which price ratio was asked for
       // show negative withdrawal volume as just absolute "volume"
-      // also convert any null sums to 0
       !invertedOrder
         ? ({ time_unix: timeUnix, amount0, amount1 }): DataRow => {
-            return [timeUnix, [-amount0 || 0, -amount1 || 0]];
+            return [timeUnix, [-amount0, -amount1]];
           }
         : ({ time_unix: timeUnix, amount0, amount1 }): DataRow => {
-            return [timeUnix, [-amount1 || 0, -amount0 || 0]];
+            return [timeUnix, [-amount1, -amount0]];
           }
     ),
     pagination: {
