@@ -19,7 +19,8 @@ export default async function getPrice(
   tokenA: string,
   tokenB: string,
   resolution: Resolution,
-  query: PaginatedRequestQuery = {}
+  query: PaginatedRequestQuery = {},
+  offsetSeconds = 0
 ): Promise<TimeseriesResponse<DataRow>> {
   // get asked for resolution or default to minute resolution
   const partitionTimeFormat =
@@ -36,9 +37,10 @@ export default async function getPrice(
         unixepoch (
           strftime(
             ${partitionTimeFormat},
-            'block'.'header.time'
+            'block'.'header.time_unix' - ${offsetSeconds},
+            'unixepoch'
           )
-        ) as 'resolution_unix',
+        ) + ${offsetSeconds} as 'resolution_unix',
         first_value('derived.tx_price_data'.'LastTick')
           OVER resolution_window as 'first_price',
         last_value('derived.tx_price_data'.'LastTick')
@@ -81,7 +83,8 @@ export default async function getPrice(
       WINDOW resolution_window AS (
         PARTITION BY strftime(
           ${partitionTimeFormat},
-          'block'.'header.time'
+          'block'.'header.time_unix' - ${offsetSeconds},
+          'unixepoch'
         )
         ORDER BY
           'derived.tx_price_data'.'related.tx_result.events' ASC

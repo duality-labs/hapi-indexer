@@ -19,7 +19,8 @@ export default async function getSwapVolume(
   tokenA: string,
   tokenB: string,
   resolution: Resolution,
-  query: PaginatedRequestQuery = {}
+  query: PaginatedRequestQuery = {},
+  offsetSeconds = 0
 ): Promise<TimeseriesResponse<DataRow>> {
   // get asked for resolution or default to minute resolution
   const partitionTimeFormat =
@@ -38,9 +39,10 @@ export default async function getSwapVolume(
         unixepoch (
           strftime(
             ${partitionTimeFormat},
-            'block'.'header.time'
+            'block'.'header.time_unix' - ${offsetSeconds},
+            'unixepoch'
           )
-        ) as 'resolution_unix',
+        ) + ${offsetSeconds} as 'resolution_unix',
         -- select only the withdrawn reserves for token0
         (
           CASE

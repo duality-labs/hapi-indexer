@@ -19,7 +19,8 @@ export default async function getTotalVolume(
   tokenA: string,
   tokenB: string,
   resolution: Resolution,
-  query: PaginatedRequestQuery = {}
+  query: PaginatedRequestQuery = {},
+  offsetSeconds = 0
 ): Promise<TimeseriesResponse<DataRow>> {
   // get asked for resolution or default to minute resolution
   const partitionTimeFormat =
@@ -38,9 +39,10 @@ export default async function getTotalVolume(
         unixepoch (
           strftime(
             ${partitionTimeFormat},
-            'block'.'header.time'
+            'block'.'header.time_unix' - ${offsetSeconds},
+            'unixepoch'
           )
-        ) as 'resolution_unix',
+        ) + ${offsetSeconds} as 'resolution_unix',
         last_value('derived.tx_volume_data'.'ReservesFloat0')
           OVER resolution_window as 'last_amount_0',
         last_value('derived.tx_volume_data'.'ReservesFloat1')
@@ -82,7 +84,8 @@ export default async function getTotalVolume(
       WINDOW resolution_window AS (
         PARTITION BY strftime(
           ${partitionTimeFormat},
-          'block'.'header.time'
+          'block'.'header.time_unix' - ${offsetSeconds},
+          'unixepoch'
         )
         ORDER BY
           'derived.tx_volume_data'.'related.tx_result.events' ASC
