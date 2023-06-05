@@ -6,6 +6,7 @@ import logger from './logger';
 
 import timeseriesPriceRoutes from './routes/timeseries/price';
 import timeseriesVolumeRoutes from './routes/timeseries/volume';
+import statPriceroutes from './routes/stats/price';
 import statVolumeroutes from './routes/stats/volume';
 
 const rootPath = {
@@ -62,6 +63,7 @@ const routes = [
   ...timeseriesVolumeRoutes,
 
   // point in time stats
+  ...statPriceroutes,
   ...statVolumeroutes,
 
   // add development only paths
