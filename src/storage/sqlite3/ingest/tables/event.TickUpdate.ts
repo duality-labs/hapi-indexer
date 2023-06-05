@@ -43,6 +43,7 @@ export default async function insertEventTickUpdate(
       'TokenIn',
       'TickIndex',
       'Reserves',
+      'Fee',
 
       'derived.ReservesDiff',
 
@@ -56,6 +57,11 @@ export default async function insertEventTickUpdate(
       ${txEvent.attributes['TokenIn']},
       ${txEvent.attributes['TickIndex']},
       ${txEvent.attributes['Reserves']},
+      ${
+        Number(txEvent.attributes['Fee']) >= 0
+          ? txEvent.attributes['Fee']
+          : null
+      },
 
       -- derive the difference in reserves from the previous tick state
       ${

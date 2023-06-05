@@ -11,6 +11,8 @@ CREATE TABLE 'event.TickUpdate' (
   'TokenIn' TEXT NOT NULL,
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
+  -- fees do not exist for all TickUpdate events
+  'Fee' INTEGER,
 
   -- derive the difference in reserves from the previous tick state
   'derived.ReservesDiff' TEXT NOT NULL,
