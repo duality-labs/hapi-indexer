@@ -6,7 +6,11 @@ import {
   PaginatedRequestQuery,
   getPaginationFromQuery,
 } from '../paginationUtils';
-import { Resolution, TimeseriesResponse, resolutionTimeFormats } from './utils';
+import {
+  Resolution,
+  TimeseriesResponse,
+  resolutionTimeFormats,
+} from '../timeseriesUtils';
 
 type PriceValues = [open: number, high: number, low: number, close: number];
 type DataRow = [time_unix: number, prices: PriceValues];

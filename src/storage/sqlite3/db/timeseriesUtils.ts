@@ -1,4 +1,4 @@
-import { PaginatedResponse } from '../paginationUtils';
+import { PaginatedResponse } from './paginationUtils';
 
 // use a common data shape for time series data
 type TimeseriesDataRow = [time_unix: number, values: Array<number | string>];

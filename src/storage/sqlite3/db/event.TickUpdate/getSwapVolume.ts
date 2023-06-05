@@ -6,12 +6,16 @@ import {
   getPaginationFromQuery,
 } from '../paginationUtils';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
-import { Resolution, TimeseriesResponse, resolutionTimeFormats } from './utils';
+import {
+  Resolution,
+  TimeseriesResponse,
+  resolutionTimeFormats,
+} from '../timeseriesUtils';
 
 type AmountValues = [amountA: number, amountB: number];
 type DataRow = [timeUnix: number, amounts: AmountValues];
 
-export default async function getTotalVolume(
+export default async function getSwapVolume(
   tokenA: string,
   tokenB: string,
   resolution: Resolution,
@@ -29,7 +33,7 @@ export default async function getTotalVolume(
     Array<{ time_unix: number; amount0: number; amount1: number }>
   > =
     db.all(sql`
-    WITH windowed_table AS (
+    WITH 'ungrouped_table' AS (
       SELECT
         unixepoch (
           strftime(
@@ -37,16 +41,34 @@ export default async function getTotalVolume(
             'block'.'header.time'
           )
         ) as 'resolution_unix',
-        last_value('derived.tx_volume_data'.'ReservesFloat0')
-          OVER resolution_window as 'last_amount_0',
-        last_value('derived.tx_volume_data'.'ReservesFloat1')
-          OVER resolution_window as 'last_amount_1'
+        -- select only the withdrawn reserves for token0
+        (
+          CASE
+            WHEN (
+              'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token0' AND
+              'event.TickUpdate'.'derived.ReservesDiff' < 0
+            )
+            THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
+            ELSE 0
+          END
+        ) as 'swap_amount_0',
+        -- select only the withdrawn reserves for token1
+        (
+          CASE
+            WHEN (
+              'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token1' AND
+              'event.TickUpdate'.'derived.ReservesDiff' < 0
+            )
+            THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
+            ELSE 0
+          END
+        ) as 'swap_amount_1'
       FROM
-        'derived.tx_volume_data'
+        'event.TickUpdate'
       INNER JOIN
         'tx_result.events'
       ON (
-        'tx_result.events'.'id' = 'derived.tx_volume_data'.'related.tx_result.events'
+        'tx_result.events'.'id' = 'event.TickUpdate'.'related.tx_result.events'
       )
       INNER JOIN
         'tx'
@@ -61,7 +83,7 @@ export default async function getTotalVolume(
       WHERE
         'block'.'header.time_unix' <= ${pagination.before} AND
         'block'.'header.time_unix' >= ${pagination.after} AND
-        'derived.tx_volume_data'.'related.dex.pair' = (
+        'event.TickUpdate'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
           FROM
@@ -75,28 +97,20 @@ export default async function getTotalVolume(
             'dex.pairs'.'token0' = ${tokenB}
           )
         )
-      WINDOW resolution_window AS (
-        PARTITION BY strftime(
-          ${partitionTimeFormat},
-          'block'.'header.time'
-        )
-        ORDER BY
-          'derived.tx_volume_data'.'related.tx_result.events' ASC
-        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
-      )
-      ORDER BY
-        'block'.'header.time_unix' DESC
     )
     SELECT
-      'windowed_table'.'resolution_unix' as 'time_unix',
-      'windowed_table'.'last_amount_0' as 'amount0',
-      'windowed_table'.'last_amount_1' as 'amount1'
+      'ungrouped_table'.'resolution_unix' as 'time_unix',
+      sum('ungrouped_table'.'swap_amount_0') as 'amount0',
+      sum('ungrouped_table'.'swap_amount_1') as 'amount1'
     FROM
-      'windowed_table'
+      'ungrouped_table'
     GROUP BY
-      'windowed_table'.'resolution_unix'
+      'ungrouped_table'.'resolution_unix'
+    HAVING
+      sum('ungrouped_table'.'swap_amount_0') != 0 OR
+      sum('ungrouped_table'.'swap_amount_1') != 0
     ORDER BY
-      'windowed_table'.'resolution_unix' DESC
+      'ungrouped_table'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
   `) ?? [];
@@ -123,12 +137,14 @@ export default async function getTotalVolume(
     shape: ['time_unix', [`amount ${tokenA}`, `amount ${tokenB}`]],
     data: data.map(
       // invert the indexes depend on which price ratio was asked for
+      // show negative withdrawal volume as just absolute "volume"
+      // also convert any null sums to 0
       !invertedOrder
-        ? (row): DataRow => {
-            return [row['time_unix'], [row['amount0'], row['amount1']]];
+        ? ({ time_unix: timeUnix, amount0, amount1 }): DataRow => {
+            return [timeUnix, [-amount0 || 0, -amount1 || 0]];
           }
-        : (row): DataRow => {
-            return [row['time_unix'], [row['amount1'], row['amount0']]];
+        : ({ time_unix: timeUnix, amount0, amount1 }): DataRow => {
+            return [timeUnix, [-amount1 || 0, -amount0 || 0]];
           }
     ),
     pagination: {

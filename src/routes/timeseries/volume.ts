@@ -1,8 +1,8 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../../logger';
-import getSwapVolume from '../../storage/sqlite3/db/derived.tx_price_data/getSwapVolume';
-import getTotalVolume from '../../storage/sqlite3/db/derived.tx_price_data/getTotalVolume';
+import getSwapVolume from '../../storage/sqlite3/db/event.TickUpdate/getSwapVolume';
+import getTotalVolume from '../../storage/sqlite3/db/derived.tx_volume_data/getTotalVolume';
 
 const routes = [
   {

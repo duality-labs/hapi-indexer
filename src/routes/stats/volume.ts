@@ -1,6 +1,6 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
 
-import getTotalVolume from '../../storage/sqlite3/db/derived.tx_price_data/getTotalVolume';
+import getTotalVolume from '../../storage/sqlite3/db/derived.tx_volume_data/getTotalVolume';
 import logger from '../../logger';
 
 const routes = [
