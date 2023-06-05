@@ -12,7 +12,7 @@ import { Resolution, resolutionTimeFormats } from './utils';
 type AmountValues = [amountA: number, amountB: number];
 type DataRow = [timeUnix: number, amounts: AmountValues];
 
-const shape = ['time_unix', 'amount0', 'amount1'];
+const shape = ['time_unix', ['amount0', 'amount1']];
 
 interface Response extends PaginatedResponse {
   shape: typeof shape;
@@ -138,7 +138,7 @@ export default async function getSwapVolume(
       : null;
 
   return {
-    shape: ['time_unix', `amount ${tokenA}`, `amount ${tokenB}`],
+    shape: ['time_unix', [`amount ${tokenA}`, `amount ${tokenB}`]],
     data: data.map(
       // invert the indexes depend on which price ratio was asked for
       // show negative withdrawal volume as just absolute "volume"
