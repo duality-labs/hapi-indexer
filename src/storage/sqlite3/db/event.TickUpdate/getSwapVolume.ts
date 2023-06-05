@@ -76,6 +76,16 @@ export default async function getSwapVolume(
         'tx_result.events'.'id' = 'event.TickUpdate'.'related.tx_result.events'
       )
       INNER JOIN
+        'tx_msg'
+      ON (
+        'tx_msg'.'id' = 'tx_result.events'.'related.tx_msg'
+      )
+      INNER JOIN
+        'tx_msg_type'
+      ON (
+        'tx_msg_type'.'id' = 'tx_msg'.'related.tx_msg_type'
+      )
+      INNER JOIN
         'tx'
       ON (
         'tx'.'id' = 'tx_result.events'.'related.tx'
@@ -86,8 +96,10 @@ export default async function getSwapVolume(
         'block'.'id' = 'tx'.'related.block'
       )
       WHERE
+        -- restrict to time
         'block'.'header.time_unix' <= ${pagination.before} AND
         'block'.'header.time_unix' >= ${pagination.after} AND
+        -- restrict to pair
         'event.TickUpdate'.'related.dex.pair' = (
           SELECT
             'dex.pairs'.'id'
@@ -101,7 +113,9 @@ export default async function getSwapVolume(
             'dex.pairs'.'token1' = ${tokenA} AND
             'dex.pairs'.'token0' = ${tokenB}
           )
-        )
+        ) AND
+        -- restrict to tx Msg type
+        'tx_msg_type'.'action' = "dualitylabs.duality.dex.MsgPlaceLimitOrder"
     )
     SELECT
       'ungrouped_table'.'resolution_unix' as 'time_unix',
