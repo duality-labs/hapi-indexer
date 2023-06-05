@@ -4,27 +4,19 @@ import db from '../db';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
 import {
   PaginatedRequestQuery,
-  PaginatedResponse,
   getPaginationFromQuery,
 } from '../paginationUtils';
-import { Resolution, resolutionTimeFormats } from './utils';
+import { Resolution, TimeseriesResponse, resolutionTimeFormats } from './utils';
 
 type PriceValues = [open: number, high: number, low: number, close: number];
 type DataRow = [time_unix: number, prices: PriceValues];
-
-const shape = ['time_unix', ['open', 'high', 'low', 'close']] as const;
-
-interface Response extends PaginatedResponse {
-  shape: typeof shape;
-  data: Array<DataRow>;
-}
 
 export default async function getPrice(
   tokenA: string,
   tokenB: string,
   resolution: Resolution,
   query: PaginatedRequestQuery = {}
-): Promise<Response> {
+): Promise<TimeseriesResponse<DataRow>> {
   // get asked for resolution or default to minute resolution
   const partitionTimeFormat =
     resolutionTimeFormats[resolution] || resolutionTimeFormats['minute'];
@@ -129,7 +121,7 @@ export default async function getPrice(
       : null;
 
   return {
-    shape,
+    shape: ['time_unix', ['open', 'high', 'low', 'close']],
     data: data.map(
       // invert the indexes depending on which price ratio was asked for
       !invertedOrder

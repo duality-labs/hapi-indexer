@@ -1,3 +1,17 @@
+import { PaginatedResponse } from '../paginationUtils';
+
+// use a common data shape for time series data
+type TimeseriesDataRow = [time_unix: number, values: Array<number | string>];
+
+// creates the expected response from a given timeseries-like DataRow
+// eg. if type DataRow = [number, [number, number, number]]
+//   then: TimeseriesResponse['shape'] = ['time_unix', [string, string, string]]
+export interface TimeseriesResponse<DataRow extends TimeseriesDataRow>
+  extends PaginatedResponse {
+  shape: ['time_unix', FixedLengthArray<string, DataRow[1]['length']>];
+  data: Array<DataRow>;
+}
+
 export const resolutionTimeFormats = {
   second: '%Y-%m-%d %H:%M:%S',
   minute: '%Y-%m-%d %H:%M:00',
@@ -7,3 +21,15 @@ export const resolutionTimeFormats = {
 } as const;
 
 export type Resolution = keyof typeof resolutionTimeFormats;
+
+// use fixed length array type found
+// link: https://stackoverflow.com/questions/41139763/how-to-declare-a-fixed-length-array-in-typescript#74801694
+type FixedLengthArray<
+  T,
+  N extends number,
+  R extends T[] = []
+> = number extends N
+  ? T[]
+  : R['length'] extends N
+  ? R
+  : FixedLengthArray<T, N, [T, ...R]>;

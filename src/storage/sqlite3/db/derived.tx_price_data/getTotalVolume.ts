@@ -3,28 +3,20 @@ import sql from 'sql-template-strings';
 import db from '../db';
 import {
   PaginatedRequestQuery,
-  PaginatedResponse,
   getPaginationFromQuery,
 } from '../paginationUtils';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
-import { Resolution, resolutionTimeFormats } from './utils';
+import { Resolution, TimeseriesResponse, resolutionTimeFormats } from './utils';
 
 type AmountValues = [amountA: number, amountB: number];
 type DataRow = [timeUnix: number, amounts: AmountValues];
-
-const shape = ['time_unix', ['amount0', 'amount1']];
-
-interface Response extends PaginatedResponse {
-  shape: typeof shape;
-  data: Array<DataRow>;
-}
 
 export default async function getTotalVolume(
   tokenA: string,
   tokenB: string,
   resolution: Resolution,
   query: PaginatedRequestQuery = {}
-): Promise<Response> {
+): Promise<TimeseriesResponse<DataRow>> {
   // get asked for resolution or default to minute resolution
   const partitionTimeFormat =
     resolutionTimeFormats[resolution] || resolutionTimeFormats['minute'];
