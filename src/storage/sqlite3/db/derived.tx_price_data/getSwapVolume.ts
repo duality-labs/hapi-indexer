@@ -110,6 +110,9 @@ export default async function getSwapVolume(
       'ungrouped_table'
     GROUP BY
       'ungrouped_table'.'resolution_unix'
+    HAVING
+      sum('ungrouped_table'.'swap_amount_0') != 0 OR
+      sum('ungrouped_table'.'swap_amount_1') != 0
     ORDER BY
       'ungrouped_table'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
