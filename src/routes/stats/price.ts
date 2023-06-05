@@ -2,6 +2,7 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../../logger';
 import getPrice from '../../storage/sqlite3/db/derived.tx_price_data/getPrice';
+import { hours } from '../../storage/sqlite3/db/timeseriesUtils';
 
 const routes = [
   {
@@ -9,16 +10,39 @@ const routes = [
     path: '/stats/price/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        const {
-          shape,
-          data: [firstRow],
-        } = await getPrice(
-          request.params['tokenA'],
-          request.params['tokenB'],
-          'second',
-          { 'pagination.limit': '1' }
-        );
-        return { shape, data: firstRow };
+        // round down to the passing of the most recent minute
+        const mostRecentMinuteUnix = new Date().setSeconds(0, 0) / 1000;
+        const [
+          {
+            data: [lastestDay],
+            shape,
+          },
+          {
+            data: [previousDay],
+          },
+        ] = await Promise.all([
+          getPrice(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix}`,
+            },
+            'last24Hours'
+          ),
+          getPrice(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix - 24 * hours}`,
+            },
+            'last24Hours'
+          ),
+        ]);
+        return { shape, data: [lastestDay, previousDay] };
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);

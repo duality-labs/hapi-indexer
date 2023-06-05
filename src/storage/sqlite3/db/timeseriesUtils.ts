@@ -3,6 +3,12 @@ import sql from 'sql-template-strings';
 import db from './db';
 import { PaginatedResponse, PaginationInput } from './paginationUtils';
 
+// unix time constants
+export const seconds = 1;
+export const minutes = 60 * seconds;
+export const hours = 60 * minutes;
+export const days = 24 * hours;
+
 // use a common data shape for time series data
 type TimeseriesDataRow = [time_unix: number, values: Array<number | string>];
 

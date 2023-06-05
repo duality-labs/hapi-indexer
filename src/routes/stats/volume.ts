@@ -3,23 +3,47 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from '../../logger';
 import getSwapVolume from '../../storage/sqlite3/db/event.TickUpdate/getSwapVolume';
 import getTotalVolume from '../../storage/sqlite3/db/derived.tx_volume_data/getTotalVolume';
+import { hours } from '../../storage/sqlite3/db/timeseriesUtils';
 
 const routes = [
   {
     method: 'GET',
-    path: '/stats/volume/{tokenA}/{tokenB}',
+    path: '/stats/volume/{tokenA}/{tokenB}/{resolution?}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        const {
-          shape,
-          data: [firstRow],
-        } = await getSwapVolume(
-          request.params['tokenA'],
-          request.params['tokenB'],
-          'second',
-          { 'pagination.limit': '1' }
-        );
-        return { shape, data: firstRow };
+        // round down to the passing of the most recent minute
+        const mostRecentMinuteUnix = new Date().setSeconds(0, 0) / 1000;
+        const [
+          {
+            data: [lastestDay],
+            shape,
+          },
+          {
+            data: [previousDay],
+          },
+        ] = await Promise.all([
+          getSwapVolume(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix}`,
+            },
+            'last24Hours'
+          ),
+          getSwapVolume(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix - 24 * hours}`,
+            },
+            'last24Hours'
+          ),
+        ]);
+        return { shape, data: [lastestDay, previousDay] };
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);
@@ -37,16 +61,39 @@ const routes = [
     path: '/stats/tvl/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        const {
-          shape,
-          data: [firstRow],
-        } = await getTotalVolume(
-          request.params['tokenA'],
-          request.params['tokenB'],
-          'second',
-          { 'pagination.limit': '1' }
-        );
-        return { shape, data: firstRow };
+        // round down to the passing of the most recent minute
+        const mostRecentMinuteUnix = new Date().setSeconds(0, 0) / 1000;
+        const [
+          {
+            data: [lastestDay],
+            shape,
+          },
+          {
+            data: [previousDay],
+          },
+        ] = await Promise.all([
+          getTotalVolume(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix}`,
+            },
+            'last24Hours'
+          ),
+          getTotalVolume(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix - 24 * hours}`,
+            },
+            'last24Hours'
+          ),
+        ]);
+        return { shape, data: [lastestDay, previousDay] };
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);
