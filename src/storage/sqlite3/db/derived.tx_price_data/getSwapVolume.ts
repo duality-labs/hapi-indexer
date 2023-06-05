@@ -48,35 +48,27 @@ export default async function getSwapVolume(
         -- select only the withdrawn reserves for token0
         (
           CASE
-            WHEN 'token0'.'derived.ReservesDiff' < 0
-            THEN CAST('token0'.'derived.ReservesDiff' as FLOAT)
+            WHEN (
+              'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token0' AND
+              'event.TickUpdate'.'derived.ReservesDiff' < 0
+            )
+            THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
             ELSE 0
           END
         ) as 'swap_amount_0',
         -- select only the withdrawn reserves for token1
         (
           CASE
-            WHEN 'token1'.'derived.ReservesDiff' < 0
-            THEN CAST('token1'.'derived.ReservesDiff' as FLOAT)
+            WHEN (
+              'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token1' AND
+              'event.TickUpdate'.'derived.ReservesDiff' < 0
+            )
+            THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
             ELSE 0
           END
         ) as 'swap_amount_1'
       FROM
         'event.TickUpdate'
-      -- join table to represent the volume of token 0
-      LEFT JOIN
-        'event.TickUpdate' as 'token0'
-      ON (
-        'event.TickUpdate'.'Token0' = 'token0'.'TokenIn' AND
-        'event.TickUpdate'.'related.tx_result.events' = 'token0'.'related.tx_result.events'
-      )
-      -- join table to represent the volume of token 1
-      LEFT JOIN
-        'event.TickUpdate' as 'token1'
-      ON (
-        'event.TickUpdate'.'Token1' = 'token1'.'TokenIn' AND
-        'event.TickUpdate'.'related.tx_result.events' = 'token1'.'related.tx_result.events'
-      )
       INNER JOIN
         'tx_result.events'
       ON (
