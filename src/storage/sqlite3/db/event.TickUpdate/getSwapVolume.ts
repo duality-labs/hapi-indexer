@@ -7,8 +7,10 @@ import {
 } from '../paginationUtils';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
 import {
+  PeriodType,
   Resolution,
   TimeseriesResponse,
+  getOffsetSeconds,
   resolutionTimeFormats,
 } from '../timeseriesUtils';
 
@@ -20,7 +22,7 @@ export default async function getSwapVolume(
   tokenB: string,
   resolution: Resolution,
   query: PaginatedRequestQuery = {},
-  offsetSeconds = 0
+  periodOffsetType?: PeriodType
 ): Promise<TimeseriesResponse<DataRow>> {
   // get asked for resolution or default to minute resolution
   const partitionTimeFormat =
@@ -28,6 +30,7 @@ export default async function getSwapVolume(
 
   // collect pagination keys into a pagination object
   const [pagination, getPaginationNextKey] = getPaginationFromQuery(query);
+  const offsetSeconds = await getOffsetSeconds(pagination, periodOffsetType);
 
   // prepare statement at run time (after db has been initialized)
   const dataPromise: Promise<

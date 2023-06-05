@@ -9,7 +9,7 @@ export interface PaginatedRequestQuery extends RequestQuery {
   'pagination.after'?: string; // unix timestamp
 }
 
-interface PaginationInput {
+export interface PaginationInput {
   offset: number;
   limit: number;
   before: number; // unix timestamp

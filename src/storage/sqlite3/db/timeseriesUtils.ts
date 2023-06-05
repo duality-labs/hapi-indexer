@@ -1,4 +1,7 @@
-import { PaginatedResponse } from './paginationUtils';
+import sql from 'sql-template-strings';
+
+import db from './db';
+import { PaginatedResponse, PaginationInput } from './paginationUtils';
 
 // use a common data shape for time series data
 type TimeseriesDataRow = [time_unix: number, values: Array<number | string>];
@@ -21,6 +24,32 @@ export const resolutionTimeFormats = {
 } as const;
 
 export type Resolution = keyof typeof resolutionTimeFormats;
+
+// calculate how far from the start of day we are in secods
+async function getStartOfDayOffset(pagination: PaginationInput) {
+  const { offset } = await db.get(sql`
+    SELECT (
+      ${pagination.before} - unixepoch(
+        datetime(${pagination.before}, "unixepoch"),
+        "start of day"
+      )
+    ) as 'offset'
+  `);
+  return offset;
+}
+
+// if a query is made with option "last24Hours" then offset the windows
+// by how far away we are to the last day window
+// (because we use the resolutionTimeFormat['day'] to bound window partitions)
+export type PeriodType = 'last24Hours';
+export async function getOffsetSeconds(
+  pagination: PaginationInput,
+  periodOffsetType?: PeriodType
+) {
+  return periodOffsetType === 'last24Hours'
+    ? await getStartOfDayOffset(pagination)
+    : 0;
+}
 
 // use fixed length array type found
 // link: https://stackoverflow.com/questions/41139763/how-to-declare-a-fixed-length-array-in-typescript#74801694
