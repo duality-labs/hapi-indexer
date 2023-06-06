@@ -14,7 +14,12 @@ import {
   resolutionTimeFormats,
 } from '../timeseriesUtils';
 
-type AmountValues = [amountA: number, amountB: number];
+type AmountValues = [
+  amountA: number,
+  amountB: number,
+  feeA: number,
+  feeB: number
+];
 type DataRow = [timeUnix: number, amounts: AmountValues];
 
 export default async function getSwapVolume(
@@ -34,7 +39,13 @@ export default async function getSwapVolume(
 
   // prepare statement at run time (after db has been initialized)
   const dataPromise: Promise<
-    Array<{ time_unix: number; amount0: number; amount1: number }>
+    Array<{
+      time_unix: number;
+      amount0: number;
+      amount1: number;
+      fee0: number;
+      fee1: number;
+    }>
   > =
     db.all(sql`
     WITH 'ungrouped_table' AS (
@@ -57,6 +68,20 @@ export default async function getSwapVolume(
             ELSE 0
           END
         ) as 'swap_amount_0',
+        -- select only the calculated deposit fee for token0 deposits
+        (
+          CASE
+            WHEN (
+              'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token0' AND
+              'event.TickUpdate'.'derived.ReservesDiff' > 0
+            )
+            THEN (
+              CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT) *
+              'event.TickUpdate'.'Fee' / 10000
+            )
+            ELSE 0
+          END
+        ) as 'swap_fee_0',
         -- select only the deposited reserves for token1
         (
           CASE
@@ -67,7 +92,21 @@ export default async function getSwapVolume(
             THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
             ELSE 0
           END
-        ) as 'swap_amount_1'
+        ) as 'swap_amount_1',
+        -- select only the calculated deposit fee for token1 deposits
+        (
+          CASE
+            WHEN (
+              'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token1' AND
+              'event.TickUpdate'.'derived.ReservesDiff' > 0
+            )
+            THEN (
+              CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT) *
+              'event.TickUpdate'.'Fee' / 10000
+            )
+            ELSE 0
+          END
+        ) as 'swap_fee_1'
       FROM
         'event.TickUpdate'
       INNER JOIN
@@ -120,7 +159,9 @@ export default async function getSwapVolume(
     SELECT
       'ungrouped_table'.'resolution_unix' as 'time_unix',
       sum('ungrouped_table'.'swap_amount_0') as 'amount0',
-      sum('ungrouped_table'.'swap_amount_1') as 'amount1'
+      sum('ungrouped_table'.'swap_amount_1') as 'amount1',
+      sum('ungrouped_table'.'swap_fee_0') as 'fee0',
+      sum('ungrouped_table'.'swap_fee_1') as 'fee1'
     FROM
       'ungrouped_table'
     GROUP BY
@@ -154,15 +195,23 @@ export default async function getSwapVolume(
       : null;
 
   return {
-    shape: ['time_unix', [`amount ${tokenA}`, `amount ${tokenB}`]],
+    shape: [
+      'time_unix',
+      [
+        `amount ${tokenA}`,
+        `amount ${tokenB}`,
+        `fee ${tokenA}`,
+        `fee ${tokenB}`,
+      ],
+    ],
     data: data.map(
       // invert the indexes depend on which price ratio was asked for
       !invertedOrder
-        ? ({ time_unix: timeUnix, amount0, amount1 }): DataRow => {
-            return [timeUnix, [amount0, amount1]];
+        ? ({ time_unix: timeUnix, amount0, amount1, fee0, fee1 }): DataRow => {
+            return [timeUnix, [amount0, amount1, fee0, fee1]];
           }
-        : ({ time_unix: timeUnix, amount0, amount1 }): DataRow => {
-            return [timeUnix, [amount1, amount0]];
+        : ({ time_unix: timeUnix, amount0, amount1, fee0, fee1 }): DataRow => {
+            return [timeUnix, [amount1, amount0, fee1, fee0]];
           }
     ),
     pagination: {

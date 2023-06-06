@@ -6,11 +6,9 @@ import logger from './logger';
 
 import timeseriesPriceRoutes from './routes/timeseries/price';
 import timeseriesVolumeRoutes from './routes/timeseries/volume';
-import timeseriesFeeRoutes from './routes/timeseries/fees';
 
 import statPriceroutes from './routes/stats/price';
 import statVolumeroutes from './routes/stats/volume';
-import statFeeRoutes from './routes/stats/fees';
 
 const rootPath = {
   method: 'GET',
@@ -64,12 +62,10 @@ const routes = [
   // timeseries routes
   ...timeseriesPriceRoutes,
   ...timeseriesVolumeRoutes,
-  ...timeseriesFeeRoutes,
 
   // point in time stats
   ...statPriceroutes,
   ...statVolumeroutes,
-  ...statFeeRoutes,
 
   // add development only paths
   ...(process.env.NODE_ENV === 'development' ? [debugPath] : []),
