@@ -9,6 +9,7 @@ import timeseriesVolumeRoutes from './routes/timeseries/volume';
 
 import statPriceroutes from './routes/stats/price';
 import statVolumeroutes from './routes/stats/volume';
+import statVolatilityRoutes from './routes/stats/volatility';
 
 const rootPath = {
   method: 'GET',
@@ -66,6 +67,7 @@ const routes = [
   // point in time stats
   ...statPriceroutes,
   ...statVolumeroutes,
+  ...statVolatilityRoutes,
 
   // add development only paths
   ...(process.env.NODE_ENV === 'development' ? [debugPath] : []),
