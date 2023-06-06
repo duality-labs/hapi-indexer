@@ -46,23 +46,23 @@ export default async function getSwapVolume(
             'unixepoch'
           )
         ) + ${offsetSeconds} as 'resolution_unix',
-        -- select only the withdrawn reserves for token0
+        -- select only the deposited reserves for token0
         (
           CASE
             WHEN (
               'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token0' AND
-              'event.TickUpdate'.'derived.ReservesDiff' < 0
+              'event.TickUpdate'.'derived.ReservesDiff' > 0
             )
             THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
             ELSE 0
           END
         ) as 'swap_amount_0',
-        -- select only the withdrawn reserves for token1
+        -- select only the deposited reserves for token1
         (
           CASE
             WHEN (
               'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token1' AND
-              'event.TickUpdate'.'derived.ReservesDiff' < 0
+              'event.TickUpdate'.'derived.ReservesDiff' > 0
             )
             THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
             ELSE 0
@@ -156,13 +156,12 @@ export default async function getSwapVolume(
     shape: ['time_unix', [`amount ${tokenA}`, `amount ${tokenB}`]],
     data: data.map(
       // invert the indexes depend on which price ratio was asked for
-      // show negative withdrawal volume as just absolute "volume"
       !invertedOrder
         ? ({ time_unix: timeUnix, amount0, amount1 }): DataRow => {
-            return [timeUnix, [-amount0, -amount1]];
+            return [timeUnix, [amount0, amount1]];
           }
         : ({ time_unix: timeUnix, amount0, amount1 }): DataRow => {
-            return [timeUnix, [-amount1, -amount0]];
+            return [timeUnix, [amount1, amount0]];
           }
     ),
     pagination: {
