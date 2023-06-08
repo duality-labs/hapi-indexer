@@ -95,7 +95,7 @@ const routes = [
             [
               startOfTodayUnix - 20 * days,
               priceChanges.length >= 20 || request.query['strict'] === 'false'
-                ? [annualFactor * standardDeviation(priceChanges.slice(10, 20))]
+                ? [annualFactor * standardDeviation(priceChanges.slice(-10))]
                 : [],
             ],
           ],
