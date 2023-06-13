@@ -20,7 +20,7 @@ export default async function ingestTxs(txPage: TxResponse[]) {
   for (const [index, tx_result] of txPage.entries()) {
     // skip invalid transactions
     if (!isValidResult(tx_result)) {
-      return;
+      continue;
     }
 
     // get tx events in decoded form
