@@ -39,8 +39,12 @@ const debugPath = {
           .filter((name) => name !== 'sqlite_sequence')
           .map(async (tableName) => {
             return await db
-              .all(`SELECT * FROM '${tableName}'`, [])
-              .then((rows) => [tableName, rows.slice(-limit)]);
+              .all(
+                `SELECT * FROM '${tableName}' ORDER BY _rowid_ DESC${
+                  Number(limit) > 0 ? ` LIMIT ${limit}` : ''
+                }`
+              )
+              .then((rows) => [tableName, rows]);
           })
       );
       return Object.fromEntries(tableEntries);
