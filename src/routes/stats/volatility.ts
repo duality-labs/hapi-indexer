@@ -57,11 +57,13 @@ const routes = [
           if (foundData) {
             // extract out close data from found price index data
             const [, [, , , closeIndex]] = foundData;
-            const close = Math.pow(
-              1.0001,
-              invertedOrder ? -closeIndex : closeIndex
-            );
-            return close;
+            if (closeIndex !== null && closeIndex !== undefined) {
+              const close = Math.pow(
+                1.0001,
+                invertedOrder ? -closeIndex : closeIndex
+              );
+              return close;
+            }
           }
           // else return an empty price
         });

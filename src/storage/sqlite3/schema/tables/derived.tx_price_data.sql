@@ -7,7 +7,8 @@ CREATE TABLE 'derived.tx_price_data' (
 
   'HighestTick0' INTEGER,
   'LowestTick1' INTEGER,
-  'LastTick' INTEGER NOT NULL,
+  -- last tick (current price tick) may be null if all liquidity is removed
+  'LastTick' INTEGER,
 
   'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,

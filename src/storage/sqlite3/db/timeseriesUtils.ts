@@ -10,7 +10,10 @@ export const hours = 60 * minutes;
 export const days = 24 * hours;
 
 // use a common data shape for time series data
-type TimeseriesDataRow = [time_unix: number, values: Array<number | string>];
+type TimeseriesDataRow = [
+  time_unix: number,
+  values: Array<number | string | null>
+];
 
 // creates the expected response from a given timeseries-like DataRow
 // eg. if type DataRow = [number, [number, number, number]]

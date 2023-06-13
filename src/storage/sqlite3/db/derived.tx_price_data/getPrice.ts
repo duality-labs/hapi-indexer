@@ -14,7 +14,13 @@ import {
   resolutionTimeFormats,
 } from '../timeseriesUtils';
 
-type PriceValues = [open: number, high: number, low: number, close: number];
+type TickIndex = number | null;
+type PriceValues = [
+  open: TickIndex,
+  high: TickIndex,
+  low: TickIndex,
+  close: TickIndex
+];
 type DataRow = [time_unix: number, prices: PriceValues];
 
 export default async function getPrice(
@@ -145,7 +151,9 @@ export default async function getPrice(
             return [
               row['time_unix'],
               // invert the indexes for the asked for price ratio
-              [-row['open'], -row['high'], -row['low'], -row['close']],
+              [row['open'], row['high'], row['low'], row['close']].map(
+                (value) => (value !== null ? -value : null)
+              ) as PriceValues,
             ];
           }
     ),

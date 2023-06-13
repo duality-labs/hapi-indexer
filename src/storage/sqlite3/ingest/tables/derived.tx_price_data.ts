@@ -105,7 +105,7 @@ export default async function upsertDerivedPriceData(
 
           ${isForward ? previousOtherSideTickIndex : currentTickIndex},
           ${isForward ? currentTickIndex : previousOtherSideTickIndex},
-          ${currentTickIndex || previousOtherSideTickIndex},
+          ${currentTickIndex || previousOtherSideTickIndex || null},
 
           (
             SELECT
