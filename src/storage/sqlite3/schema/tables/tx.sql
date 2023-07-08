@@ -1,43 +1,40 @@
 
 /* setup transactions table with block height foreign key */
 CREATE TABLE 'tx' (
-  'block.header.height' INTEGER NOT NULL,
-  'block.header.time_unix' INTEGER NOT NULL,
+  'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+
   'hash' TEXT NOT NULL,
   'index' INTEGER NOT NULL,
   'tx_result.code' INTEGER NOT NULL,
   'tx_result.data' TEXT,
-  'tx_result.log' TEXT NOT NULL,
   'tx_result.info' TEXT,
   'tx_result.gas_wanted' TEXT NOT NULL,
   'tx_result.gas_used' TEXT NOT NULL,
   'tx_result.codespace' TEXT,
 
-  FOREIGN KEY
-    ('block.header.height')
-  REFERENCES
-    'block'('header.height'),
+  'related.block' INTEGER NOT NULL,
 
-  FOREIGN KEY
-    ('block.header.time_unix')
-  REFERENCES
-    'block'('header.time_unix')
+  FOREIGN KEY ('related.block')
+    REFERENCES 'block'('id')
+
 );
 
-/* ensure block.height + tx.index combination is unique */
-CREATE INDEX
-  'tx--block.header.height,index'
+/* ensure block + tx combination is unique */
+CREATE UNIQUE INDEX
+  'tx--related.block,index'
 ON
   'tx' (
-    'block.header.height',
+    'related.block',
     'index'
   );
+
 CREATE INDEX
   'tx--index'
 ON
   'tx' (
     'index'
   );
+
 CREATE INDEX
   'tx--tx_result.code'
 ON

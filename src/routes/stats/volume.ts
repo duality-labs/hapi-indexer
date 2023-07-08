@@ -1,87 +1,99 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
-import sql from 'sql-template-strings';
-import BigNumber from 'bignumber.js';
 
-import db from '../../storage/sqlite3/db/db';
 import logger from '../../logger';
-
-async function volume(
-  tokenA: string,
-  tokenB: string,
-  {
-    lastDays = 1,
-    lastSeconds = lastDays * 24 * 60 * 60,
-  }: {
-    lastDays?: number;
-    lastSeconds?: number;
-  }
-) {
-  const unixNow = Math.round(Date.now() / 1000);
-  const unixStart = unixNow - lastSeconds;
-
-  return await db
-    .all(
-      sql`
-        SELECT
-          'event.PlaceLimitOrder'.'block.header.time_unix',
-          'event.PlaceLimitOrder'.'AmountIn',
-          'event.PlaceLimitOrder'.'TokenOut'
-        FROM 'event.PlaceLimitOrder'
-          WHERE
-          'event.PlaceLimitOrder'.'meta.dex.pair' = (
-            SELECT 'dex.pairs'.'id' FROM 'dex.pairs' WHERE (
-              'dex.pairs'.'token0' = ${tokenA} AND
-              'dex.pairs'.'token1' = ${tokenB}
-            ) OR (
-              'dex.pairs'.'token1' = ${tokenA} AND
-              'dex.pairs'.'token0' = ${tokenB}
-            )
-          )
-          AND 'event.PlaceLimitOrder'.'block.header.time_unix' > ${unixStart}
-      `
-    )
-    .then((rows = []) => {
-      return rows.reduce((acc, row) => {
-        // todo: add conversion to base currency to get real total value
-        return acc.plus(row['AmountIn'] ?? '0');
-      }, new BigNumber(0));
-    });
-}
+import getSwapVolume from '../../storage/sqlite3/db/event.TickUpdate/getSwapVolume';
+import getTotalVolume from '../../storage/sqlite3/db/derived.tx_volume_data/getTotalVolume';
+import { hours } from '../../storage/sqlite3/db/timeseriesUtils';
 
 const routes = [
   {
     method: 'GET',
-    path: '/stats/volume/{tokenA}/{tokenB}',
+    path: '/stats/volume/{tokenA}/{tokenB}/{resolution?}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        return {
-          hours: {
-            1: await volume(
-              request.params['tokenA'],
-              request.params['tokenB'],
-              {
-                lastSeconds: 60 * 60,
-              }
-            ),
+        // round down to the passing of the most recent minute
+        const mostRecentMinuteUnix = new Date().setSeconds(0, 0) / 1000;
+        const [
+          {
+            data: [lastestDay],
+            shape,
           },
-          days: {
-            1: await volume(
-              request.params['tokenA'],
-              request.params['tokenB'],
-              { lastDays: 1 }
-            ),
-            7: await volume(
-              request.params['tokenA'],
-              request.params['tokenB'],
-              { lastDays: 7 }
-            ),
-            28: await volume(
-              request.params['tokenA'],
-              request.params['tokenB'],
-              { lastDays: 28 }
-            ),
+          {
+            data: [previousDay],
           },
-        };
+        ] = await Promise.all([
+          getSwapVolume(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix}`,
+            },
+            'last24Hours'
+          ),
+          getSwapVolume(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix - 24 * hours}`,
+            },
+            'last24Hours'
+          ),
+        ]);
+        return { shape, data: [lastestDay, previousDay] };
+      } catch (err: unknown) {
+        if (err instanceof Error) {
+          logger.error(err);
+          return h
+            .response(`something happened: ${err.message || '?'}`)
+            .code(500);
+        }
+        return h.response('An unknown error occurred').code(500);
+      }
+    },
+  },
+
+  {
+    method: 'GET',
+    path: '/stats/tvl/{tokenA}/{tokenB}',
+    handler: async (request: Request, h: ResponseToolkit) => {
+      try {
+        // round down to the passing of the most recent minute
+        const mostRecentMinuteUnix = new Date().setSeconds(0, 0) / 1000;
+        const [
+          {
+            data: [lastestDay],
+            shape,
+          },
+          {
+            data: [previousDay],
+          },
+        ] = await Promise.all([
+          getTotalVolume(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix}`,
+            },
+            'last24Hours'
+          ),
+          getTotalVolume(
+            request.params['tokenA'],
+            request.params['tokenB'],
+            'day',
+            {
+              'pagination.limit': '1',
+              'pagination.before': `${mostRecentMinuteUnix - 24 * hours}`,
+            },
+            'last24Hours'
+          ),
+        ]);
+        return { shape, data: [lastestDay, previousDay] };
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);

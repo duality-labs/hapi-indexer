@@ -3,6 +3,7 @@ import db from '../db/db';
 // Cosmos standard objects
 import createTableBlock from './tables/block.sql';
 import createTableTx from './tables/tx.sql';
+import createTableTxMsg from './tables/tx_msg.sql';
 import createTableTxResultEvents from './tables/tx_result.events.sql';
 
 // Duality specific primitives
@@ -18,6 +19,7 @@ import createTableEventTickUpdate from './tables/event.TickUpdate.sql';
 // data derived from events
 import createTableDerivedTickState from './tables/derived.tick_state.sql';
 import createTableDerivedTxPriceData from './tables/derived.tx_price_data.sql';
+import createTableDerivedTxVolumeData from './tables/derived.tx_volume_data.sql';
 
 export default async function init() {
   // ensure correct import order for foreign keys to reference correctly
@@ -25,6 +27,7 @@ export default async function init() {
     // Cosmos standard objects
     createTableBlock,
     createTableTx,
+    createTableTxMsg,
     createTableTxResultEvents,
 
     // Duality specific primitives
@@ -40,6 +43,7 @@ export default async function init() {
     // data derived from events
     createTableDerivedTickState,
     createTableDerivedTxPriceData,
+    createTableDerivedTxVolumeData,
   ];
 
   // add each statement of each table separately and in order

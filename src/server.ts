@@ -21,7 +21,7 @@ const init = async () => {
       cors: {
         origin:
           process.env.NODE_ENV !== 'development'
-            ? ['app.duality.xyz'] // production CORS settings
+            ? [process.env.CORS_ORIGIN || 'app.duality.xyz'] // production CORS settings
             : ['*'], // development CORS settings
         headers: ['Accept', 'Content-Type'],
         additionalHeaders: ['X-Requested-With'],

@@ -9,7 +9,7 @@ export interface PaginatedRequestQuery extends RequestQuery {
   'pagination.after'?: string; // unix timestamp
 }
 
-interface PaginationInput {
+export interface PaginationInput {
   offset: number;
   limit: number;
   before: number; // unix timestamp
@@ -51,7 +51,7 @@ export function getPaginationFromQuery(
   // ensure some basic pagination limits are respected
   const pagination: Required<PaginationInput> = {
     offset: Math.max(0, unsafePagination.offset ?? 0),
-    limit: Math.min(1000, unsafePagination.limit ?? 100),
+    limit: Math.min(10000, unsafePagination.limit ?? 1000),
     before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
     after: unsafePagination.after ?? 0,
   };

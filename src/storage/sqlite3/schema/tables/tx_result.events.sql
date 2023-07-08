@@ -5,62 +5,39 @@
   *   they need to be extracted out into BigNumbers to be useful anyway)
   */
 CREATE TABLE 'tx_result.events' (
-  'block.header.height' INTEGER NOT NULL,
-  'block.header.time_unix' INTEGER NOT NULL,
-  'tx.index' INTEGER NOT NULL,
-  'tx.tx_result.code' INTEGER NOT NULL,
+  'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
 
   'index' INTEGER NOT NULL,
   'type' TEXT NOT NULL,
   'attributes' TEXT NOT NULL,
 
-  'meta.dex.pair_swap' INTEGER NOT NULL,
-  'meta.dex.pair_deposit' INTEGER NOT NULL,
-  'meta.dex.pair_withdraw' INTEGER NOT NULL,
+  'related.tx' INTEGER NOT NULL,
+  'related.dex.pair_swap' INTEGER NOT NULL,
+  'related.dex.pair_deposit' INTEGER NOT NULL,
+  'related.dex.pair_withdraw' INTEGER NOT NULL,
+  'related.tx_msg' INTEGER,
 
-  FOREIGN KEY
-    ('block.header.height')
-  REFERENCES
-    'block'('header.height'),
+  FOREIGN KEY ('related.tx')
+    REFERENCES 'tx'('id'),
 
-  FOREIGN KEY
-    ('block.header.time_unix')
-  REFERENCES
-    'block'('header.time_unix'),
+  FOREIGN KEY ('related.dex.pair_swap')
+    REFERENCES 'dex.pairs'('id'),
 
-  FOREIGN KEY
-    ('tx.index')
-  REFERENCES
-    'tx'('index'),
+  FOREIGN KEY ('related.dex.pair_deposit')
+    REFERENCES 'dex.pairs'('id'),
 
-  FOREIGN KEY
-    ('tx.tx_result.code')
-  REFERENCES
-    'tx'('tx_result.code'),
+  FOREIGN KEY ('related.dex.pair_withdraw')
+    REFERENCES 'dex.pairs'('id'),
 
-
-  FOREIGN KEY
-    ('meta.dex.pair_swap')
-  REFERENCES
-    'dex.pairs'('id'),
-
-  FOREIGN KEY
-    ('meta.dex.pair_deposit')
-  REFERENCES
-    'dex.pairs'('id'),
-
-  FOREIGN KEY
-    ('meta.dex.pair_withdraw')
-  REFERENCES
-    'dex.pairs'('id')
+  FOREIGN KEY ('related.tx_msg')
+    REFERENCES 'tx_msg'('id')
 );
 
-/* ensure block.height + tx.index combination is unique */
+/* ensure tx + event combination is unique */
 CREATE UNIQUE INDEX
-  'tx_result.events--block.header.height,tx.index,index'
+  'tx_result.events--related.tx,index'
 ON
   'tx_result.events' (
-    'block.header.height',
-    'tx.index',
+    'related.tx',
     'index'
   );

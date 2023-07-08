@@ -1,14 +1,12 @@
 
 /*
   * add derived data from tick update data to know the state of
-  * all price data throughout time
+  * all volume data throughout time
   */
-CREATE TABLE 'derived.tx_price_data' (
+CREATE TABLE 'derived.tx_volume_data' (
 
-  'HighestTick0' INTEGER,
-  'LowestTick1' INTEGER,
-  -- last tick (current price tick) may be null if all liquidity is removed
-  'LastTick' INTEGER,
+  'ReservesFloat0' REAL NOT NULL DEFAULT 0,
+  'ReservesFloat1' REAL NOT NULL DEFAULT 0,
 
   'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,
@@ -22,17 +20,17 @@ CREATE TABLE 'derived.tx_price_data' (
 
 /* add unique index constraint */
 CREATE UNIQUE INDEX
-  'derived.tx_price_data--related.tx_result.events'
+  'derived.tx_volume_data--related.tx_result.events'
 ON
-  'derived.tx_price_data' (
+  'derived.tx_volume_data' (
     'related.tx_result.events'
   );
 
 /* add index for timeseries lookups, ie. lookup by pair id and then time */
 CREATE INDEX
-  'derived.tx_price_data--related.dex.pair,related.tx_result.events'
+  'derived.tx_volume_data--related.dex.pair,related.tx_result.events'
 ON
-  'derived.tx_price_data' (
+  'derived.tx_volume_data' (
     'related.dex.pair',
     'related.tx_result.events'
   );

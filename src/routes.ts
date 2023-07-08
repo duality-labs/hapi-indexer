@@ -5,7 +5,11 @@ import db from './storage/sqlite3/db/db';
 import logger from './logger';
 
 import timeseriesPriceRoutes from './routes/timeseries/price';
+import timeseriesVolumeRoutes from './routes/timeseries/volume';
+
+import statPriceroutes from './routes/stats/price';
 import statVolumeroutes from './routes/stats/volume';
+import statVolatilityRoutes from './routes/stats/volatility';
 
 const rootPath = {
   method: 'GET',
@@ -35,8 +39,12 @@ const debugPath = {
           .filter((name) => name !== 'sqlite_sequence')
           .map(async (tableName) => {
             return await db
-              .all(`SELECT * FROM '${tableName}'`, [])
-              .then((rows) => [tableName, rows.slice(-limit)]);
+              .all(
+                `SELECT * FROM '${tableName}' ORDER BY _rowid_ DESC${
+                  Number(limit) > 0 ? ` LIMIT ${limit}` : ''
+                }`
+              )
+              .then((rows) => [tableName, rows]);
           })
       );
       return Object.fromEntries(tableEntries);
@@ -58,9 +66,12 @@ const routes = [
 
   // timeseries routes
   ...timeseriesPriceRoutes,
+  ...timeseriesVolumeRoutes,
 
   // point in time stats
+  ...statPriceroutes,
   ...statVolumeroutes,
+  ...statVolatilityRoutes,
 
   // add development only paths
   ...(process.env.NODE_ENV === 'development' ? [debugPath] : []),
