@@ -134,6 +134,13 @@ export async function catchUp({
         // remove spaces from URL
         .replace(/\s+/g, '')
     );
+
+    if (response.status !== 200) {
+      throw new Error(
+        `REST API returned status code: ${REST_API} ${response.status}`
+      );
+    }
+
     const {
       pagination,
       txs = [],
@@ -183,25 +190,31 @@ export async function keepUp() {
     defaultLogger.info('keeping up: polling');
     const lastBlockHeight = maxBlockHeight;
     const startTime = Date.now();
-    await catchUp({
-      fromBlockHeight: maxBlockHeight + 1,
-      logger: pollingLogger,
-    });
-    const duration = Date.now() - startTime;
+    try {
+      await catchUp({
+        fromBlockHeight: maxBlockHeight + 1,
+        logger: pollingLogger,
+      });
+      const duration = Date.now() - startTime;
 
-    // log block height increments
-    if (maxBlockHeight > lastBlockHeight) {
-      defaultLogger.info(
-        `keeping up: last block processed: ${maxBlockHeight} (done in ${(
-          duration / 1000
-        ).toFixed(3)} seconds)`
-      );
-    } else {
-      defaultLogger.info(
-        `keeping up: no change (done in ${(duration / 1000).toFixed(
-          3
-        )} seconds)`
-      );
+      // log block height increments
+      if (maxBlockHeight > lastBlockHeight) {
+        defaultLogger.info(
+          `keeping up: last block processed: ${maxBlockHeight} (done in ${(
+            duration / 1000
+          ).toFixed(3)} seconds)`
+        );
+      } else {
+        defaultLogger.info(
+          `keeping up: no change (done in ${(duration / 1000).toFixed(
+            3
+          )} seconds)`
+        );
+      }
+    } catch (err) {
+      // log but ignore a sync error (it might succeed next time)
+      defaultLogger.info('keeping up: Unable to sync during poll');
+      defaultLogger.error(err);
     }
 
     // poll again after a certain amount of time has passed
