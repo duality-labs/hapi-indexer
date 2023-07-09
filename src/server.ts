@@ -35,27 +35,37 @@ async function testConnection(apiUrl: string): Promise<boolean> {
   return false;
 }
 
+const serverTimes: {
+  starting?: Date;
+  started?: Date;
+  connecting?: Date;
+  connected?: Date;
+  indexing?: Date;
+  indexed?: Date;
+} = {};
+
 const init = async () => {
   // test our connection to the chain before starting
-  const startTime = Date.now();
+  serverTimes.connecting = new Date();
   let connected = false;
   do {
     connected = await testConnection(REST_API);
     if (!connected) {
       // exponentially back off the connection test (capped at 1 minute)
-      const waitTime = Math.min(Date.now() - startTime, 1000 * 60);
+      const waitTime = Math.min(
+        Date.now() - serverTimes.connecting.valueOf(),
+        1000 * 60 // wait a maximum of 1 minute
+      );
       logger.info(
         `waiting ${waitTime / 1000}s before retrying connection test`
       );
       await new Promise((resolve) => setTimeout(resolve, waitTime));
     }
   } while (!connected);
+  serverTimes.connected = new Date();
 
-  // wait for database to be set up before creating server
-  await initDb();
-  await initDbSchema();
-  await sync.catchUp();
-
+  // start server before adding in indexer routes
+  // (so that the server may report the indexing status)
   const server = Hapi.server({
     port: 8000,
     // host: 0.0.0.0 resolves better than host: localhost in a Docker container
@@ -72,13 +82,57 @@ const init = async () => {
     },
   });
 
-  // add routes
+  // add status route
+  server.route({
+    method: 'GET',
+    path: '/',
+    handler: () => {
+      return {
+        status: 'OK',
+        server: {
+          status: serverTimes.started
+            ? 'OK'
+            : serverTimes.starting
+            ? 'STARTING'
+            : 'OFFLINE',
+          since: serverTimes.started?.toISOString(),
+        },
+        upstream: {
+          status: serverTimes.connected
+            ? 'OK'
+            : serverTimes.connecting
+            ? 'CONNECTING'
+            : 'OFFLINE',
+          since: serverTimes.connected?.toISOString(),
+        },
+        indexer: {
+          status: serverTimes.indexed
+            ? 'OK'
+            : serverTimes.indexing
+            ? 'INDEXING'
+            : 'OFFLINE',
+          since: serverTimes.indexed?.toISOString(),
+        },
+      };
+    },
+  });
+
+  serverTimes.starting = new Date();
+  await server.start();
+  logger.info(`Server running on ${server.info.uri}`);
+  serverTimes.started = new Date();
+
+  // wait for database to be set up before adding indexer routes
+  await initDb();
+  await initDbSchema();
+  serverTimes.indexing = new Date();
+  await sync.catchUp();
+  serverTimes.indexed = new Date();
+
+  // add indexer routes
   routes.forEach((route) => {
     server.route(route);
   });
-
-  await server.start();
-  logger.info(`Server running on ${server.info.uri}`);
 
   await sync.keepUp();
 };
