@@ -10,26 +10,29 @@ interface PlainTxResponse extends Omit<TxResponse, 'rawLog'> {
   gas_used: TxResponse['gasUsed'];
 }
 
-interface V1Beta1GetTxsEventResponse {
-  /** txs is the list of queried transactions. */
-  txs?: unknown[];
-
-  /** tx_responses is the list of queried TxResponses. */
-  tx_responses?: PlainTxResponse[];
-
-  /** pagination defines an pagination for the response. */
-  pagination?: {
-    next_key: string;
-    total: string;
+interface RpcTxSearchResponse {
+  result: {
+    total_count: string;
+    txs: Array<{
+      hash: string;
+      height: string;
+      tx: string;
+      tx_result: {
+        code: number;
+      };
+    }>;
   };
 }
-const { REST_API = '', POLLING_INTERVAL_SECONDS = '' } = process.env;
-// define order by query params as numbers (since CosmosSDK v0.37)
-const orderByEnum = {
-  ORDER_BY_UNSPECIFIED: 0,
-  ORDER_BY_ASC: 1,
-  ORDER_BY_DESC: 2,
-} as const;
+interface RestTxHashLookupResponse {
+  tx: object;
+  tx_response: PlainTxResponse;
+}
+
+const {
+  REST_API = '',
+  RPC_API = '',
+  POLLING_INTERVAL_SECONDS = '',
+} = process.env;
 
 const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
 
@@ -111,6 +114,20 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   );
 }
 
+function translateTxResponse({
+  raw_log,
+  gas_wanted,
+  gas_used,
+  ...response
+}: PlainTxResponse): TxResponse {
+  return {
+    ...response,
+    rawLog: raw_log,
+    gasWanted: gas_wanted,
+    gasUsed: gas_used,
+  };
+}
+
 let maxBlockHeight = 0;
 
 export async function catchUp({
@@ -123,56 +140,48 @@ export async function catchUp({
     // max API response page item count is 100
     const itemsPerPage = 100;
     const response = await fetch(
-      `
-        ${REST_API}/cosmos/tx/v1beta1/txs
-          ?events=tx.height>=${fromBlockHeight}
-          ${offset ? `&pagination.offset=${offset}` : ''}
-          &pagination.limit=${itemsPerPage}
-          &pagination.count_total=true
-          &order_by=${orderByEnum['ORDER_BY_ASC']}
-      `
-        // remove spaces from URL
-        .replace(/\s+/g, '')
+      `${RPC_API}/tx_search?query="${encodeURIComponent(
+        `tx.height>=${fromBlockHeight} AND message.module='dex'`
+      )}"&per_page=${itemsPerPage}&page=${
+        Math.round(offset / itemsPerPage) + 1
+      }`
     );
 
     if (response.status !== 200) {
       throw new Error(
-        `REST API returned status code: ${REST_API} ${response.status}`
+        `RPC API returned status code: ${RPC_API} ${response.status}`
       );
     }
 
-    const {
-      pagination,
-      txs = [],
-      tx_responses: pageItems = [],
-    } = await (response.json() as Promise<V1Beta1GetTxsEventResponse>).then(
-      ({ pagination, txs, tx_responses }: V1Beta1GetTxsEventResponse) => ({
-        pagination,
-        txs,
-        tx_responses: tx_responses?.map(
-          ({ raw_log, gas_wanted, gas_used, ...response }: PlainTxResponse) => {
-            const txResponse: TxResponse = {
-              ...response,
-              rawLog: raw_log,
-              gasWanted: gas_wanted,
-              gasUsed: gas_used,
-            };
-            return txResponse;
-          }
-        ),
-      })
-    );
+    // read the RPC tx search results for tx hashes
+    const { result } = (await response.json()) as RpcTxSearchResponse;
+    for (const { height, hash, tx_result } of result.txs) {
+      // skip this tx if the result code was 0 (there was an error)
+      if (tx_result.code !== 0) {
+        continue;
+      }
 
-    const lastItemBlockHeight = Number(pageItems.slice(-1).pop()?.['height']);
-    if (lastItemBlockHeight) {
-      maxBlockHeight = lastItemBlockHeight;
+      // fetch each tx from REST API (which has more information)
+      // RPC tx_result does not have: `timestamp`, `raw_log`
+      const response = await fetch(`${REST_API}/cosmos/tx/v1beta1/txs/${hash}`);
+      if (response.status !== 200) {
+        throw new Error(
+          `REST API returned status code: ${REST_API} ${response.status}`
+        );
+      }
+
+      const { tx_response } =
+        (await response.json()) as RestTxHashLookupResponse;
+      // ingest single tx
+      await ingestTxs([translateTxResponse(tx_response)]);
+
+      // note current block height
+      maxBlockHeight = Number(height);
     }
 
-    // ingest list
-    await ingestTxs(pageItems);
     // return next page information for page iterating function
-    const pageItemCount = txs.length;
-    const totalItemCount = (pagination?.total && Number(pagination.total)) || 0;
+    const pageItemCount = result.txs.length;
+    const totalItemCount = Number(result.total_count) || 0;
     const currentItemCount = offset + pageItemCount;
     const nextOffset =
       currentItemCount < totalItemCount ? currentItemCount : null;
