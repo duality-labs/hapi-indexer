@@ -1,5 +1,5 @@
 import sql from 'sql-template-strings';
-import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
+import { TxResponse } from '../../../../@types/tx';
 
 import db from '../../db/db';
 

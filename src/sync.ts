@@ -1,15 +1,16 @@
-import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import { createLogger, transports, config, format, Logger } from 'winston';
+import { ResponseDeliverTx } from 'cosmjs-types/tendermint/abci/types';
+
 import { logFileTransport } from './logger';
+import { TxResponse } from './@types/tx';
 
 import ingestTxs from './storage/sqlite3/ingest/ingestTxResponse';
 
-interface PlainTxResponse extends Omit<TxResponse, 'rawLog'> {
-  raw_log: TxResponse['rawLog'];
+// define the snamke case that the response is actually in
+interface RpcTxResult extends Omit<ResponseDeliverTx, 'gasWanted' | 'gasUsed'> {
   gas_wanted: TxResponse['gasWanted'];
   gas_used: TxResponse['gasUsed'];
 }
-
 interface RpcTxSearchResponse {
   result: {
     total_count: string;
@@ -17,22 +18,20 @@ interface RpcTxSearchResponse {
       hash: string;
       height: string;
       tx: string;
-      tx_result: {
-        code: number;
-      };
+      tx_result: RpcTxResult;
     }>;
   };
 }
-interface RestTxHashLookupResponse {
-  tx: object;
-  tx_response: PlainTxResponse;
+interface RpcBlockHeaderLookupResponse {
+  result: {
+    header: {
+      height: string;
+      time: string;
+    };
+  };
 }
 
-const {
-  REST_API = '',
-  RPC_API = '',
-  POLLING_INTERVAL_SECONDS = '',
-} = process.env;
+const { RPC_API = '', POLLING_INTERVAL_SECONDS = '' } = process.env;
 
 const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
 
@@ -114,21 +113,26 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   );
 }
 
-function translateTxResponse({
-  raw_log,
-  gas_wanted,
-  gas_used,
-  ...response
-}: PlainTxResponse): TxResponse {
+function translateTxResponse(
+  { gas_wanted, gas_used, ...response }: RpcTxResult,
+  {
+    txhash,
+    height,
+    timestamp,
+  }: { txhash: string; height: string; timestamp: string }
+): TxResponse {
   return {
     ...response,
-    rawLog: raw_log,
     gasWanted: gas_wanted,
     gasUsed: gas_used,
+    height,
+    timestamp,
+    txhash,
   };
 }
 
 let maxBlockHeight = 0;
+const blockTimestamps: { [height: string]: string } = {};
 
 export async function catchUp({
   fromBlockHeight = 0,
@@ -161,19 +165,25 @@ export async function catchUp({
         continue;
       }
 
-      // fetch each tx from REST API (which has more information)
+      // fetch each block info from RPC API to fill in data from previous REST API calls
       // RPC tx_result does not have: `timestamp`, `raw_log`
-      const response = await fetch(`${REST_API}/cosmos/tx/v1beta1/txs/${hash}`);
-      if (response.status !== 200) {
-        throw new Error(
-          `REST API returned status code: ${REST_API} ${response.status}`
-        );
+      if (!blockTimestamps[height]) {
+        const response = await fetch(`${RPC_API}/header?height=${height}`);
+        if (response.status !== 200) {
+          throw new Error(
+            `RPC API returned status code: ${RPC_API} ${response.status}`
+          );
+        }
+        const { result } =
+          (await response.json()) as RpcBlockHeaderLookupResponse;
+        blockTimestamps[height] = result.header.time;
       }
+      const timestamp = blockTimestamps[height];
 
-      const { tx_response } =
-        (await response.json()) as RestTxHashLookupResponse;
       // ingest single tx
-      await ingestTxs([translateTxResponse(tx_response)]);
+      await ingestTxs([
+        translateTxResponse(tx_result, { height, timestamp, txhash: hash }),
+      ]);
 
       // note current block height
       maxBlockHeight = Number(height);
