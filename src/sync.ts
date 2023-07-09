@@ -114,7 +114,7 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
 }
 
 function translateTxResponse(
-  { gas_wanted, gas_used, ...response }: RpcTxResult,
+  { code, info, log, codespace, events, gas_wanted, gas_used }: RpcTxResult,
   {
     txhash,
     height,
@@ -122,7 +122,11 @@ function translateTxResponse(
   }: { txhash: string; height: string; timestamp: string }
 ): TxResponse {
   return {
-    ...response,
+    code,
+    info,
+    log,
+    codespace,
+    events,
     gasWanted: gas_wanted,
     gasUsed: gas_used,
     height,

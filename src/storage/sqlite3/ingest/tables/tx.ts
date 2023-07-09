@@ -24,7 +24,7 @@ export default async function insertTxRows(
       ${tx_result.txhash},
       ${index},
       ${tx_result.code},
-      ${tx_result.data},
+      ${null},
       ${tx_result.info},
       ${tx_result.gasWanted},
       ${tx_result.gasUsed},
