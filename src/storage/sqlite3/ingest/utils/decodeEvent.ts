@@ -20,16 +20,8 @@ export default function decodeEvent(
     index,
     type,
     attributes: attributes.reduce<DecodedAttributeMap>(
-      (acc, { key, value }) => {
-        if (key) {
-          const decodedKey = Buffer.from(`${key}`, 'base64').toString('utf8');
-          const decodedValue = value
-            ? Buffer.from(`${value}`, 'base64').toString('utf8')
-            : null;
-          if (decodedKey) {
-            acc[decodedKey] = decodedValue || '';
-          }
-        }
+      (acc, { key = '', value = '' }) => {
+        acc[key] = value;
         return acc;
       },
       {}
