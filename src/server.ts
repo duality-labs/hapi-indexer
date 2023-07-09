@@ -9,14 +9,13 @@ import routes from './routes';
 
 const { REST_API = '' } = process.env;
 
-const init = async () => {
-  // test our connection to the chain before starting
+async function testConnection(apiUrl: string): Promise<boolean> {
   try {
-    logger.info(`testing connection to API: ${REST_API}`);
+    logger.info(`testing connection to API: ${apiUrl}`);
 
     // fetch the transactions from block 0 (which should be empty)
     const response = await fetch(
-      `${REST_API}/cosmos/tx/v1beta1/txs?events=tx.height=0`
+      `${apiUrl}/cosmos/tx/v1beta1/txs?events=tx.height=0`
     );
 
     if (response.status !== 200) {
@@ -25,13 +24,32 @@ const init = async () => {
 
     const result = (await response.json()) as { txs: [] };
     if (result && parseInt(`${result.txs.length}`) >= 0) {
-      logger.info(`connected to API: ${REST_API}`);
+      logger.info(`connected to API: ${apiUrl}`);
+      return true;
     } else {
       throw new Error(`API returned unexpected response: ${result}`);
     }
   } catch (err) {
     logger.error(`connection to API failed: ${err}`);
   }
+  return false;
+}
+
+const init = async () => {
+  // test our connection to the chain before starting
+  const startTime = Date.now();
+  let connected = false;
+  do {
+    connected = await testConnection(REST_API);
+    if (!connected) {
+      // exponentially back off the connection test (capped at 1 minute)
+      const waitTime = Math.min(Date.now() - startTime, 1000 * 60);
+      logger.info(
+        `waiting ${waitTime / 1000}s before retrying connection test`
+      );
+      await new Promise((resolve) => setTimeout(resolve, waitTime));
+    }
+  } while (!connected);
 
   // wait for database to be set up before creating server
   await initDb();
