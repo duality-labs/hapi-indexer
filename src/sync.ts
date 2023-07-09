@@ -24,6 +24,12 @@ interface V1Beta1GetTxsEventResponse {
   };
 }
 const { REST_API = '', POLLING_INTERVAL_SECONDS = '' } = process.env;
+// define order by query params as numbers (since CosmosSDK v0.37)
+const orderByEnum = {
+  ORDER_BY_UNSPECIFIED: 0,
+  ORDER_BY_ASC: 1,
+  ORDER_BY_DESC: 2,
+} as const;
 
 const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
 
@@ -123,7 +129,7 @@ export async function catchUp({
           ${offset ? `&pagination.offset=${offset}` : ''}
           &pagination.limit=${itemsPerPage}
           &pagination.count_total=true
-          &order_by=ORDER_BY_ASC
+          &order_by=${orderByEnum['ORDER_BY_ASC']}
       `
         // remove spaces from URL
         .replace(/\s+/g, '')
