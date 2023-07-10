@@ -7,22 +7,20 @@ import * as sync from './sync';
 
 import routes from './routes';
 
-const { REST_API = '' } = process.env;
+const { RPC_API = '' } = process.env;
 
 async function testConnection(apiUrl: string): Promise<boolean> {
   try {
     logger.info(`testing connection to API: ${apiUrl}`);
 
     // fetch the transactions from block 0 (which should be empty)
-    const response = await fetch(
-      `${apiUrl}/cosmos/tx/v1beta1/txs?events=tx.height=0`
-    );
+    const response = await fetch(`${apiUrl}/tx_search?query="tx.height=0"`);
 
     if (response.status !== 200) {
       throw new Error(`API returned status code: ${response.status}`);
     }
 
-    const result = (await response.json()) as { txs: [] };
+    const { result } = (await response.json()) as { result: { txs: [] } };
     if (result && parseInt(`${result.txs.length}`) >= 0) {
       logger.info(`connected to API: ${apiUrl}`);
       return true;
@@ -49,7 +47,7 @@ const init = async () => {
   serverTimes.connecting = new Date();
   let connected = false;
   do {
-    connected = await testConnection(REST_API);
+    connected = await testConnection(RPC_API);
     if (!connected) {
       // exponentially back off the connection test (capped at 1 minute)
       const waitTime = Math.min(
