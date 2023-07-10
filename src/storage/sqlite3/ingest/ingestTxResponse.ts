@@ -1,4 +1,4 @@
-import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
+import { TxResponse } from '../../../@types/tx';
 
 import insertDexTokensRows from './tables/dex.tokens';
 import insertDexPairsRows from './tables/dex.pairs';

@@ -1,29 +1,37 @@
-import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
 import { createLogger, transports, config, format, Logger } from 'winston';
+import { ResponseDeliverTx } from 'cosmjs-types/tendermint/abci/types';
+
 import { logFileTransport } from './logger';
+import { TxResponse } from './@types/tx';
 
 import ingestTxs from './storage/sqlite3/ingest/ingestTxResponse';
 
-interface PlainTxResponse extends Omit<TxResponse, 'rawLog'> {
-  raw_log: TxResponse['rawLog'];
+// define the snamke case that the response is actually in
+interface RpcTxResult extends Omit<ResponseDeliverTx, 'gasWanted' | 'gasUsed'> {
   gas_wanted: TxResponse['gasWanted'];
   gas_used: TxResponse['gasUsed'];
 }
-
-interface V1Beta1GetTxsEventResponse {
-  /** txs is the list of queried transactions. */
-  txs?: unknown[];
-
-  /** tx_responses is the list of queried TxResponses. */
-  tx_responses?: PlainTxResponse[];
-
-  /** pagination defines an pagination for the response. */
-  pagination?: {
-    next_key: string;
-    total: string;
+interface RpcTxSearchResponse {
+  result: {
+    total_count: string;
+    txs: Array<{
+      hash: string;
+      height: string;
+      tx: string;
+      tx_result: RpcTxResult;
+    }>;
   };
 }
-const { REST_API = '', POLLING_INTERVAL_SECONDS = '' } = process.env;
+interface RpcBlockHeaderLookupResponse {
+  result: {
+    header: {
+      height: string;
+      time: string;
+    };
+  };
+}
+
+const { RPC_API = '', POLLING_INTERVAL_SECONDS = '' } = process.env;
 
 const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
 
@@ -105,7 +113,30 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   );
 }
 
+function translateTxResponse(
+  { code, info, log, codespace, events, gas_wanted, gas_used }: RpcTxResult,
+  {
+    txhash,
+    height,
+    timestamp,
+  }: { txhash: string; height: string; timestamp: string }
+): TxResponse {
+  return {
+    code,
+    info,
+    log,
+    codespace,
+    events,
+    gasWanted: gas_wanted,
+    gasUsed: gas_used,
+    height,
+    timestamp,
+    txhash,
+  };
+}
+
 let maxBlockHeight = 0;
+const blockTimestamps: { [height: string]: string } = {};
 
 export async function catchUp({
   fromBlockHeight = 0,
@@ -117,49 +148,54 @@ export async function catchUp({
     // max API response page item count is 100
     const itemsPerPage = 100;
     const response = await fetch(
-      `
-        ${REST_API}/cosmos/tx/v1beta1/txs
-          ?events=tx.height>=${fromBlockHeight}
-          ${offset ? `&pagination.offset=${offset}` : ''}
-          &pagination.limit=${itemsPerPage}
-          &pagination.count_total=true
-          &order_by=ORDER_BY_ASC
-      `
-        // remove spaces from URL
-        .replace(/\s+/g, '')
-    );
-    const {
-      pagination,
-      txs = [],
-      tx_responses: pageItems = [],
-    } = await (response.json() as Promise<V1Beta1GetTxsEventResponse>).then(
-      ({ pagination, txs, tx_responses }: V1Beta1GetTxsEventResponse) => ({
-        pagination,
-        txs,
-        tx_responses: tx_responses?.map(
-          ({ raw_log, gas_wanted, gas_used, ...response }: PlainTxResponse) => {
-            const txResponse: TxResponse = {
-              ...response,
-              rawLog: raw_log,
-              gasWanted: gas_wanted,
-              gasUsed: gas_used,
-            };
-            return txResponse;
-          }
-        ),
-      })
+      `${RPC_API}/tx_search?query="${encodeURIComponent(
+        `tx.height>=${fromBlockHeight} AND message.module='dex'`
+      )}"&per_page=${itemsPerPage}&page=${
+        Math.round(offset / itemsPerPage) + 1
+      }`
     );
 
-    const lastItemBlockHeight = Number(pageItems.slice(-1).pop()?.['height']);
-    if (lastItemBlockHeight) {
-      maxBlockHeight = lastItemBlockHeight;
+    if (response.status !== 200) {
+      throw new Error(
+        `RPC API returned status code: ${RPC_API} ${response.status}`
+      );
     }
 
-    // ingest list
-    await ingestTxs(pageItems);
+    // read the RPC tx search results for tx hashes
+    const { result } = (await response.json()) as RpcTxSearchResponse;
+    for (const { height, hash, tx_result } of result.txs) {
+      // skip this tx if the result code was 0 (there was an error)
+      if (tx_result.code !== 0) {
+        continue;
+      }
+
+      // fetch each block info from RPC API to fill in data from previous REST API calls
+      // RPC tx_result does not have: `timestamp`, `raw_log`
+      if (!blockTimestamps[height]) {
+        const response = await fetch(`${RPC_API}/header?height=${height}`);
+        if (response.status !== 200) {
+          throw new Error(
+            `RPC API returned status code: ${RPC_API} ${response.status}`
+          );
+        }
+        const { result } =
+          (await response.json()) as RpcBlockHeaderLookupResponse;
+        blockTimestamps[height] = result.header.time;
+      }
+      const timestamp = blockTimestamps[height];
+
+      // ingest single tx
+      await ingestTxs([
+        translateTxResponse(tx_result, { height, timestamp, txhash: hash }),
+      ]);
+
+      // note current block height
+      maxBlockHeight = Number(height);
+    }
+
     // return next page information for page iterating function
-    const pageItemCount = txs.length;
-    const totalItemCount = (pagination?.total && Number(pagination.total)) || 0;
+    const pageItemCount = result.txs.length;
+    const totalItemCount = Number(result.total_count) || 0;
     const currentItemCount = offset + pageItemCount;
     const nextOffset =
       currentItemCount < totalItemCount ? currentItemCount : null;
@@ -177,25 +213,31 @@ export async function keepUp() {
     defaultLogger.info('keeping up: polling');
     const lastBlockHeight = maxBlockHeight;
     const startTime = Date.now();
-    await catchUp({
-      fromBlockHeight: maxBlockHeight + 1,
-      logger: pollingLogger,
-    });
-    const duration = Date.now() - startTime;
+    try {
+      await catchUp({
+        fromBlockHeight: maxBlockHeight + 1,
+        logger: pollingLogger,
+      });
+      const duration = Date.now() - startTime;
 
-    // log block height increments
-    if (maxBlockHeight > lastBlockHeight) {
-      defaultLogger.info(
-        `keeping up: last block processed: ${maxBlockHeight} (done in ${(
-          duration / 1000
-        ).toFixed(3)} seconds)`
-      );
-    } else {
-      defaultLogger.info(
-        `keeping up: no change (done in ${(duration / 1000).toFixed(
-          3
-        )} seconds)`
-      );
+      // log block height increments
+      if (maxBlockHeight > lastBlockHeight) {
+        defaultLogger.info(
+          `keeping up: last block processed: ${maxBlockHeight} (done in ${(
+            duration / 1000
+          ).toFixed(3)} seconds)`
+        );
+      } else {
+        defaultLogger.info(
+          `keeping up: no change (done in ${(duration / 1000).toFixed(
+            3
+          )} seconds)`
+        );
+      }
+    } catch (err) {
+      // log but ignore a sync error (it might succeed next time)
+      defaultLogger.info('keeping up: Unable to sync during poll');
+      defaultLogger.error(err);
     }
 
     // poll again after a certain amount of time has passed

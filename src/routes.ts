@@ -11,12 +11,6 @@ import statPriceroutes from './routes/stats/price';
 import statVolumeroutes from './routes/stats/volume';
 import statVolatilityRoutes from './routes/stats/volatility';
 
-const rootPath = {
-  method: 'GET',
-  path: '/',
-  handler: () => 'ok',
-};
-
 // add debug path
 const debugPath = {
   method: 'GET',
@@ -61,9 +55,6 @@ const debugPath = {
 };
 
 const routes = [
-  // add utility routes
-  rootPath,
-
   // timeseries routes
   ...timeseriesPriceRoutes,
   ...timeseriesVolumeRoutes,

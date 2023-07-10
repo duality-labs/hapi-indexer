@@ -1,4 +1,4 @@
-import { TxResponse } from 'cosmjs-types/cosmos/base/abci/v1beta1/abci';
+import { TxResponse } from '../../../../@types/tx';
 import { DecodedTxEvent } from './decodeEvent';
 
 export function isValidResult(tx_result: TxResponse): boolean {
