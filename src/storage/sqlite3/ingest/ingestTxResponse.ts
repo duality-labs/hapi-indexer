@@ -16,8 +16,15 @@ import { upsertDerivedTickStateRows } from './tables/derived.tick_state';
 import decodeEvent from './utils/decodeEvent';
 import { getDexMessageAction, isValidResult } from './utils/utils';
 
+let lastHeight = '0';
+let lastTxIndex = 0;
 export default async function ingestTxs(txPage: TxResponse[]) {
-  for (const [index, tx_result] of txPage.entries()) {
+  for (const tx_result of txPage) {
+    // find this transaction's index
+    lastTxIndex = tx_result.height === lastHeight ? lastTxIndex + 1 : 0;
+    lastHeight = tx_result.height;
+    const index = lastTxIndex;
+
     // skip invalid transactions
     if (!isValidResult(tx_result)) {
       continue;
