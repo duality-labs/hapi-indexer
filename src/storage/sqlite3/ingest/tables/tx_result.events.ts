@@ -10,6 +10,7 @@ import { DecodedTxEvent } from '../utils/decodeEvent';
 export default async function insertTxEventRows(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
+  index: number,
   lastMsgID: number | undefined
 ) {
   const isDexMessage =
@@ -44,7 +45,7 @@ export default async function insertTxEventRows(
         FROM
           'tx'
         WHERE (
-          'tx'.'hash' = ${tx_result.txhash} AND
+          'tx'.'index' = ${index} AND
           'tx'.'related.block' = (
             SELECT
               'block'.'id'

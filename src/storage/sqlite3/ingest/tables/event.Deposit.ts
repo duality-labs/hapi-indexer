@@ -7,7 +7,8 @@ import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export default async function insertEventDeposit(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent
+  txEvent: DecodedTxEvent,
+  index: number
 ) {
   return await db.run(sql`
     INSERT INTO 'event.Deposit' (
@@ -48,6 +49,7 @@ export default async function insertEventDeposit(
             FROM
               'tx'
             WHERE (
+              'tx'.'index' = ${index} AND
               'tx'.'related.block' = (
                 SELECT
                   'block'.'id'

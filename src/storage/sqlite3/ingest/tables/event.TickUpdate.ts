@@ -8,7 +8,8 @@ import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export default async function insertEventTickUpdate(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent
+  txEvent: DecodedTxEvent,
+  index: number
 ) {
   const previousTickUpdate = await db.get<{ Reserves: string }>(sql`
     SELECT
@@ -84,7 +85,7 @@ export default async function insertEventTickUpdate(
             FROM
               'tx'
             WHERE (
-              'tx'.'hash' = ${tx_result.txhash} AND
+              'tx'.'index' = ${index} AND
               'tx'.'related.block' = (
                 SELECT
                   'block'.'id'
