@@ -17,7 +17,7 @@ import decodeEvent from './utils/decodeEvent';
 import { getDexMessageAction, isValidResult } from './utils/utils';
 
 export default async function ingestTxs(txPage: TxResponse[]) {
-  for (const [index, tx_result] of txPage.entries()) {
+  for (const tx_result of txPage) {
     // skip invalid transactions
     if (!isValidResult(tx_result)) {
       continue;
@@ -40,7 +40,7 @@ export default async function ingestTxs(txPage: TxResponse[]) {
     }
 
     // then add transaction rows
-    await insertTxRows(tx_result, index);
+    await insertTxRows(tx_result);
 
     // then add transaction event rows
     let lastMsgID: number | undefined = undefined;
@@ -50,7 +50,7 @@ export default async function ingestTxs(txPage: TxResponse[]) {
       lastMsgID = newMsg ? newMsg.lastID : lastMsgID;
 
       // add transaction event
-      await insertTxEventRows(tx_result, txEvent, index, lastMsgID);
+      await insertTxEventRows(tx_result, txEvent, lastMsgID);
 
       // continue logic for dex events
       // if the event was a dex action then use that event to update tables
@@ -59,17 +59,17 @@ export default async function ingestTxs(txPage: TxResponse[]) {
         // add event rows to specific event tables:
         switch (dexAction) {
           case 'Deposit':
-            await insertEventDeposit(tx_result, txEvent, index);
+            await insertEventDeposit(tx_result, txEvent);
             break;
           case 'Withdraw':
-            await insertEventWithdraw(tx_result, txEvent, index);
+            await insertEventWithdraw(tx_result, txEvent);
             break;
           case 'PlaceLimitOrder':
-            await insertEventPlaceLimitOrder(tx_result, txEvent, index);
+            await insertEventPlaceLimitOrder(tx_result, txEvent);
             break;
           case 'TickUpdate':
-            await insertEventTickUpdate(tx_result, txEvent, index);
-            await upsertDerivedTickStateRows(tx_result, txEvent, index);
+            await insertEventTickUpdate(tx_result, txEvent);
+            await upsertDerivedTickStateRows(tx_result, txEvent);
             break;
         }
       }

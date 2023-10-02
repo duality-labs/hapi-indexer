@@ -7,8 +7,7 @@ import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export default async function upsertDerivedVolumeData(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent,
-  index: number
+  txEvent: DecodedTxEvent
 ) {
   // repeat checks
   const isDexMessage =
@@ -112,7 +111,6 @@ export default async function upsertDerivedVolumeData(
                 FROM
                   'tx'
                 WHERE (
-                  'tx'.'index' = ${index} AND
                   'tx'.'related.block' = (
                     SELECT
                       'block'.'id'

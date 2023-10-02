@@ -10,8 +10,7 @@ import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export async function upsertDerivedTickStateRows(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent,
-  index: number
+  txEvent: DecodedTxEvent
 ) {
   const isDexMessage =
     txEvent.type === 'TickUpdate' &&
@@ -91,8 +90,8 @@ export async function upsertDerivedTickStateRows(
 
     // continue logic for several dependent states
     await Promise.all([
-      upsertDerivedPriceData(tx_result, txEvent, index),
-      upsertDerivedVolumeData(tx_result, txEvent, index),
+      upsertDerivedPriceData(tx_result, txEvent),
+      upsertDerivedVolumeData(tx_result, txEvent),
     ]);
 
     return lastID;

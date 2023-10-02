@@ -4,7 +4,6 @@ CREATE TABLE 'tx' (
   'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
 
   'hash' TEXT NOT NULL,
-  'index' INTEGER NOT NULL,
   'tx_result.code' INTEGER NOT NULL,
   'tx_result.data' TEXT,
   'tx_result.info' TEXT,
@@ -19,22 +18,24 @@ CREATE TABLE 'tx' (
 
 );
 
-/* ensure block + tx combination is unique */
+/* create unique lookup entrypoint */
 CREATE UNIQUE INDEX
-  'tx--related.block,index'
+  'tx--hash'
 ON
   'tx' (
-    'related.block',
-    'index'
+    'hash'
   );
 
+/* allow faster lookups if a height is known */
+/* the height+index combination looks unique but is not */
 CREATE INDEX
-  'tx--index'
+  'tx--related.block'
 ON
   'tx' (
-    'index'
+    'related.block'
   );
 
+/* allow faster lookups of successfuly transactions */
 CREATE INDEX
   'tx--tx_result.code'
 ON

@@ -3,14 +3,10 @@ import { TxResponse } from '../../../../@types/tx';
 
 import db from '../../db/db';
 
-export default async function insertTxRows(
-  tx_result: TxResponse,
-  index: number
-) {
+export default async function insertTxRows(tx_result: TxResponse) {
   return await db.run(sql`
     INSERT INTO 'tx' (
       'hash',
-      'index',
       'tx_result.code',
       'tx_result.data',
       'tx_result.info',
@@ -22,7 +18,6 @@ export default async function insertTxRows(
     ) values (
 
       ${tx_result.txhash},
-      ${index},
       ${tx_result.code},
       ${null},
       ${tx_result.info},

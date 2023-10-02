@@ -7,8 +7,7 @@ import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export default async function insertEventWithdraw(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent,
-  index: number
+  txEvent: DecodedTxEvent
 ) {
   return await db.run(sql`
     INSERT INTO 'event.Withdraw' (
@@ -50,7 +49,7 @@ export default async function insertEventWithdraw(
             FROM
               'tx'
             WHERE (
-              'tx'.'index' = ${index} AND
+              'tx'.'hash' = ${tx_result.txhash} AND
               'tx'.'related.block' = (
                 SELECT
                   'block'.'id'
