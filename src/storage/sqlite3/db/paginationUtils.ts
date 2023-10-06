@@ -2,9 +2,11 @@ import { RequestQuery } from '@hapi/hapi';
 import logger from '../../../logger';
 
 export interface PaginatedRequestQuery extends RequestQuery {
-  'pagination.key'?: string;
-  'pagination.offset'?: string;
-  'pagination.limit'?: string;
+  // replicated CosmosSDK keys
+  'pagination.key'?: string; // base64 string key
+  'pagination.offset'?: string; // integer
+  'pagination.limit'?: string; // integer
+  // custom
   'pagination.before'?: string; // unix timestamp
   'pagination.after'?: string; // unix timestamp
 }
