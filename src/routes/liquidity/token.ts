@@ -14,9 +14,12 @@ const routes = [
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
         // get requested height from match header
-        const requestedHeight = Number(
-          `${request.headers.get('If-Match')}`.split('-').at(0)
+        const ifMatchHeader = `${request.headers['if-match']}`.replace(
+          /^"(.+)"$/,
+          '$1'
         );
+        const requestedHeight =
+          Number(ifMatchHeader.split('-').at(0)) || undefined;
 
         // get the liquidity data
         const data = await getHeightedTokenPairLiquidity(
