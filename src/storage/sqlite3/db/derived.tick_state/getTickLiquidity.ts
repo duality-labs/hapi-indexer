@@ -14,7 +14,7 @@ import {
 
 type DataRow = [tick_index: number, reserves: number];
 
-interface TickLiquidityResponse extends PaginatedResponse {
+export interface TickLiquidityResponse extends PaginatedResponse {
   shape: ['tick_index', 'reserves'];
   data: Array<DataRow>;
 }
@@ -244,6 +244,7 @@ export default async function getTokenTickLiquidity(
     ),
     pagination: {
       next_key: nextKey,
+      total: undefined,
     },
   };
 }

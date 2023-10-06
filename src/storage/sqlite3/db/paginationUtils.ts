@@ -6,6 +6,7 @@ export interface PaginatedRequestQuery extends RequestQuery {
   'pagination.key'?: string; // base64 string key
   'pagination.offset'?: string; // integer
   'pagination.limit'?: string; // integer
+  'pagination.count_total'?: string; // boolean
   // custom
   'pagination.before'?: string; // unix timestamp
   'pagination.after'?: string; // unix timestamp
@@ -16,10 +17,12 @@ export interface PaginationInput {
   limit: number;
   before: number; // unix timestamp
   after: number; // unix timestamp
+  count_total: boolean;
 }
 
 interface PaginationOutput {
   next_key: string | null;
+  total?: number;
 }
 
 export interface PaginatedResponse {
@@ -36,6 +39,9 @@ export function decodePagination(
     limit: Number(query['pagination.limit']) || undefined,
     before: Number(query['pagination.before']) || undefined,
     after: Number(query['pagination.after']) || undefined,
+    count_total: query['pagination.count_total']
+      ? query['pagination.count_total'] === 'true'
+      : undefined,
   };
   // use pagination key to replace any other pagination options requested
   try {
@@ -54,6 +60,7 @@ export function decodePagination(
     limit: Math.min(10000, unsafePagination.limit ?? defaultPageSize),
     before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
     after: unsafePagination.after ?? 0,
+    count_total: unsafePagination.count_total ?? false,
   };
 }
 
@@ -100,6 +107,7 @@ export function getPaginationFromQuery(
         // (for consistent processing)
         before: Number(query['pagination.before']) || undefined,
         after: Number(query['pagination.after']) || undefined,
+        count_total: Boolean(query['pagination.after']) || undefined,
       });
     }
     // otherwise return no new key
@@ -126,5 +134,5 @@ export function paginateData<T = unknown>(
       ? encodePaginationKey({ ...query, offset: nextOffset, limit })
       : null;
 
-  return [page, { next_key: nextKey }];
+  return [page, { next_key: nextKey, total: data.length }];
 }

@@ -1,7 +1,10 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../../logger';
-import { getHeightedTokenPairLiquidity } from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
+import {
+  TickLiquidityResponse,
+  getHeightedTokenPairLiquidity,
+} from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
 import {
   decodePagination,
   paginateData,
@@ -63,11 +66,12 @@ const routes = [
           request.query, // the time extents and frequency and such
           10000
         );
-        return {
+        const response: TickLiquidityResponse = {
           shape: ['tick_index', 'reserves'],
           data: page,
-          pagination: pagination,
+          pagination,
         };
+        return response;
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);
