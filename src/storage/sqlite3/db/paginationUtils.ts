@@ -24,12 +24,10 @@ export interface PaginatedResponse {
   pagination: PaginationOutput;
 }
 
-export function getPaginationFromQuery(
-  query: PaginatedRequestQuery
-): [
-  pagination: PaginationInput,
-  getNextKey: (offsetIncrease: number) => PaginationOutput['next_key']
-] {
+export function decodePagination(
+  query: PaginatedRequestQuery,
+  defaultPageSize = 1000
+): Required<PaginationInput> {
   // collect pagination keys into a pagination object
   let unsafePagination: Partial<PaginationInput> = {
     offset: Number(query['pagination.offset']) || undefined,
@@ -49,27 +47,44 @@ export function getPaginationFromQuery(
   }
 
   // ensure some basic pagination limits are respected
-  const pagination: Required<PaginationInput> = {
+  return {
     offset: Math.max(0, unsafePagination.offset ?? 0),
-    limit: Math.min(10000, unsafePagination.limit ?? 1000),
+    limit: Math.min(10000, unsafePagination.limit ?? defaultPageSize),
     before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
     after: unsafePagination.after ?? 0,
   };
+}
+
+// add callback to generate the next key from this request easily
+export function encodePaginationKey(
+  pagination: Partial<PaginationInput>
+): PaginationOutput['next_key'] {
+  return Buffer.from(JSON.stringify(pagination)).toString('base64url');
+}
+
+export function getPaginationFromQuery(
+  query: PaginatedRequestQuery,
+  defaultPageSize?: number
+): [
+  pagination: PaginationInput,
+  getNextKey: (offsetIncrease: number) => PaginationOutput['next_key']
+] {
+  // ensure some basic pagination limits are respected
+  const pagination = decodePagination(query, defaultPageSize);
 
   // add callback to generate the next key from this request easily
   const getNextKey = (offsetIncrease = 0): PaginationOutput['next_key'] => {
     // add offset increase and return key
     if (offsetIncrease > 0) {
-      const nextPagination: Partial<PaginationInput> = {
+      return encodePaginationKey({
         // restrict offset and limit for more controlled next page behavior
         offset: pagination.offset + offsetIncrease,
         limit: pagination.limit,
         // pass height queries back in almost exactly as they came
         // (for consistent processing)
-        before: unsafePagination.before,
-        after: unsafePagination.after,
-      };
-      return Buffer.from(JSON.stringify(nextPagination)).toString('base64url');
+        before: Number(query['pagination.before']) || undefined,
+        after: Number(query['pagination.after']) || undefined,
+      });
     }
     // otherwise return no new key
     return null;

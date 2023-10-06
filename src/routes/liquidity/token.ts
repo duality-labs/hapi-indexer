@@ -5,7 +5,7 @@ import {
   getHeightedTokenPairLiquidity,
   paginateTickLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
-import { getPaginationFromQuery } from '../../storage/sqlite3/db/paginationUtils';
+import { decodePagination } from '../../storage/sqlite3/db/paginationUtils';
 
 const routes = [
   {
@@ -53,7 +53,7 @@ const routes = [
         }
 
         // create tag from height and { offset, limit } pagination keys
-        const [{ offset, limit }] = getPaginationFromQuery(request.query, 10000);
+        const { offset, limit } = decodePagination(request.query, 10000);
         const etag = [height, offset, limit].join('-');
         h.entity({ etag });
 

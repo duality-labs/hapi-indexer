@@ -9,6 +9,8 @@ import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
 import {
   PaginatedRequestQuery,
   PaginatedResponse,
+  decodePagination,
+  encodePaginationKey,
   getPaginationFromQuery,
 } from '../paginationUtils';
 
@@ -101,12 +103,16 @@ export function paginateTickLiquidity(
   query: PaginatedRequestQuery = {}
 ): TickLiquidityResponse {
   // collect pagination keys into a pagination object
-  const [{ offset, limit }, getNextKey] = getPaginationFromQuery(query);
+  const { offset, limit } = decodePagination(query, 10000);
 
-  const page = data.slice(offset, offset + limit);
-  // if result includes an item from the next page then remove it
+  // get this page
+  const nextOffset = offset + limit;
+  const page = data.slice(offset, nextOffset);
   // and generate a next key to represent the next page of data
-  const nextKey = data.length > offset + limit ? getNextKey(limit) : null;
+  const nextKey =
+    data.length > nextOffset
+      ? encodePaginationKey({ offset: nextOffset, limit })
+      : null;
 
   return {
     shape: ['tick_index', 'reserves'],
