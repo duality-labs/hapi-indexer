@@ -10,19 +10,55 @@ import {
   paginateData,
 } from '../../storage/sqlite3/db/paginationUtils';
 
+function getEtagRequestHeader(
+  headers: Request['headers'],
+  header: 'If-Match' | 'If-None-Match'
+): string | undefined {
+  // get header as string
+  const headerString = headers[header] || headers[header.toLowerCase()];
+  // note: eTags should come enclosed in double quotes, this is due to an
+  //       RFC spec to distnguish weak vs. strong entity tags
+  // link: https://www.rfc-editor.org/rfc/rfc7232#section-2.3
+  // get header as un-double-quoted string
+  return `${headerString}`.replace(/^"(.+)"$/, '$1') || undefined;
+}
+
+function getHeightRequest(
+  headers: Request['headers'],
+  header: 'If-Match' | 'If-None-Match'
+): number | undefined {
+  const eTag = getEtagRequestHeader(headers, header);
+  return (eTag && Number(eTag.split('-').at(0))) || undefined;
+}
+
 const routes = [
   {
     method: 'GET',
     path: '/liquidity/token/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
+        const pollHeight = getHeightRequest(request.headers, 'If-None-Match');
+
+        if (pollHeight) {
+          let currentData = await getHeightedTokenPairLiquidity(
+            request.server,
+            request.params['tokenA'],
+            request.params['tokenB']
+          );
+          while ((currentData?.[0] || 0) <= pollHeight) {
+            // wait a second
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            // get current data
+            currentData = await getHeightedTokenPairLiquidity(
+              request.server,
+              request.params['tokenA'],
+              request.params['tokenB']
+            );
+          }
+        }
+
         // get requested height from match header
-        const ifMatchHeader = `${request.headers['if-match']}`.replace(
-          /^"(.+)"$/,
-          '$1'
-        );
-        const requestedHeight =
-          Number(ifMatchHeader.split('-').at(0)) || undefined;
+        const requestedHeight = getHeightRequest(request.headers, 'If-Match');
 
         // get the liquidity data
         const data = await getHeightedTokenPairLiquidity(

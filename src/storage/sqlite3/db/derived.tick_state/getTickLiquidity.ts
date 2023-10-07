@@ -128,7 +128,7 @@ export async function getHeightedTokenPairLiquidity(
   server: Request['server'],
   tokenA: string,
   tokenB: string,
-  requestedHeight: string | number | undefined
+  requestedHeight?: string | number
 ): Promise<HeightedTickState | null> {
   const liquidityCache = getLiquidityCache(server);
   const invertedOrder = await hasInvertedOrder(tokenA, tokenB);
