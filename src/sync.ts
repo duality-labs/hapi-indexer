@@ -32,9 +32,9 @@ interface RpcBlockHeaderLookupResponse {
   };
 }
 
-const { RPC_API = '', POLLING_INTERVAL_SECONDS = '' } = process.env;
+const { RPC_API = '', POLLING_INTERVAL_MS = '' } = process.env;
 
-const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
+const pollIntervalMs = Number(POLLING_INTERVAL_MS) || 500;
 
 type PageReader = (options: {
   page?: number;
@@ -248,7 +248,7 @@ export async function keepUp() {
     // note: prefer setTimeout over setInterval because of concerns about
     // overlapping ingestions into the DB (ie. if ingestion takes longer than
     // the setInterval time then multiple invocations of catchUp will run concurrently)
-    setTimeout(poll, 1000 * pollIntervalTimeSeconds);
+    setTimeout(poll, pollIntervalMs);
   }
 
   poll();
