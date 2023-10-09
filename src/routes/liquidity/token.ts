@@ -3,6 +3,7 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from '../../logger';
 import {
   TickLiquidityResponse,
+  HeightedTickState,
   getHeightedTokenPairLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
 import {
@@ -39,13 +40,17 @@ const routes = [
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
         const pollHeight = getHeightRequest(request.headers, 'If-None-Match');
+        const requestedHeight = getHeightRequest(request.headers, 'If-Match');
 
+        let currentData: HeightedTickState | null = null;
         if (pollHeight) {
-          let currentData = await getHeightedTokenPairLiquidity(
+          currentData = await getHeightedTokenPairLiquidity(
             request.server,
             request.params['tokenA'],
-            request.params['tokenB']
+            request.params['tokenB'],
+            { fromHeight: pollHeight, toHeight: requestedHeight }
           );
+          // wait until we get new data (newer than known height header)
           while ((currentData?.[0] || 0) <= pollHeight) {
             // wait for next block
             await new Promise((resolve) => {
@@ -55,21 +60,21 @@ const routes = [
             currentData = await getHeightedTokenPairLiquidity(
               request.server,
               request.params['tokenA'],
-              request.params['tokenB']
+              request.params['tokenB'],
+              { fromHeight: pollHeight, toHeight: requestedHeight }
             );
           }
         }
 
-        // get requested height from match header
-        const requestedHeight = getHeightRequest(request.headers, 'If-Match');
-
         // get the liquidity data
-        const data = await getHeightedTokenPairLiquidity(
-          request.server,
-          request.params['tokenA'],
-          request.params['tokenB'],
-          requestedHeight
-        );
+        const data =
+          currentData ||
+          (await getHeightedTokenPairLiquidity(
+            request.server,
+            request.params['tokenA'],
+            request.params['tokenB'],
+            { fromHeight: pollHeight, toHeight: requestedHeight }
+          ));
 
         // return errors if needed
         if (!data) {

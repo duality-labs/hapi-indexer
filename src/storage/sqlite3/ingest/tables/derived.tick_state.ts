@@ -61,7 +61,8 @@ export async function upsertDerivedTickStateRows(
         'Reserves',
 
         'related.dex.pair',
-        'related.dex.token'
+        'related.dex.token',
+        'related.block.header.height'
       ) values (
 
         ${txEvent.attributes['TickIndex']},
@@ -85,7 +86,8 @@ export async function upsertDerivedTickStateRows(
           WHERE (
             'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
           )
-        )
+        ),
+        ${tx_result.height}
       )
     `);
 

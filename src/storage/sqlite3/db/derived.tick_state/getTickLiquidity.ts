@@ -23,7 +23,12 @@ interface TickStateTableRow {
   tickIndex: number;
   reserves: string;
 }
-async function getTickState(token0: string, token1: string, token: string) {
+async function getTickState(
+  token0: string,
+  token1: string,
+  token: string,
+  fromHeight = 0
+) {
   const reverseDirection = token1 === token;
   return await db
     .all<TickStateTableRow[]>(
@@ -53,6 +58,7 @@ async function getTickState(token0: string, token1: string, token: string) {
             'dex.tokens'.'Token' = ${token}
           )
         ) AND
+        'derived.tick_state'.'related.block.header.height' > ${fromHeight} AND
         'derived.tick_state'.'Reserves' != '0'
       )
     `.append(`--sql
@@ -79,16 +85,20 @@ async function getTickState(token0: string, token1: string, token: string) {
 
 export type HeightedTickState = [number, DataRow[], DataRow[]];
 
-export async function getHeightedTickState(token0: string, token1: string) {
+export async function getHeightedTickState(
+  token0: string,
+  token1: string,
+  fromHeight?: number | string
+) {
   return new Promise<HeightedTickState>((resolve, reject) => {
     db.getDatabaseInstance().parallelize(() => {
       Promise.all([
         // get chain height
         getHeight(),
         // get tokenA liquidity
-        getTickState(token0, token1, token0),
+        getTickState(token0, token1, token0, Number(fromHeight)),
         // get tokenB liquidity
-        getTickState(token0, token1, token1),
+        getTickState(token0, token1, token1, Number(fromHeight)),
       ])
         .then((promises) => resolve(promises))
         .catch((error) => reject(error));
@@ -107,14 +117,21 @@ function getLiquidityCache(server: Request['server']) {
       segment: '/liquidity/token/tokenA/tokenB',
       expiresIn: 1000 * 60, // allow for a few block heights
       generateFunc: async (id) => {
-        const [token0, token1] = `${id}`.split('|');
+        const [token0, token1, fromHeight = 0] = `${id}`.split('|');
         if (!token0 || !token1) {
           throw new Error('Tokens not specified');
         }
-        const ticksState = await getHeightedTickState(token0, token1);
+        const ticksState = await getHeightedTickState(
+          token0,
+          token1,
+          fromHeight
+        );
         const [height] = ticksState;
         // set cache entry with this height for future lookups
-        liquidityCache.set([token0, token1, height].join('|'), ticksState);
+        liquidityCache.set(
+          [token0, token1, fromHeight, height].join('|'),
+          ticksState
+        );
         // return this cache set
         return ticksState;
       },
@@ -128,7 +145,10 @@ export async function getHeightedTokenPairLiquidity(
   server: Request['server'],
   tokenA: string,
   tokenB: string,
-  requestedHeight?: string | number
+  {
+    fromHeight = 0,
+    toHeight,
+  }: { fromHeight?: string | number; toHeight?: string | number } = {}
 ): Promise<HeightedTickState | null> {
   const liquidityCache = getLiquidityCache(server);
   const invertedOrder = await hasInvertedOrder(tokenA, tokenB);
@@ -137,7 +157,7 @@ export async function getHeightedTokenPairLiquidity(
 
   // get liquidity state through cache
   const response = await liquidityCache.get(
-    [token0, token1, requestedHeight].filter(Boolean).join('|')
+    [token0, token1, fromHeight, toHeight].join('|')
   );
   // return the response data in the correct order
   if (response) {
