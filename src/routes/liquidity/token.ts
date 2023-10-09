@@ -9,6 +9,7 @@ import {
   decodePagination,
   paginateData,
 } from '../../storage/sqlite3/db/paginationUtils';
+import { newHeightEmitter } from '../../sync';
 
 function getEtagRequestHeader(
   headers: Request['headers'],
@@ -46,8 +47,10 @@ const routes = [
             request.params['tokenB']
           );
           while ((currentData?.[0] || 0) <= pollHeight) {
-            // wait a second
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            // wait for next block
+            await new Promise((resolve) => {
+              newHeightEmitter.once('newHeight', resolve);
+            });
             // get current data
             currentData = await getHeightedTokenPairLiquidity(
               request.server,

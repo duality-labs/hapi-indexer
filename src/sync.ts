@@ -1,3 +1,4 @@
+import EventEmitter from 'events';
 import { createLogger, transports, config, format, Logger } from 'winston';
 import { ResponseDeliverTx } from 'cosmjs-types/tendermint/abci/types';
 
@@ -203,6 +204,8 @@ export async function catchUp({
   }, logger.child({ label: 'transaction' }));
 }
 
+export const newHeightEmitter = new EventEmitter();
+
 export async function keepUp() {
   defaultLogger.info(
     `keeping up: polling from block height: ${maxBlockHeight}`
@@ -222,6 +225,7 @@ export async function keepUp() {
 
       // log block height increments
       if (maxBlockHeight > lastBlockHeight) {
+        newHeightEmitter.emit('newHeight', maxBlockHeight);
         defaultLogger.info(
           `keeping up: last block processed: ${maxBlockHeight} (done in ${(
             duration / 1000
