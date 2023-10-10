@@ -16,6 +16,7 @@ type DataRow = [tick_index: number, reserves: number];
 
 export interface TickLiquidityResponse extends PaginatedResponse {
   shape: ['tick_index', 'reserves'];
+  updateFromHeight?: number;
   data: Array<DataRow>;
 }
 
@@ -59,7 +60,8 @@ async function getTickState(
           )
         ) AND
         'derived.tick_state'.'related.block.header.height' > ${fromHeight} AND
-        'derived.tick_state'.'Reserves' != '0'
+        -- when returning an update: zero value reserves are important to know
+        'derived.tick_state'.'Reserves' != ${fromHeight > 0 ? '' : '0'}
       )
     `.append(`--sql
       -- order by tick side

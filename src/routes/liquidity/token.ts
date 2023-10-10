@@ -4,6 +4,7 @@ import logger from '../../logger';
 import {
   TickLiquidityResponse,
   HeightedTickState,
+  TickLiquidityResponse,
   getHeightedTokenPairLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
 import {
@@ -113,6 +114,9 @@ const routes = [
         const response: TickLiquidityResponse = {
           shape: ['tick_index', 'reserves'],
           data: page,
+          // indicate that this response should be partial data:
+          // the data contains only updates since the updatesFromHeight height
+          updateFromHeight: pollHeight,
           pagination,
         };
         return response;
