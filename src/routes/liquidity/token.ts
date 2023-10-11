@@ -43,14 +43,17 @@ const routes = [
         const pollHeight = getHeightRequest(request.headers, 'If-None-Match');
         const requestedHeight = getHeightRequest(request.headers, 'If-Match');
 
-        let currentData: HeightedTickState | null = null;
-        if (pollHeight) {
-          currentData = await getHeightedTokenPairLiquidity(
+        const getData = () =>
+          getHeightedTokenPairLiquidity(
             request.server,
             request.params['tokenA'],
             request.params['tokenB'],
             { fromHeight: pollHeight, toHeight: requestedHeight }
           );
+
+        let currentData: HeightedTickState | null = null;
+        if (pollHeight) {
+          currentData = await getData();
           // wait until we get new data (newer than known height header)
           while ((currentData?.[0] || 0) <= pollHeight) {
             // wait for next block
@@ -58,24 +61,12 @@ const routes = [
               newHeightEmitter.once('newHeight', resolve);
             });
             // get current data
-            currentData = await getHeightedTokenPairLiquidity(
-              request.server,
-              request.params['tokenA'],
-              request.params['tokenB'],
-              { fromHeight: pollHeight, toHeight: requestedHeight }
-            );
+            currentData = await getData();
           }
         }
 
         // get the liquidity data
-        const data =
-          currentData ||
-          (await getHeightedTokenPairLiquidity(
-            request.server,
-            request.params['tokenA'],
-            request.params['tokenB'],
-            { fromHeight: pollHeight, toHeight: requestedHeight }
-          ));
+        const data = currentData || (await getData());
 
         // return errors if needed
         if (!data) {
