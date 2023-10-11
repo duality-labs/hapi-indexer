@@ -56,10 +56,24 @@ export function decodePagination(
 }
 
 // add callback to generate the next key from this request easily
+const paginationKeys: Array<keyof PaginationInput> = [
+  'offset',
+  'limit',
+  'before',
+  'after',
+];
 export function encodePaginationKey(
-  pagination: Partial<PaginationInput>
+  pagination: Partial<PaginationInput | PaginatedRequestQuery>
 ): PaginationOutput['next_key'] {
-  return Buffer.from(JSON.stringify(pagination)).toString('base64url');
+  // whitelist only expected pagination keys
+  const paginationProps = Object.fromEntries(
+    Object.entries(pagination)
+      // remove pagination prefix
+      .map(([key, value]) => [key.replace(/^pagination\./, ''), value])
+      // remove non-pagination keys
+      .filter(([key]) => (paginationKeys as string[]).includes(key))
+  );
+  return Buffer.from(JSON.stringify(paginationProps)).toString('base64url');
 }
 
 export function getPaginationFromQuery(
@@ -91,4 +105,24 @@ export function getPaginationFromQuery(
   };
 
   return [pagination, getNextKey];
+}
+
+export function paginateData<T = unknown>(
+  data: Array<T>,
+  query: PaginatedRequestQuery,
+  defaultPageSize?: number
+): [Array<T>, PaginationOutput] {
+  // collect pagination keys into a pagination object
+  const { offset, limit } = decodePagination(query, defaultPageSize);
+
+  // get this page
+  const nextOffset = offset + limit;
+  const page = data.slice(offset, nextOffset);
+  // and generate a next key to represent the next page of data
+  const nextKey =
+    data.length > nextOffset
+      ? encodePaginationKey({ ...query, offset: nextOffset, limit })
+      : null;
+
+  return [page, { next_key: nextKey }];
 }

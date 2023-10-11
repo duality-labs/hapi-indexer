@@ -1,11 +1,11 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../../logger';
+import { getHeightedTokenPairLiquidity } from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
 import {
-  getHeightedTokenPairLiquidity,
-  paginateTickLiquidity,
-} from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
-import { decodePagination } from '../../storage/sqlite3/db/paginationUtils';
+  decodePagination,
+  paginateData,
+} from '../../storage/sqlite3/db/paginationUtils';
 
 const routes = [
   {
@@ -58,10 +58,16 @@ const routes = [
         h.entity({ etag });
 
         // paginate the data
-        return paginateTickLiquidity(
+        const [page, pagination] = paginateData(
           tickStateA,
-          request.query // the time extents and frequency and such
+          request.query, // the time extents and frequency and such
+          10000
         );
+        return {
+          shape: ['tick_index', 'reserves'],
+          data: page,
+          pagination: pagination,
+        };
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);
