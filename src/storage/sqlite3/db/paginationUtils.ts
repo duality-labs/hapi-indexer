@@ -71,7 +71,7 @@ const paginationKeys: Array<keyof PaginationInput> = [
   'before',
   'after',
 ];
-export function encodePaginationKey(
+function encodePaginationKey(
   pagination: Partial<PaginationInput | PaginatedRequestQuery>
 ): PaginationOutput['next_key'] {
   // whitelist only expected pagination keys

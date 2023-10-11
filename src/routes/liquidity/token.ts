@@ -2,34 +2,23 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../../logger';
 import {
-  TickLiquidityResponse,
+  DataRow,
   getHeightedTokenPairLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
 import {
   decodePagination,
   paginateData,
+  PaginatedResponse,
 } from '../../storage/sqlite3/db/paginationUtils';
+import {
+  BlockRangeResponse,
+  getBlockRange,
+} from '../../storage/sqlite3/db/blockRangeUtils';
 import { newHeightEmitter } from '../../sync';
 
-function getEtagRequestHeader(
-  headers: Request['headers'],
-  header: 'If-Match' | 'If-None-Match'
-): string | undefined {
-  // get header as string
-  const headerString = headers[header] || headers[header.toLowerCase()];
-  // note: eTags should come enclosed in double quotes, this is due to an
-  //       RFC spec to distnguish weak vs. strong entity tags
-  // link: https://www.rfc-editor.org/rfc/rfc7232#section-2.3
-  // get header as un-double-quoted string
-  return `${headerString}`.replace(/^"(.+)"$/, '$1') || undefined;
-}
-
-function getHeightRequest(
-  headers: Request['headers'],
-  header: 'If-Match' | 'If-None-Match'
-): number | undefined {
-  const eTag = getEtagRequestHeader(headers, header);
-  return (eTag && Number(eTag.split('-').at(0))) || undefined;
+interface TickLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
+  shape: ['tick_index', 'reserves'];
+  data: Array<DataRow>;
 }
 
 const routes = [
@@ -38,24 +27,24 @@ const routes = [
     path: '/liquidity/token/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
-        const pollHeight = getHeightRequest(request.headers, 'If-None-Match');
-        const requestedHeight = getHeightRequest(request.headers, 'If-Match');
+        const blockRange = getBlockRange(request.query);
+        const { from_height: fromHeight = 0, to_height: toHeight } = blockRange;
 
         const getData = () =>
           getHeightedTokenPairLiquidity(
             request.server,
             request.params['tokenA'],
             request.params['tokenB'],
-            { fromHeight: pollHeight, toHeight: requestedHeight }
+            { fromHeight, toHeight }
           );
 
         // get the liquidity data
         let data = await getData();
 
         // await new data if the data does not meet the known height requirement
-        if (pollHeight) {
+        if (data) {
           // wait until we get new data (newer than known height header)
-          while ((data?.[0] || 0) <= pollHeight) {
+          while ((data?.[0] || 0) <= fromHeight) {
             // wait for next block
             await new Promise((resolve) => {
               newHeightEmitter.once('newHeight', resolve);
@@ -71,18 +60,18 @@ const routes = [
         }
 
         const [height, tickStateA] = data;
-        if (requestedHeight) {
-          if (height > requestedHeight) {
+        if (toHeight) {
+          if (height > toHeight) {
             return h
               .response(
-                `Token liquidity for height ${requestedHeight} data is no longer available`
+                `Token liquidity for height ${toHeight} data is no longer available`
               )
               .code(412);
           }
-          if (height < requestedHeight) {
+          if (height < toHeight) {
             return h
               .response(
-                `Token liquidity for height ${requestedHeight} data is not yet available`
+                `Token liquidity for height ${toHeight} data is not yet available`
               )
               .code(412);
           }
@@ -90,7 +79,7 @@ const routes = [
 
         // create tag from height and { offset, limit } pagination keys
         const { offset, limit } = decodePagination(request.query, 10000);
-        const etag = [height, offset, limit].join('-');
+        const etag = [fromHeight, height, offset, limit].join('-');
         h.entity({ etag });
 
         // paginate the data
@@ -102,10 +91,12 @@ const routes = [
         const response: TickLiquidityResponse = {
           shape: ['tick_index', 'reserves'],
           data: page,
-          // indicate that this response should be partial data:
-          // the data contains only updates since the updatesFromHeight height
-          updateFromHeight: pollHeight,
           pagination,
+          // indicate what range the data response covers
+          block_range: {
+            from_height: fromHeight,
+            to_height: height,
+          },
         };
         return response;
       } catch (err: unknown) {
