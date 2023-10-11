@@ -3,8 +3,6 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from '../../logger';
 import {
   TickLiquidityResponse,
-  HeightedTickState,
-  TickLiquidityResponse,
   getHeightedTokenPairLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
 import {
@@ -51,22 +49,21 @@ const routes = [
             { fromHeight: pollHeight, toHeight: requestedHeight }
           );
 
-        let currentData: HeightedTickState | null = null;
+        // get the liquidity data
+        let data = await getData();
+
+        // await new data if the data does not meet the known height requirement
         if (pollHeight) {
-          currentData = await getData();
           // wait until we get new data (newer than known height header)
-          while ((currentData?.[0] || 0) <= pollHeight) {
+          while ((data?.[0] || 0) <= pollHeight) {
             // wait for next block
             await new Promise((resolve) => {
               newHeightEmitter.once('newHeight', resolve);
             });
             // get current data
-            currentData = await getData();
+            data = await getData();
           }
         }
-
-        // get the liquidity data
-        const data = currentData || (await getData());
 
         // return errors if needed
         if (!data) {
