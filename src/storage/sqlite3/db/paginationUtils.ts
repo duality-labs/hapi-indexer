@@ -29,7 +29,7 @@ export interface PaginatedResponse {
   pagination: PaginationOutput;
 }
 
-export function decodePagination(
+function decodePagination(
   query: PaginatedRequestQuery,
   defaultPageSize = 1000
 ): Required<PaginationInput> {
