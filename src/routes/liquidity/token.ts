@@ -20,6 +20,8 @@ interface TickLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
   data: Array<DataRow>;
 }
 
+const defaultPaginationLimit = 10000;
+
 const routes = [
   {
     method: 'GET',
@@ -80,7 +82,7 @@ const routes = [
         const [page, pagination] = paginateData(
           tickStateA,
           request.query, // the time extents and frequency and such
-          10000
+          defaultPaginationLimit
         );
         const response: TickLiquidityResponse = {
           shape: ['tick_index', 'reserves'],
