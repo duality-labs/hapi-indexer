@@ -4,7 +4,8 @@ import sql from 'sql-template-strings';
 import db from './storage/sqlite3/db/db';
 import logger from './logger';
 
-import liquidityRoutes from './routes/liquidity/token';
+import liquidityTokenRoutes from './routes/liquidity/token';
+import liquidityPairRoutes from './routes/liquidity/pair';
 
 import timeseriesPriceRoutes from './routes/timeseries/price';
 import timeseriesVolumeRoutes from './routes/timeseries/volume';
@@ -58,7 +59,8 @@ const debugPath = {
 
 const routes = [
   // liquidity routes
-  ...liquidityRoutes,
+  ...liquidityTokenRoutes,
+  ...liquidityPairRoutes,
 
   // timeseries routes
   ...timeseriesPriceRoutes,
