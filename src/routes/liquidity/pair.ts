@@ -16,7 +16,7 @@ import {
 import { newHeightEmitter } from '../../sync';
 
 interface PairLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
-  shape: ['tick_index', 'reserves'];
+  shape: [['tick_index', 'reserves'], ['tick_index', 'reserves']];
   data: [Array<DataRow>, Array<DataRow>];
 }
 
@@ -90,7 +90,10 @@ const routes = [
           defaultPaginationLimit
         );
         const response: PairLiquidityResponse = {
-          shape: ['tick_index', 'reserves'],
+          shape: [
+            ['tick_index', 'reserves'],
+            ['tick_index', 'reserves'],
+          ],
           data: [pageA, pageB],
           pagination: {
             // the next key will be the same if it exists on both sides
