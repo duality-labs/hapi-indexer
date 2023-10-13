@@ -13,7 +13,7 @@ import {
   BlockRangeResponse,
   getBlockRange,
 } from '../../storage/sqlite3/db/blockRangeUtils';
-import { newHeightEmitter } from '../../sync';
+import { waitForNextBlock } from '../../sync';
 
 interface TickLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
   shape: ['tick_index', 'reserves'];
@@ -47,9 +47,7 @@ const routes = [
           // wait until we get new data (newer than known height header)
           while ((data?.[0] || 0) <= fromHeight) {
             // wait for next block
-            await new Promise((resolve) => {
-              newHeightEmitter.once('newHeight', resolve);
-            });
+            await waitForNextBlock();
             // get current data
             data = await getData();
           }

@@ -204,7 +204,13 @@ export async function catchUp({
   }, logger.child({ label: 'transaction' }));
 }
 
-export const newHeightEmitter = new EventEmitter();
+// export a function to allow other functions to listen for the next block
+const newHeightEmitter = new EventEmitter();
+export function waitForNextBlock(): Promise<void> {
+  return new Promise((resolve) => {
+    newHeightEmitter.once('newHeight', resolve);
+  });
+}
 
 export async function keepUp() {
   defaultLogger.info(
