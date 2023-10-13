@@ -206,9 +206,9 @@ export async function catchUp({
 
 // export a function to allow other functions to listen for the next block
 const newHeightEmitter = new EventEmitter();
-export function waitForNextBlock(): Promise<void> {
+export function waitForNextBlock(): Promise<number> {
   return new Promise((resolve) => {
-    newHeightEmitter.once('newHeight', resolve);
+    newHeightEmitter.once('newHeight', (height: number) => resolve(height));
   });
 }
 
