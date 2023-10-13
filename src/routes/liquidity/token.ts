@@ -14,6 +14,11 @@ import {
   getBlockRange,
 } from '../../storage/sqlite3/db/blockRangeUtils';
 import { waitForNextBlock } from '../../sync';
+import {
+  getMsLeft,
+  inMs,
+  minutes,
+} from '../../storage/sqlite3/db/timeseriesUtils';
 
 interface TickLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
   shape: ['tick_index', 'reserves'];
@@ -21,6 +26,7 @@ interface TickLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
 }
 
 const defaultPaginationLimit = 10000;
+const timeoutMs = 3 * minutes * inMs;
 
 const routes = [
   {
@@ -43,11 +49,17 @@ const routes = [
         let data = await getData();
 
         // await new data if the data does not meet the known height requirement
-        if (data) {
+        if (data && fromHeight > 0) {
+          const timeLeft = getMsLeft(timeoutMs);
           // wait until we get new data (newer than known height header)
           while ((data?.[0] || 0) <= fromHeight) {
             // wait for next block
-            await waitForNextBlock().catch(() => undefined); // ignore timeouts;
+            try {
+              await waitForNextBlock(timeLeft());
+            } catch {
+              // but throw timeout if waited for too long
+              return h.response('Request Timeout').code(408);
+            }
             // get current data
             data = await getData();
           }
