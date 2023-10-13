@@ -77,27 +77,6 @@ async function getTickState(
 
 export type HeightedTickState = [number, DataRow[], DataRow[]];
 
-export async function getHeightedTickState(
-  token0: string,
-  token1: string,
-  fromHeight?: number | string
-) {
-  return new Promise<HeightedTickState>((resolve, reject) => {
-    db.getDatabaseInstance().parallelize(() => {
-      Promise.all([
-        // get chain height
-        getHeight(),
-        // get tokenA liquidity
-        getTickState(token0, token1, token0, Number(fromHeight)),
-        // get tokenB liquidity
-        getTickState(token0, token1, token1, Number(fromHeight)),
-      ])
-        .then((promises) => resolve(promises))
-        .catch((error) => reject(error));
-    });
-  });
-}
-
 type LiquidityCache = Policy<
   HeightedTickState,
   CachePolicyOptions<HeightedTickState>
@@ -113,10 +92,21 @@ function getLiquidityCache(server: Request['server']) {
         if (!token0 || !token1) {
           throw new Error('Tokens not specified');
         }
-        const ticksState = await getHeightedTickState(
-          token0,
-          token1,
-          fromHeight
+        const ticksState = await new Promise<HeightedTickState>(
+          (resolve, reject) => {
+            db.getDatabaseInstance().parallelize(() => {
+              Promise.all([
+                // get chain height
+                getHeight(),
+                // get tokenA liquidity
+                getTickState(token0, token1, token0, Number(fromHeight)),
+                // get tokenB liquidity
+                getTickState(token0, token1, token1, Number(fromHeight)),
+              ])
+                .then((promises) => resolve(promises))
+                .catch((error) => reject(error));
+            });
+          }
         );
         const [height] = ticksState;
         // set cache entry with this height for future lookups
