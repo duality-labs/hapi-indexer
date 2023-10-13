@@ -6,6 +6,7 @@ import { logFileTransport } from './logger';
 import { TxResponse } from './@types/tx';
 
 import ingestTxs from './storage/sqlite3/ingest/ingestTxResponse';
+import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
 
 // define the snamke case that the response is actually in
 interface RpcTxResult extends Omit<ResponseDeliverTx, 'gasWanted' | 'gasUsed'> {
@@ -206,9 +207,23 @@ export async function catchUp({
 
 // export a function to allow other functions to listen for the next block
 const newHeightEmitter = new EventEmitter();
-export function waitForNextBlock(): Promise<number> {
-  return new Promise((resolve) => {
-    newHeightEmitter.once('newHeight', (height: number) => resolve(height));
+export function waitForNextBlock(maxMs = 1 * minutes * inMs): Promise<number> {
+  return new Promise((resolve, reject) => {
+    // add timeout
+    const timeout = setTimeout(() => {
+      // cancel listener
+      newHeightEmitter.removeListener('newHeight', listener);
+      // return error
+      reject(new Error(`New Height listener timeout after ${maxMs / 1000}s`));
+    }, maxMs);
+    // add listener
+    const listener = (height: number) => {
+      // remove timoue
+      clearTimeout(timeout);
+      // return height
+      resolve(height);
+    };
+    newHeightEmitter.once('newHeight', listener);
   });
 }
 

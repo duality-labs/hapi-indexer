@@ -47,7 +47,7 @@ const routes = [
           // wait until we get new data (newer than known height header)
           while ((data?.[0] || 0) <= fromHeight) {
             // wait for next block
-            await waitForNextBlock();
+            await waitForNextBlock().catch(() => undefined); // ignore timeouts
             // get current data
             data = await getData();
           }
