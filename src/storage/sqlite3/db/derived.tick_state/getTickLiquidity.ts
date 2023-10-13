@@ -75,16 +75,21 @@ async function getTickState(
     });
 }
 
-export type HeightedTickState = [number, DataRow[], DataRow[]];
+type HeightedTokenPairLiquidity = [
+  height: number,
+  reservesTokenA: DataRow[],
+  reservesTokenB: DataRow[]
+];
 
 type LiquidityCache = Policy<
-  HeightedTickState,
-  CachePolicyOptions<HeightedTickState>
+  HeightedTokenPairLiquidity,
+  CachePolicyOptions<HeightedTokenPairLiquidity>
 >;
+
 let liquidityCache: LiquidityCache;
 function getLiquidityCache(server: Request['server']) {
   if (!liquidityCache) {
-    liquidityCache = server.cache<HeightedTickState>({
+    liquidityCache = server.cache<HeightedTokenPairLiquidity>({
       segment: '/liquidity/token/tokenA/tokenB',
       expiresIn: 1000 * 60, // allow for a few block heights
       generateFunc: async (id) => {
@@ -92,7 +97,7 @@ function getLiquidityCache(server: Request['server']) {
         if (!token0 || !token1) {
           throw new Error('Tokens not specified');
         }
-        const ticksState = await new Promise<HeightedTickState>(
+        const heightedPairState = await new Promise<HeightedTokenPairLiquidity>(
           (resolve, reject) => {
             db.getDatabaseInstance().parallelize(() => {
               Promise.all([
@@ -108,14 +113,14 @@ function getLiquidityCache(server: Request['server']) {
             });
           }
         );
-        const [height] = ticksState;
+        const [height] = heightedPairState;
         // set cache entry with this height for future lookups
         liquidityCache.set(
           [token0, token1, fromHeight, height].join('|'),
-          ticksState
+          heightedPairState
         );
         // return this cache set
-        return ticksState;
+        return heightedPairState;
       },
       generateTimeout: 1000 * 20,
     });
@@ -131,7 +136,7 @@ export async function getHeightedTokenPairLiquidity(
     fromHeight = 0,
     toHeight,
   }: { fromHeight?: string | number; toHeight?: string | number } = {}
-): Promise<HeightedTickState | null> {
+): Promise<HeightedTokenPairLiquidity | null> {
   const liquidityCache = getLiquidityCache(server);
   const invertedOrder = await hasInvertedOrder(tokenA, tokenB);
   const token0 = invertedOrder ? tokenB : tokenA;
