@@ -143,14 +143,19 @@ export async function getHeightedTokenPairLiquidity(
   const token1 = invertedOrder ? tokenA : tokenB;
 
   // get liquidity state through cache
-  const response = await liquidityCache.get(
-    [token0, token1, fromHeight, toHeight].join('|')
-  );
+  const cacheKey = [token0, token1, fromHeight, toHeight].join('|');
+  const response = await liquidityCache.get(cacheKey);
   // return the response data in the correct order
   if (response) {
     const [height, tickState0, tickState1] = Array.isArray(response)
       ? response
       : response.value;
+    // if the request is for current height and the result is empty
+    // we remove the cache result after all current function calls
+    // (to liquidityCache.get) have executed, so we can query new data often
+    if (!toHeight && !(tickState0.length + tickState1.length)) {
+      setTimeout(() => liquidityCache.drop(cacheKey).catch(() => null), 1);
+    }
     return invertedOrder
       ? [height, tickState1, tickState0]
       : [height, tickState0, tickState1];
