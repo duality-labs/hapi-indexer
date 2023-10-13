@@ -4,7 +4,7 @@ import logger from '../../logger';
 import {
   DataRow,
   getHeightedTokenPairLiquidity,
-} from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
+} from '../../storage/sqlite3/db/derived.tick_state/getTokenPairLiquidity';
 import {
   paginateData,
   PaginatedResponse,
