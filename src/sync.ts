@@ -1,3 +1,4 @@
+import EventEmitter from 'events';
 import { createLogger, transports, config, format, Logger } from 'winston';
 import { ResponseDeliverTx } from 'cosmjs-types/tendermint/abci/types';
 
@@ -5,6 +6,7 @@ import { logFileTransport } from './logger';
 import { TxResponse } from './@types/tx';
 
 import ingestTxs from './storage/sqlite3/ingest/ingestTxResponse';
+import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
 
 // define the snamke case that the response is actually in
 interface RpcTxResult extends Omit<ResponseDeliverTx, 'gasWanted' | 'gasUsed'> {
@@ -31,9 +33,9 @@ interface RpcBlockHeaderLookupResponse {
   };
 }
 
-const { RPC_API = '', POLLING_INTERVAL_SECONDS = '' } = process.env;
+const { RPC_API = '', POLLING_INTERVAL_MS = '' } = process.env;
 
-const pollIntervalTimeSeconds = Number(POLLING_INTERVAL_SECONDS) || 5;
+const pollIntervalMs = Number(POLLING_INTERVAL_MS) || 500;
 
 type PageReader = (options: {
   page?: number;
@@ -203,6 +205,28 @@ export async function catchUp({
   }, logger.child({ label: 'transaction' }));
 }
 
+// export a function to allow other functions to listen for the next block
+const newHeightEmitter = new EventEmitter();
+export function waitForNextBlock(maxMs = 1 * minutes * inMs): Promise<number> {
+  return new Promise((resolve, reject) => {
+    // add timeout
+    const timeout = setTimeout(() => {
+      // cancel listener
+      newHeightEmitter.removeListener('newHeight', listener);
+      // return error
+      reject(new Error(`New Height listener timeout after ${maxMs / 1000}s`));
+    }, maxMs);
+    // add listener
+    const listener = (height: number) => {
+      // remove timoue
+      clearTimeout(timeout);
+      // return height
+      resolve(height);
+    };
+    newHeightEmitter.once('newHeight', listener);
+  });
+}
+
 export async function keepUp() {
   defaultLogger.info(
     `keeping up: polling from block height: ${maxBlockHeight}`
@@ -222,6 +246,7 @@ export async function keepUp() {
 
       // log block height increments
       if (maxBlockHeight > lastBlockHeight) {
+        newHeightEmitter.emit('newHeight', maxBlockHeight);
         defaultLogger.info(
           `keeping up: last block processed: ${maxBlockHeight} (done in ${(
             duration / 1000
@@ -244,7 +269,7 @@ export async function keepUp() {
     // note: prefer setTimeout over setInterval because of concerns about
     // overlapping ingestions into the DB (ie. if ingestion takes longer than
     // the setInterval time then multiple invocations of catchUp will run concurrently)
-    setTimeout(poll, 1000 * pollIntervalTimeSeconds);
+    setTimeout(poll, pollIntervalMs);
   }
 
   poll();

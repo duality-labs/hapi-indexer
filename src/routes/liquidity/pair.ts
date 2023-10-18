@@ -20,9 +20,9 @@ import {
   minutes,
 } from '../../storage/sqlite3/db/timeseriesUtils';
 
-interface TickLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
-  shape: ['tick_index', 'reserves'];
-  data: Array<DataRow>;
+interface PairLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
+  shape: [['tick_index', 'reserves'], ['tick_index', 'reserves']];
+  data: [Array<DataRow>, Array<DataRow>];
 }
 
 const defaultPaginationLimit = 10000;
@@ -31,7 +31,7 @@ const timeoutMs = 3 * minutes * inMs;
 const routes = [
   {
     method: 'GET',
-    path: '/liquidity/token/{tokenA}/{tokenB}',
+    path: '/liquidity/pair/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
         const blockRange = getBlockRange(request.query);
@@ -70,7 +70,7 @@ const routes = [
           return h.response('Not Found').code(404);
         }
 
-        const [height, tickStateA] = data;
+        const [height, tickStateA, tickStateB] = data;
         if (toHeight) {
           if (height > toHeight) {
             return h
@@ -89,15 +89,30 @@ const routes = [
         }
 
         // paginate the data
-        const [page, pagination] = paginateData(
+        const [pageA, paginationA] = paginateData(
           tickStateA,
           request.query, // the time extents and frequency and such
           defaultPaginationLimit
         );
-        const response: TickLiquidityResponse = {
-          shape: ['tick_index', 'reserves'],
-          data: page,
-          pagination,
+        const [pageB, paginationB] = paginateData(
+          tickStateB,
+          request.query, // the time extents and frequency and such
+          defaultPaginationLimit
+        );
+        const response: PairLiquidityResponse = {
+          shape: [
+            ['tick_index', 'reserves'],
+            ['tick_index', 'reserves'],
+          ],
+          data: [pageA, pageB],
+          pagination: {
+            // the next key will be the same if it exists on both sides
+            next_key: paginationA.next_key ?? paginationB.next_key,
+            total:
+              paginationA.total !== undefined && paginationB.total !== undefined
+                ? paginationA.total + paginationB.total
+                : undefined,
+          },
           // indicate what range the data response covers
           block_range: {
             from_height: fromHeight,
