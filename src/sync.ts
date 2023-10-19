@@ -1,12 +1,13 @@
 import EventEmitter from 'events';
 import { createLogger, transports, config, format, Logger } from 'winston';
+import { Response } from 'undici';
 import { ResponseDeliverTx } from 'cosmjs-types/tendermint/abci/types';
 
 import { logFileTransport } from './logger';
 import { TxResponse } from './@types/tx';
 
 import ingestTxs from './storage/sqlite3/ingest/ingestTxResponse';
-import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
+import { inMs, minutes, seconds } from './storage/sqlite3/db/timeseriesUtils';
 
 // define the snamke case that the response is actually in
 interface RpcTxResult extends Omit<ResponseDeliverTx, 'gasWanted' | 'gasUsed'> {
@@ -149,13 +150,29 @@ export async function catchUp({
     // we default starting page to 1 as this API has 1-based page numbers
     // max API response page item count is 100
     const itemsPerPage = 100;
-    const response = await fetch(
-      `${RPC_API}/tx_search?query="${encodeURIComponent(
-        `tx.height>=${fromBlockHeight} AND message.module='dex'`
-      )}"&per_page=${itemsPerPage}&page=${
-        Math.round(offset / itemsPerPage) + 1
-      }`
-    );
+    let response: Response | undefined = undefined;
+    let retryCount = 0;
+    while (!response) {
+      // back-off items to request exponentially
+      // (it is possible that some chunks of transactions are very large)
+      // itemsToRequest follows back-off of: 100, 50, 25, 13, 7, 4, 2, 1, 1...
+      const itemsToRequest = Math.ceil(itemsPerPage / Math.pow(2, retryCount));
+      try {
+        response = await fetch(
+          `${RPC_API}/tx_search?query="${encodeURIComponent(
+            `tx.height>=${fromBlockHeight} AND message.module='dex'`
+          )}"&per_page=${itemsToRequest}&page=${
+            Math.round(offset / itemsToRequest) + 1
+          }`
+        );
+      } catch (e) {
+        retryCount += 1;
+        // delay the next request with a linear back-off;
+        const delay = retryCount * 1 * seconds * inMs;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        logger.error('Could not fetch ');
+      }
+    }
 
     if (response.status !== 200) {
       throw new Error(
