@@ -155,22 +155,28 @@ export async function catchUp({
     while (!response) {
       // back-off items to request exponentially
       // (it is possible that some chunks of transactions are very large)
-      // itemsToRequest follows back-off of: 100, 50, 25, 13, 7, 4, 2, 1, 1...
-      const itemsToRequest = Math.ceil(itemsPerPage / Math.pow(2, retryCount));
+      // itemsToRequest follows back-off of: 100, 10, 1, 1, 1, ..., 0
+      let itemsToRequest = Math.ceil(itemsPerPage / Math.pow(10, retryCount));
+      if (itemsToRequest <= 0) {
+        throw new Error(`Sync rety limit exceeded, count: ${retryCount}`);
+      }
+      // ensure that page number is a round number, because offsetting the items
+      // with an RPC query requires "page" which is dependent on "per_page" size
+      while (offset % itemsToRequest !== 0) {
+        itemsToRequest = itemsToRequest / 10 || 1;
+      }
+      const page = Math.round(offset / itemsToRequest) + 1;
+      const url = `${RPC_API}/tx_search?query="${encodeURIComponent(
+        `tx.height>=${fromBlockHeight} AND message.module='dex'`
+      )}"&per_page=${itemsToRequest}&page=${page}`;
       try {
-        response = await fetch(
-          `${RPC_API}/tx_search?query="${encodeURIComponent(
-            `tx.height>=${fromBlockHeight} AND message.module='dex'`
-          )}"&per_page=${itemsToRequest}&page=${
-            Math.round(offset / itemsToRequest) + 1
-          }`
-        );
+        response = await fetch(url);
       } catch (e) {
         retryCount += 1;
         // delay the next request with a linear back-off;
         const delay = retryCount * 1 * seconds * inMs;
         await new Promise((resolve) => setTimeout(resolve, delay));
-        logger.error('Could not fetch ');
+        logger.error(`Could not fetch txs from URL: ${url}`);
       }
     }
 
