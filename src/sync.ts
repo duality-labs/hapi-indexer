@@ -244,6 +244,7 @@ export async function catchUp({
           );
         }
       } catch (e) {
+        timers.fetching.stop();
         retryCount += 1;
         // delay the next request with a linear back-off;
         const delay = retryCount * 1 * seconds * inMs;
@@ -267,15 +268,30 @@ export async function catchUp({
       // fetch each block info from RPC API to fill in data from previous REST API calls
       // RPC tx_result does not have: `timestamp`, `raw_log`
       if (!blockTimestamps[height]) {
+        let retryCount = 0;
+        let response: Response | undefined = undefined;
         const url = `${RPC_API}/header?height=${height}`;
-        timers.fetching.start();
-        const response: Response | undefined = await fetch(url);
-        timers.fetching.stop();
-        if (response?.status !== 200) {
-          throw new Error(
-            `RPC API returned status code: ${url} ${response?.status}`
-          );
-        }
+        do {
+          try {
+            timers.fetching.start();
+            response = await fetch(url);
+            timers.fetching.stop();
+            if (response?.status !== 200) {
+              throw new Error(
+                `RPC API returned status code: ${url} ${response?.status}`
+              );
+            }
+          } catch (e) {
+            timers.fetching.stop();
+            logger.error(
+              `Could not fetch block: ${url} (status: ${response?.status})`
+            );
+            retryCount += 1;
+            // delay the next request with a linear back-off;
+            const delay = retryCount * 1 * seconds * inMs;
+            await new Promise((resolve) => setTimeout(resolve, delay));
+          }
+        } while (response?.status !== 200);
         timers.parsing.start();
         const { result } =
           (await response.json()) as RpcBlockHeaderLookupResponse;
