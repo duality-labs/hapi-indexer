@@ -42,8 +42,28 @@ const {
 
 const pollIntervalMs = Number(POLLING_INTERVAL_MS) || 500;
 
+class Timer {
+  value = 0;
+  startTime = 0;
+  start() {
+    this.startTime = Date.now();
+  }
+  stop() {
+    return (this.value += Date.now() - this.startTime);
+  }
+  reset() {
+    this.value = 0;
+    this.startTime = 0;
+  }
+}
+interface SyncTimers {
+  fetching: Timer;
+  parsing: Timer;
+  processing: Timer;
+}
 type PageReader = (options: {
   page?: number;
+  timers: SyncTimers;
 }) => Promise<
   [pageItemCount: number, totalItemCount: number, nextOffset: number | null]
 >;
@@ -81,26 +101,39 @@ function formatNumber(value: number, decimalPlaces = 0, padding = 0) {
 
 async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   let lastProgressTime = 0;
-  let startProcessingTime = 0;
   let lastNumerator = 0;
-  function printProgress(numerator: number, divisor: number, message?: string) {
+  function printProgress(
+    numerator: number,
+    divisor: number,
+    message?: string,
+    timers?: SyncTimers
+  ) {
     const now = Date.now();
-    if (message || now - lastProgressTime > 1000) {
-      const processingTime = now - startProcessingTime;
-      const fetchingTime = now - lastProgressTime - processingTime;
+    const elapsedTime = now - lastProgressTime;
+    if (message || timers || elapsedTime > 1000) {
       logger.info(
         message ||
           `import progress: ${formatNumber(
             (100 * numerator) / divisor,
             1,
             5
-          )}% (${formatNumber(numerator)} items) (fetching: ${formatNumber(
-            fetchingTime,
-            0,
-            6
-          )}ms, processing: ~${formatNumber(
-            processingTime / (numerator - lastNumerator)
-          )}ms per item)`
+          )}% (${formatNumber(numerator)} items) ${
+            timers
+              ? `(fetching: ${formatNumber(
+                  timers.fetching.value,
+                  0,
+                  6
+                )}ms, parsing: ${formatNumber(
+                  timers.parsing.value,
+                  0,
+                  3
+                )}ms, processing: ${formatNumber(
+                  timers.processing.value / (numerator - lastNumerator),
+                  0,
+                  3
+                )}ms per item)`
+              : `(${formatNumber(elapsedTime, 0, 6)}ms)`
+          }`
       );
       lastProgressTime = now;
       lastNumerator = numerator;
@@ -114,11 +147,16 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   const startTime = Date.now();
   printProgress(0, 1, 'import starting');
   do {
+    const timers: SyncTimers = {
+      fetching: new Timer(),
+      parsing: new Timer(),
+      processing: new Timer(),
+    };
     // read page data and return counting details
     const [pageItemCount, totalItemCount, nextPage] = await readPage({
       page: currentPage,
+      timers,
     });
-    startProcessingTime = Date.now();
 
     // update progress
     previousItemCount = currentItemCount;
@@ -126,7 +164,7 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
     currentPage = nextPage;
 
     // see progress
-    printProgress(currentItemCount, totalItemCount);
+    printProgress(currentItemCount, totalItemCount, '', timers);
   } while (currentItemCount > previousItemCount && !!currentPage);
   const duration = Date.now() - startTime;
   printProgress(
@@ -171,7 +209,7 @@ export async function catchUp({
   logger = defaultLogger,
 } = {}) {
   // read tx pages
-  await iterateThroughPages(async ({ page: offset = 0 }) => {
+  await iterateThroughPages(async ({ page: offset = 0, timers }) => {
     // we default starting page to 1 as this API has 1-based page numbers
     // max API response page item count is 100
     let response: Response | undefined = undefined;
@@ -194,7 +232,9 @@ export async function catchUp({
         `tx.height>=${fromBlockHeight} AND message.module='dex'`
       )}"&per_page=${itemsToRequest}&page=${page}`;
       try {
+        timers.fetching.start();
         response = await fetch(url);
+        timers.fetching.stop();
         // allow unexpected status codes to cause a retry instead of exiting
         if (response.status !== 200) {
           throw new Error(
@@ -213,7 +253,9 @@ export async function catchUp({
     }
 
     // read the RPC tx search results for tx hashes
+    timers.parsing.start();
     const { result } = (await response.json()) as RpcTxSearchResponse;
+    timers.parsing.stop();
     for (const { height, hash, tx_result } of result.txs) {
       // skip this tx if the result code was 0 (there was an error)
       if (tx_result.code !== 0) {
@@ -223,22 +265,28 @@ export async function catchUp({
       // fetch each block info from RPC API to fill in data from previous REST API calls
       // RPC tx_result does not have: `timestamp`, `raw_log`
       if (!blockTimestamps[height]) {
+        timers.fetching.start();
         const response = await fetch(`${RPC_API}/header?height=${height}`);
+        timers.fetching.stop();
         if (response.status !== 200) {
           throw new Error(
             `RPC API returned status code: ${RPC_API} ${response.status}`
           );
         }
+        timers.parsing.start();
         const { result } =
           (await response.json()) as RpcBlockHeaderLookupResponse;
+        timers.parsing.stop();
         blockTimestamps[height] = result.header.time;
       }
       const timestamp = blockTimestamps[height];
 
+      timers.processing.start();
       // ingest single tx
       await ingestTxs([
         translateTxResponse(tx_result, { height, timestamp, txhash: hash }),
       ]);
+      timers.processing.stop();
 
       // note current block height
       maxBlockHeight = Number(height);
