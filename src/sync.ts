@@ -170,7 +170,7 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   printProgress(
     1,
     1,
-    `import done (done in ${(duration / 1000).toFixed(1)} seconds, ${(
+    `import done (done in ${formatNumber(duration)}ms, ${(
       duration / (currentItemCount || 1)
     ).toFixed(1)}ms per transaction)`
   );
@@ -345,15 +345,13 @@ export async function keepUp() {
       if (maxBlockHeight > lastBlockHeight) {
         newHeightEmitter.emit('newHeight', maxBlockHeight);
         defaultLogger.info(
-          `keeping up: last block processed: ${maxBlockHeight} (done in ${(
-            duration / 1000
-          ).toFixed(3)} seconds)`
+          `keeping up: last block processed: ${maxBlockHeight} (done in ${formatNumber(
+            duration
+          )}ms)`
         );
       } else {
         defaultLogger.info(
-          `keeping up: no change (done in ${(duration / 1000).toFixed(
-            3
-          )} seconds)`
+          `keeping up: no change (done in ${formatNumber(duration)}ms)`
         );
       }
     } catch (err) {
