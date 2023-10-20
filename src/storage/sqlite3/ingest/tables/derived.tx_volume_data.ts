@@ -86,7 +86,8 @@ export default async function upsertDerivedVolumeData(
           'ReservesFloat1',
 
           'related.tx_result.events',
-          'related.dex.pair'
+          'related.dex.pair',
+          'related.block.header.height'
         ) values (
 
           ${isForward ? previousOtherSideReserves : currentReserves},
@@ -122,7 +123,8 @@ export default async function upsertDerivedVolumeData(
           (${selectSortedPairID(
             txEvent.attributes['Token0'],
             txEvent.attributes['Token1']
-          )})
+          )}),
+          ${tx_result.height}
         )
         `)
       );
