@@ -329,6 +329,7 @@ export async function keepUp() {
   defaultLogger.info(
     `keeping up: polling from block height: ${maxBlockHeight}`
   );
+  let lastHeartbeatTime = Date.now();
 
   // poll for updates
   async function poll() {
@@ -340,7 +341,8 @@ export async function keepUp() {
         fromBlockHeight: maxBlockHeight + 1,
         logger: pollingLogger,
       });
-      const duration = Date.now() - startTime;
+      const now = Date.now();
+      const duration = now - startTime;
 
       // log block height increments
       if (maxBlockHeight > lastBlockHeight) {
@@ -348,10 +350,15 @@ export async function keepUp() {
         defaultLogger.info(
           `keeping up: last block processed: ${maxBlockHeight}`
         );
+        lastHeartbeatTime = now;
       } else {
         pollingLogger.info(
           `keeping up: no change (done in ${formatNumber(duration)}ms)`
         );
+        if (now - lastHeartbeatTime > 10000) {
+          defaultLogger.info('keeping up: still polling ...');
+          lastHeartbeatTime = now;
+        }
       }
     } catch (err) {
       // log but ignore a sync error (it might succeed next time)
