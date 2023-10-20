@@ -195,19 +195,21 @@ export async function catchUp({
       )}"&per_page=${itemsToRequest}&page=${page}`;
       try {
         response = await fetch(url);
+        // allow unexpected status codes to cause a retry instead of exiting
+        if (response.status !== 200) {
+          throw new Error(
+            `RPC API returned status code: ${response.url} ${response.status}`
+          );
+        }
       } catch (e) {
         retryCount += 1;
         // delay the next request with a linear back-off;
         const delay = retryCount * 1 * seconds * inMs;
         await new Promise((resolve) => setTimeout(resolve, delay));
-        logger.error(`Could not fetch txs from URL: ${url}`);
+        logger.error(
+          `Could not fetch txs from URL: ${url} (status: ${response?.status})`
+        );
       }
-    }
-
-    if (response.status !== 200) {
-      throw new Error(
-        `RPC API returned status code: ${response.url} ${response.status}`
-      );
     }
 
     // read the RPC tx search results for tx hashes
