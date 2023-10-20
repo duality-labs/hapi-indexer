@@ -238,9 +238,9 @@ export async function catchUp({
         response = await fetch(url);
         timers.fetching.stop();
         // allow unexpected status codes to cause a retry instead of exiting
-        if (response.status !== 200) {
+        if (response?.status !== 200) {
           throw new Error(
-            `RPC API returned status code: ${response.url} ${response.status}`
+            `RPC API returned status code: ${url} ${response?.status}`
           );
         }
       } catch (e) {
@@ -267,12 +267,13 @@ export async function catchUp({
       // fetch each block info from RPC API to fill in data from previous REST API calls
       // RPC tx_result does not have: `timestamp`, `raw_log`
       if (!blockTimestamps[height]) {
+        const url = `${RPC_API}/header?height=${height}`;
         timers.fetching.start();
-        const response = await fetch(`${RPC_API}/header?height=${height}`);
+        const response: Response | undefined = await fetch(url);
         timers.fetching.stop();
-        if (response.status !== 200) {
+        if (response?.status !== 200) {
           throw new Error(
-            `RPC API returned status code: ${RPC_API} ${response.status}`
+            `RPC API returned status code: ${url} ${response?.status}`
           );
         }
         timers.parsing.start();
