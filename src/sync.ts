@@ -184,7 +184,7 @@ export async function catchUp({
       // ensure that page number is a round number, because offsetting the items
       // with an RPC query requires "page" which is dependent on "per_page" size
       while (offset % itemsToRequest !== 0) {
-        itemsToRequest = itemsToRequest / 10 || 1;
+        itemsToRequest = Math.round(itemsToRequest / 10) || 1;
       }
       if (!Number.isFinite(itemsToRequest) || itemsToRequest < 1) {
         throw new Error(`Sync rety limit exceeded, count: ${retryCount}`);
