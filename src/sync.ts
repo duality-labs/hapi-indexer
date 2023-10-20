@@ -111,7 +111,8 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
     const now = Date.now();
     const elapsedTime = now - lastProgressTime;
     if (message || timers || elapsedTime > 1000) {
-      logger.info(
+      // send import timing logs to console as well as file
+      (timers?.processing.value ? defaultLogger : logger).info(
         message ||
           `import progress: ${formatNumber(
             (100 * numerator) / divisor,
@@ -331,7 +332,7 @@ export async function keepUp() {
 
   // poll for updates
   async function poll() {
-    defaultLogger.info('keeping up: polling');
+    pollingLogger.info('keeping up: polling');
     const lastBlockHeight = maxBlockHeight;
     const startTime = Date.now();
     try {
@@ -345,12 +346,10 @@ export async function keepUp() {
       if (maxBlockHeight > lastBlockHeight) {
         newHeightEmitter.emit('newHeight', maxBlockHeight);
         defaultLogger.info(
-          `keeping up: last block processed: ${maxBlockHeight} (done in ${formatNumber(
-            duration
-          )}ms)`
+          `keeping up: last block processed: ${maxBlockHeight}`
         );
       } else {
-        defaultLogger.info(
+        pollingLogger.info(
           `keeping up: no change (done in ${formatNumber(duration)}ms)`
         );
       }
