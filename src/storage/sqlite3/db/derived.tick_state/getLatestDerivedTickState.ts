@@ -23,8 +23,24 @@ export default function getLatestTickStateCTE(
           FROM
             'dex.pairs'
           WHERE (
-            'dex.pairs'.'token0' = ${token0} AND
-            'dex.pairs'.'token1' = ${token1}
+            'dex.pairs'.'token0' = (
+              SELECT
+                'dex.tokens'.'id'
+              FROM
+                'dex.tokens'
+              WHERE (
+                'dex.tokens'.'token' = ${token0}
+              )
+            ) AND
+            'dex.pairs'.'token1' = (
+              SELECT
+                'dex.tokens'.'id'
+              FROM
+                'dex.tokens'
+              WHERE (
+                'dex.tokens'.'token' = ${token1}
+              )
+            )
           )
         ) AND
         'derived.tick_state'.'related.dex.token' = (

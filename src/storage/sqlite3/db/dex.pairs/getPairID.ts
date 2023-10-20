@@ -12,11 +12,43 @@ export default async function getPairID(tokenA: string, tokenB: string) {
         FROM
           'dex.pairs'
         WHERE (
-          'dex.pairs'.'token0' = ${tokenA} AND
-          'dex.pairs'.'token1' = ${tokenB}
+          'dex.pairs'.'token0' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${tokenA}
+            )
+          ) AND
+          'dex.pairs'.'token1' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${tokenB}
+            )
+          )
         ) OR (
-          'dex.pairs'.'token1' = ${tokenA} AND
-          'dex.pairs'.'token0' = ${tokenB}
+          'dex.pairs'.'token1' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${tokenA}
+            )
+          ) AND
+          'dex.pairs'.'token0' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${tokenB}
+            )
+          )
         )
       `
     )

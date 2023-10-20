@@ -81,8 +81,24 @@ export default async function insertEventPlaceLimitOrder(
         FROM
           'dex.pairs'
         WHERE (
-          'dex.pairs'.'token0' = ${txEvent.attributes['Token0']} AND
-          'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
+          'dex.pairs'.'token0' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${txEvent.attributes['Token0']}
+            )
+          ) AND
+          'dex.pairs'.'token1' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${txEvent.attributes['Token1']}
+            )
+          )
         )
       ),
       (

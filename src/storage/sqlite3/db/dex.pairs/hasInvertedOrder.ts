@@ -11,15 +11,52 @@ export default async function hasInvertedOrder(
     .get<{ token0: string }>(
       sql`
         SELECT
-          'dex.pairs'.'token0'
+          'dex.tokens'.'token' as 'token0'
         FROM
+          'dex.tokens'
+        JOIN
           'dex.pairs'
+        ON (
+          'dex.pairs'.'token0' == 'dex.tokens'.'id'
+        )
         WHERE (
-          'dex.pairs'.'token0' = ${tokenA} AND
-          'dex.pairs'.'token1' = ${tokenB}
+          'dex.pairs'.'token0' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${tokenA}
+            )
+          ) AND
+          'dex.pairs'.'token1' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${tokenB}
+            )
+          )
         ) OR (
-          'dex.pairs'.'token1' = ${tokenA} AND
-          'dex.pairs'.'token0' = ${tokenB}
+          'dex.pairs'.'token1' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${tokenA}
+            )
+          ) AND
+          'dex.pairs'.'token0' = (
+            SELECT
+              'dex.tokens'.'id'
+            FROM
+              'dex.tokens'
+            WHERE (
+              'dex.tokens'.'token' = ${tokenB}
+            )
+          )
         )
       `
     )

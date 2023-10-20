@@ -145,12 +145,43 @@ export default async function getSwapVolume(
           FROM
             'dex.pairs'
           WHERE (
-            'dex.pairs'.'token0' = ${tokenA} AND
-            'dex.pairs'.'token1' = ${tokenB}
-          )
-          OR (
-            'dex.pairs'.'token1' = ${tokenA} AND
-            'dex.pairs'.'token0' = ${tokenB}
+            'dex.pairs'.'token0' = (
+              SELECT
+                'dex.tokens'.'id'
+              FROM
+                'dex.tokens'
+              WHERE (
+                'dex.tokens'.'token' = ${tokenA}
+              )
+            ) AND
+            'dex.pairs'.'token1' = (
+              SELECT
+                'dex.tokens'.'id'
+              FROM
+                'dex.tokens'
+              WHERE (
+                'dex.tokens'.'token' = ${tokenB}
+              )
+            )
+          ) OR (
+            'dex.pairs'.'token1' = (
+              SELECT
+                'dex.tokens'.'id'
+              FROM
+                'dex.tokens'
+              WHERE (
+                'dex.tokens'.'token' = ${tokenA}
+              )
+            ) AND
+            'dex.pairs'.'token0' = (
+              SELECT
+                'dex.tokens'.'id'
+              FROM
+                'dex.tokens'
+              WHERE (
+                'dex.tokens'.'token' = ${tokenB}
+              )
+            )
           )
         ) AND
         -- restrict to tx Msg type
