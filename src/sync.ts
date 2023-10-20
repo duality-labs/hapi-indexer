@@ -38,6 +38,7 @@ const {
   RPC_API = '',
   POLLING_INTERVAL_MS = '',
   SYNC_PAGE_SIZE = '',
+  COLOR_LOGS = '',
 } = process.env;
 
 const pollIntervalMs = Number(POLLING_INTERVAL_MS) || 500;
@@ -78,7 +79,7 @@ const defaultLogger = createLogger({
       }
       return log;
     })(),
-    format.colorize(),
+    ...(COLOR_LOGS === 'true' ? [format.colorize()] : []),
     format.simple()
   ),
   transports: [new transports.Console(), logFileTransport],
