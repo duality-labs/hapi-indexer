@@ -181,7 +181,7 @@ export async function catchUp({
       // (it is possible that some chunks of transactions are very large)
       // itemsToRequest follows back-off of: 100, 10, 1, 1, 1, ..., 0
       let itemsToRequest = Math.ceil(itemsPerPage / Math.pow(10, retryCount));
-      if (itemsToRequest <= 0) {
+      if (!Number.isFinite(itemsToRequest) || itemsToRequest < 1) {
         throw new Error(`Sync rety limit exceeded, count: ${retryCount}`);
       }
       // ensure that page number is a round number, because offsetting the items
