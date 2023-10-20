@@ -34,7 +34,11 @@ interface RpcBlockHeaderLookupResponse {
   };
 }
 
-const { RPC_API = '', POLLING_INTERVAL_MS = '' } = process.env;
+const {
+  RPC_API = '',
+  POLLING_INTERVAL_MS = '',
+  SYNC_PAGE_SIZE = '',
+} = process.env;
 
 const pollIntervalMs = Number(POLLING_INTERVAL_MS) || 500;
 
@@ -140,6 +144,9 @@ function translateTxResponse(
 
 let maxBlockHeight = 0;
 const blockTimestamps: { [height: string]: string } = {};
+// restrict items per page to between 1-100, and default to 100
+// note: this number should be 1 or divisible by 10
+const itemsPerPage = Math.max(1, Math.min(100, Number(SYNC_PAGE_SIZE) || 100));
 
 export async function catchUp({
   fromBlockHeight = 0,
@@ -149,7 +156,6 @@ export async function catchUp({
   await iterateThroughPages(async ({ page: offset = 0 }) => {
     // we default starting page to 1 as this API has 1-based page numbers
     // max API response page item count is 100
-    const itemsPerPage = 100;
     let response: Response | undefined = undefined;
     let retryCount = 0;
     while (!response) {
