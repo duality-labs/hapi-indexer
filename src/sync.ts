@@ -70,20 +70,37 @@ const pollingLogger = createLogger({
   transports: [new transports.Console({ level: 'warn' }), logFileTransport],
 });
 
+function formatNumber(value: number, decimalPlaces = 0, padding = 0) {
+  return value
+    .toLocaleString('en-US', {
+      minimumFractionDigits: decimalPlaces,
+      maximumFractionDigits: decimalPlaces,
+    })
+    .padStart(padding, ' ');
+}
+
 async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   let lastProgressTime = 0;
+  let startProcessingTime = 0;
   let lastNumerator = 0;
   function printProgress(numerator: number, divisor: number, message?: string) {
     const now = Date.now();
     if (message || now - lastProgressTime > 1000) {
+      const processingTime = now - startProcessingTime;
+      const fetchingTime = now - lastProgressTime - processingTime;
       logger.info(
         message ||
-          `import progress: ${((100 * numerator) / divisor)
-            .toFixed(1)
-            .padStart(5, ' ')}% (${numerator} items) (~${(
-            (now - lastProgressTime) /
-            (numerator - lastNumerator)
-          ).toFixed(0)}ms per item)`
+          `import progress: ${formatNumber(
+            (100 * numerator) / divisor,
+            1,
+            5
+          )}% (${formatNumber(numerator)} items) (fetching: ${formatNumber(
+            fetchingTime,
+            0,
+            6
+          )}ms, processing: ~${formatNumber(
+            processingTime / (numerator - lastNumerator)
+          )}ms per item)`
       );
       lastProgressTime = now;
       lastNumerator = numerator;
@@ -101,6 +118,7 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
     const [pageItemCount, totalItemCount, nextPage] = await readPage({
       page: currentPage,
     });
+    startProcessingTime = Date.now();
 
     // update progress
     previousItemCount = currentItemCount;
