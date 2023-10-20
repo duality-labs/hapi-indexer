@@ -103,7 +103,8 @@ export default async function upsertDerivedVolumeData(
           'ReservesFloat1',
 
           'related.tx_result.events',
-          'related.dex.pair'
+          'related.dex.pair',
+          'related.block.header.height'
         ) values (
 
           ${isForward ? previousOtherSideReserves : currentReserves},
@@ -161,7 +162,8 @@ export default async function upsertDerivedVolumeData(
                 )
               )
             )
-          )
+          ),
+          ${tx_result.height}
         )
       `);
       timer.stop('processing:txs:derived.tx_volume_data:set:tx_volume_data');
