@@ -4,6 +4,7 @@ import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import getPairID from '../../db/dex.pairs/getPairID';
+import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
 
 export default async function insertDexPairsRows(
   txEvent: DecodedTxEvent
@@ -27,8 +28,8 @@ export default async function insertDexPairsRows(
           'token0',
           'token1'
         ) values (
-          ${txEvent.attributes.Token0},
-          ${txEvent.attributes.Token1}            
+          (${selectTokenID(txEvent.attributes['Token0'])}),
+          (${selectTokenID(txEvent.attributes['Token1'])})
         )
         `)
       )) || {};

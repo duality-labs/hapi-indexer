@@ -1,5 +1,6 @@
 import sql from 'sql-template-tag';
 import db, { prepare } from '../db';
+import { selectTokenID } from '../dex.tokens/selectTokenID';
 
 // get pair ID without know which is token0 or token1
 export default async function hasInvertedOrder(
@@ -11,15 +12,20 @@ export default async function hasInvertedOrder(
     .get<{ token0: string }>(
       ...prepare(sql`
         SELECT
-          'dex.pairs'.'token0'
+          'dex.tokens'.'token' as 'token0'
         FROM
+          'dex.tokens'
+        JOIN
           'dex.pairs'
+        ON (
+          'dex.pairs'.'token0' == 'dex.tokens'.'id'
+        )
         WHERE (
-          'dex.pairs'.'token0' = ${tokenA} AND
-          'dex.pairs'.'token1' = ${tokenB}
+          'dex.pairs'.'token0' = (${selectTokenID(tokenA)}) AND
+          'dex.pairs'.'token1' = (${selectTokenID(tokenB)})
         ) OR (
-          'dex.pairs'.'token1' = ${tokenA} AND
-          'dex.pairs'.'token0' = ${tokenB}
+          'dex.pairs'.'token1' = (${selectTokenID(tokenA)}) AND
+          'dex.pairs'.'token0' = (${selectTokenID(tokenB)})
         )
       `)
     )
