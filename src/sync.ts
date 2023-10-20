@@ -206,7 +206,7 @@ export async function catchUp({
 
     if (response.status !== 200) {
       throw new Error(
-        `RPC API returned status code: ${RPC_API} ${response.status}`
+        `RPC API returned status code: ${response.url} ${response.status}`
       );
     }
 
