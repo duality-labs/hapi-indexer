@@ -9,6 +9,7 @@ import initDbSchema from './storage/sqlite3/schema/schema';
 import * as sync from './sync';
 
 import * as responseCompression from './plugins/response-compression';
+import * as cachedTokenPrices from './plugins/cached-token-prices';
 import { plugin as liquidityPlugin } from './routes/liquidity';
 import routes from './routes';
 import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
@@ -128,7 +129,7 @@ const init = async () => {
     tls: isSecure,
   });
 
-  await server.register([responseCompression.plugin]);
+  await server.register([responseCompression.plugin, cachedTokenPrices.plugin]);
 
   // add status route
   server.route({
