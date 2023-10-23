@@ -1,5 +1,6 @@
 import sql from 'sql-template-strings';
 import { Policy, PolicyOptions } from '@hapi/catbox';
+import { Asset } from '@chain-registry/types';
 import { inMs, minutes, seconds } from '../../db/timeseriesUtils';
 import db from '../../db/db';
 
@@ -96,4 +97,14 @@ export async function getTokenPrices(
   }
   // return last known result (may be empty)
   return lastCoinPriceCacheResult;
+}
+
+export async function getTokenPrice(
+  coinPriceCache: CoinPriceCache,
+  asset: Asset
+): Promise<CoinGeckoSimplePrice | undefined> {
+  const coinPriceCacheResult = await getTokenPrices(coinPriceCache);
+  return asset.coingecko_id
+    ? coinPriceCacheResult[asset.coingecko_id]
+    : undefined;
 }
