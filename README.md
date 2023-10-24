@@ -174,6 +174,25 @@ that the request and response is able to use HTTP/2 SSE (is a HTTP/2 request).
 In a way it should work like the long-polling mechanism, except sending out an
 event when new data is found and not ending the response immediately after that.
 
+## Future Improvements
+
+The indexer is a work in progress, and still many things are planned
+
+- caching of data on all or almost all routes
+  - the abstraction of this as an easy to use utility may be helpful
+- expanding saved data in `derived` data tables to include any block height
+  (not just last block height) would allow true `block_range` queries between
+  any known heights. Currently, specific `block_range.to_height` queries may fail.
+  see the following issue for more context:
+  - https://github.com/duality-labs/hapi-indexer/issues/22
+- the current ingestion times for some Duality Dex transactions are quite high
+  and we should attempt to make them quicker to allow greater practical
+  transaction throughput of the chain.
+  - should add more detail into the breakdown of which parts of the ingestion
+    process require the most time. I believe it is currently probably inserting
+    `derived` data table rows which can sometimes require large queries to gather
+    the current state before computing the required row to insert.
+
 # Requirements
 
 - git version >= 2.9 (for git hooks usage)
