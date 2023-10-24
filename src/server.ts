@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import http, { Server } from 'node:http';
+import http2, { Http2SecureServer } from 'node:http2';
 import Hapi from '@hapi/hapi';
 import logger from './logger';
 
@@ -7,7 +10,12 @@ import * as sync from './sync';
 
 import routes from './routes';
 
-const { RPC_API = '', ALLOW_ROUTES_BEFORE_SYNCED = '' } = process.env;
+const {
+  RPC_API = '',
+  ALLOW_ROUTES_BEFORE_SYNCED = '',
+  SSL_PRIVATE_KEY = fs.readFileSync('ssl-key.pem') || '',
+  SSL_PUBLIC_KEY = fs.readFileSync('ssl-cert.pem') || '',
+} = process.env;
 
 async function testConnection(apiUrl: string): Promise<boolean> {
   try {
@@ -62,6 +70,29 @@ const init = async () => {
   } while (!connected);
   serverTimes.connected = new Date();
 
+  // setup either a secure HTTP2 server or normal HTTP server
+  // depending on whether SSL keys are available
+  let isSecure = false;
+  let rawServer: (Http2SecureServer & Partial<Server>) | Server | null = null;
+  try {
+    // add HTTP2 server with added properties to bring in line with HTTP server
+    rawServer = http2.createSecureServer({
+      key: SSL_PRIVATE_KEY,
+      cert: SSL_PUBLIC_KEY,
+    }) as Http2SecureServer & Partial<Server>;
+    rawServer.maxHeadersCount = null;
+    rawServer.maxRequestsPerSocket = null;
+    rawServer.timeout = 60000;
+    rawServer.headersTimeout = 30000;
+    rawServer.keepAliveTimeout = 30000;
+    rawServer.requestTimeout = 60000;
+    rawServer.closeAllConnections = () => undefined;
+    rawServer.closeIdleConnections = () => undefined;
+    isSecure = true;
+  } catch {
+    rawServer = http.createServer();
+  }
+
   // start server before adding in indexer routes
   // (so that the server may report the indexing status)
   const server = Hapi.server({
@@ -78,6 +109,8 @@ const init = async () => {
         additionalHeaders: ['X-Requested-With'],
       },
     },
+    listener: rawServer as Server,
+    tls: isSecure,
   });
 
   // add status route
@@ -87,6 +120,7 @@ const init = async () => {
     handler: () => {
       return {
         status: 'OK',
+        http2Available: isSecure,
         server: {
           status: serverTimes.started
             ? 'OK'

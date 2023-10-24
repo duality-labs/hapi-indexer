@@ -71,16 +71,20 @@ const routes = [
 
         const [height, tickStateA, tickStateB] = data;
 
+        const { req, res } = request.raw;
+        const canUseSSE =
+          request.query['stream'] === 'true' && req.httpVersionMajor === 2;
+
         // paginate the data
         const [pageA, paginationA] = paginateData(
           tickStateA,
           request.query, // the time extents and frequency and such
-          defaultPaginationLimit
+          canUseSSE ? Number.MAX_SAFE_INTEGER : defaultPaginationLimit
         );
         const [pageB, paginationB] = paginateData(
           tickStateB,
           request.query, // the time extents and frequency and such
-          defaultPaginationLimit
+          canUseSSE ? Number.MAX_SAFE_INTEGER : defaultPaginationLimit
         );
         const response: PairLiquidityResponse = {
           shape: [
@@ -102,6 +106,79 @@ const routes = [
             to_height: height,
           },
         };
+
+        // use SSE if available
+        if (canUseSSE) {
+          // establish SSE content through headers
+          h.response('')
+            .type('text/event-stream')
+            .header('Cache-Control', 'no-cache')
+            .header('Connection', 'keep-alive');
+          // return all initial data (not paginated)
+          res.write(JSON.stringify(response));
+          // and listen for new updates to send
+          let lastHeight = response.block_range.to_height;
+          let aborted = false;
+          req.once('close', () => (aborted = true));
+          // wait until we get new data (newer than known height header)
+          while (!aborted) {
+            // wait for next block
+            try {
+              // wait for next block or for user to end request
+              await new Promise<void>((resolve, reject) => {
+                function onClose() {
+                  reject(new Error('User has closed SSE connection'));
+                }
+                // wait for close event
+                req.once('close', onClose);
+                // and wait for next block
+                waitForNextBlock().then(() => {
+                  // stop waiting for close event once next block has been found
+                  req.removeListener('close', onClose);
+                  resolve();
+                });
+              });
+              // get current data from last known height
+              const data = await getHeightedTokenPairLiquidity(
+                request.server,
+                request.params['tokenA'],
+                request.params['tokenB'],
+                { fromHeight: lastHeight, toHeight }
+              );
+              const [height = lastHeight, tickStateA = [], tickStateB = []] =
+                data || [];
+              if (!aborted && res.writable && height > lastHeight) {
+                res.write(
+                  // make the response chain a "newline separated JSON" string
+                  '\n' +
+                    JSON.stringify({
+                      shape: [
+                        ['tick_index', 'reserves'],
+                        ['tick_index', 'reserves'],
+                      ],
+                      data: [tickStateA, tickStateB],
+                      pagination: {
+                        next_key: null,
+                        total:
+                          (tickStateA.length || 0) + (tickStateB.length || 0),
+                      },
+                      // indicate what range the data response covers
+                      block_range: {
+                        from_height: lastHeight,
+                        to_height: height,
+                      },
+                    })
+                );
+                lastHeight = height;
+              }
+            } catch {
+              // exit loop, request has finished
+              break;
+            }
+          }
+          return;
+        }
+
         return response;
       } catch (err: unknown) {
         if (err instanceof Error) {
