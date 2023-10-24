@@ -17,7 +17,7 @@ While doing this it would be preferable if it could also:
 - should respond quickly
 - should work simply and be easy to understand
 - serve entire UI user base with a few indexer instances
-- should be able to cache content easily for serving many indentical requests
+- should be able to cache content easily for serving many identical requests
 - depend only on the chain
   - all other dependencies (on centralized storage, or other indexer instances)
     are points of failure that should be avoided
@@ -25,10 +25,10 @@ While doing this it would be preferable if it could also:
 
 ## Solution
 
-The specific solution of this indexer is a combinatin of Node.js, the Hapi framework, and SQLite.
+The specific solution of this indexer is a combination of Node.js, the Hapi framework, and SQLite.
 
 - Server: Node.js / Hapi
-  - Nodejs is able to handle high network traffic due to cheap context price for each served request
+  - Node.js is able to handle high network traffic due to cheap context price for each served request
   - using JavaScript helps keep some types and calculations consistent across the front end
     - eg. the Duality "current price" algorithm is the same in the indexer and web app
   - decent handling of real-time tech: WebSockets / long-polling / SSE
@@ -43,7 +43,7 @@ The specific solution of this indexer is a combinatin of Node.js, the Hapi frame
 But there are several other good alternatives that are possible to use
 
 - Server:
-  - Golang would have been a sound choice:
+  - GoLang would have been a sound choice:
   - it also can handle high network traffic
   - it can benefit from backend dev knowledge and also share backend logic
   - has direct access to application state DB, and also could work with
@@ -51,13 +51,13 @@ But there are several other good alternatives that are possible to use
     https://github.com/cosmos/cosmos-sdk/issues/10096
 - Database:
   - Postgres is also a logical choice for SQL
-  - Elasticsearch may be a reasonable DB to quickly query unstructured data
+  - ElasticSearch may be a reasonable DB to quickly query unstructured data
 
 ## Duality Indexer implementation
 
 ### Indexing Data
 
-Much of the main servering and indexing functionality is application agnostic and exists in the root:
+Much of the main serving and indexing functionality is application agnostic and exists in the root:
 
 - src/server
 - src/sync
@@ -101,7 +101,7 @@ All other src files and folders are specific Duality Dex logic. But the
 - src/storage/sqlite/schema/tables
 - src/storage/sqlite/ingest/tables
 
-files very specifcally set the Duality Dex indexer storage solution (SQLite) and
+files very specifically set the Duality Dex indexer storage solution (SQLite) and
 how to store each transaction into this database. The tables follow a layout
 intended to represent fundamental chain objects:
 
@@ -151,7 +151,7 @@ for real-time requests a new standard set of query parameters have been used:
 - `block_range.from_height`
 - `block_range.to_height`
 
-These paramaters indicate whether the response should be on a specific range of data,
+These parameters indicate whether the response should be on a specific range of data,
 and if the chain height does not exist yet this implies that the response should
 wait for new data before returning. These attributes are also returned in the
 response body attributes to indicate the range of chain heights that the data is comprised of.
