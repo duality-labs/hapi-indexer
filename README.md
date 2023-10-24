@@ -144,16 +144,22 @@ but we also add in new standard pagination parameters for timeseries timestamp l
 - `pagination.before`
 - `pagination.after`
 
-and for real-time requests a new standard set of query parameters have been used:
+### Serving Real-Time Data (long-polling)
+
+for real-time requests a new standard set of query parameters have been used:
 
 - `block_range.from_height`
 - `block_range.to_height`
 
 These paramaters indicate whether the response should be on a specific range of data,
 and if the chain height does not exist yet this implies that the response should
-wait fornew data before returning (i.e. long-polling by querying `block_range.from_height={currentKnownHeight}`).
-These attributes are also returned in response body attributes to indicate the range of
-chain heights that the data is comprised of.
+wait for new data before returning. These attributes are also returned in the
+response body attributes to indicate the range of chain heights that the data is comprised of.
+
+By requesting the initial route without `block_range` parameters and following
+the response with new requests from the responded height recursively
+(i.e. querying `block_range.from_height={currentKnownHeight}` with each returned
+response body's `block_range.to_height`), we get long-polling real-time data.
 
 # Requirements
 
