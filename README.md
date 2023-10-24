@@ -161,6 +161,19 @@ the response with new requests from the responded height recursively
 (i.e. querying `block_range.from_height={currentKnownHeight}` with each returned
 response body's `block_range.to_height`), we get long-polling real-time data.
 
+### Future: Serving Real-Time Data (HTTP/2 SSE)
+
+Server-Sent Events (SSE) are a good choice for sending real-time data of a
+constantly updating state of a resource: the user sends one request for one resource
+and the server may respond with the whole resource at that point in time (or its
+`block_range.from_height` update if requested) and after the initial data it may
+send updates to that data for as long as the user keeps the connection open.
+
+This feature has not yet been created but should work well after validating
+that the request and response is able to use HTTP/2 SSE (is a HTTP/2 request).
+In a way it should work like the long-polling mechanism, except sending out an
+event when new data is found and not ending the response immediately after that.
+
 # Requirements
 
 - git version >= 2.9 (for git hooks usage)
