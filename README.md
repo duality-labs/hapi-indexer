@@ -25,14 +25,14 @@ While doing this it would be preferable if it could also:
 
 ## Solution
 
-The specific solution of this indexer is a combinatin of Node.js, HapiJs, and SQLite.
+The specific solution of this indexer is a combinatin of Node.js, the Hapi framework, and SQLite.
 
-- Server: Node.js / HapiJs
+- Server: Node.js / Hapi
   - Nodejs is able to handle high network traffic due to cheap context price for each served request
   - using JavaScript helps keep some types and calculations consistent across the front end
     - eg. the Duality "current price" algorithm is the same in the indexer and web app
   - decent handling of real-time tech: WebSockets / long-polling / SSE
-  - Hapijs is a simple framework for REST requests with JSON outputs
+  - Hapi is a simple framework for REST requests with JSON outputs
     - and it comes with a robuse caching utility
 - Database: SQLite
   - SQLite is a simple database that is ideal in situations where it is read by only only process (like it is here)
