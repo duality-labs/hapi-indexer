@@ -150,7 +150,7 @@ const routes = [
               if (!aborted && res.writable && height > lastHeight) {
                 res.write(
                   // make the response chain a "newline separated JSON" string
-                  '\n' +
+                  '\n\n' +
                     JSON.stringify({
                       shape: [
                         ['tick_index', 'reserves'],
