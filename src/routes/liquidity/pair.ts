@@ -149,27 +149,33 @@ const routes = [
               );
               const [height = lastHeight, tickStateA = [], tickStateB = []] =
                 data || [];
-              if (!aborted && res.writable && height > lastHeight) {
+              if (!aborted && res.writable) {
                 res.write(
                   // make the response chain a "newline separated JSON" string
-                  '\n\n' +
-                    JSON.stringify({
-                      shape: [
-                        ['tick_index', 'reserves'],
-                        ['tick_index', 'reserves'],
-                      ],
-                      data: [tickStateA, tickStateB],
-                      pagination: {
-                        next_key: null,
-                        total:
-                          (tickStateA.length || 0) + (tickStateB.length || 0),
-                      },
-                      // indicate what range the data response covers
-                      block_range: {
-                        from_height: lastHeight,
-                        to_height: height,
-                      },
-                    })
+                  // and still send newline chars with no data updates as a
+                  // "heartbeat" signal
+                  `\n\n${
+                    height > lastHeight
+                      ? JSON.stringify({
+                          shape: [
+                            ['tick_index', 'reserves'],
+                            ['tick_index', 'reserves'],
+                          ],
+                          data: [tickStateA, tickStateB],
+                          pagination: {
+                            next_key: null,
+                            total:
+                              (tickStateA.length || 0) +
+                              (tickStateB.length || 0),
+                          },
+                          // indicate what range the data response covers
+                          block_range: {
+                            from_height: lastHeight,
+                            to_height: height,
+                          },
+                        })
+                      : ''
+                  }`
                 );
                 lastHeight = height;
               }
