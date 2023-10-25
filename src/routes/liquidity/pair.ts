@@ -132,11 +132,13 @@ const routes = [
                 // wait for close event
                 req.once('close', onClose);
                 // and wait for next block
-                waitForNextBlock(Number.POSITIVE_INFINITY).then(() => {
-                  // stop waiting for close event once next block has been found
-                  req.removeListener('close', onClose);
-                  resolve();
-                });
+                waitForNextBlock(Number.POSITIVE_INFINITY)
+                  .then(() => {
+                    // stop waiting for close event once next block has been found
+                    req.removeListener('close', onClose);
+                    resolve();
+                  })
+                  .catch(reject);
               });
               // get current data from last known height
               const data = await getHeightedTokenPairLiquidity(
@@ -176,6 +178,7 @@ const routes = [
               break;
             }
           }
+          res.destroy();
           return;
         }
 
