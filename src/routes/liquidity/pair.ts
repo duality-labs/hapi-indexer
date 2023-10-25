@@ -132,7 +132,7 @@ const routes = [
                 // wait for close event
                 req.once('close', onClose);
                 // and wait for next block
-                waitForNextBlock().then(() => {
+                waitForNextBlock(Number.POSITIVE_INFINITY).then(() => {
                   // stop waiting for close event once next block has been found
                   req.removeListener('close', onClose);
                   resolve();
