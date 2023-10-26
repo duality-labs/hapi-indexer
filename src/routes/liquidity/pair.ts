@@ -20,6 +20,23 @@ type DataSets = [Array<DataRow>, Array<DataRow>];
 
 const defaultPaginationLimit = 10000;
 
+const routes = [
+  {
+    method: 'GET',
+    path: '/liquidity/pair/{tokenA}/{tokenB}',
+    handler: async (request: Request, h: ResponseToolkit) => {
+      const canUseSSE =
+        request.query['stream'] === 'true' &&
+        request.raw.req.httpVersionMajor === 2;
+      return canUseSSE
+        ? sseRequest<DataSets, Shape>(request, h, getData, getResponse)
+        : longPollRequest<DataSets, Shape>(request, h, getData, getResponse);
+    },
+  },
+];
+
+export default routes;
+
 const getData: GetEndpointData<DataSets> = async (server, params, query) => {
   const blockRange = getBlockRange(query);
   const { from_height: fromHeight = 0, to_height: toHeight } = blockRange;
@@ -75,20 +92,3 @@ const getResponse: GetEndpointResponse<DataSets, Shape> = (
     },
   };
 };
-
-const routes = [
-  {
-    method: 'GET',
-    path: '/liquidity/pair/{tokenA}/{tokenB}',
-    handler: async (request: Request, h: ResponseToolkit) => {
-      const canUseSSE =
-        request.query['stream'] === 'true' &&
-        request.raw.req.httpVersionMajor === 2;
-      return canUseSSE
-        ? sseRequest<DataSets, Shape>(request, h, getData, getResponse)
-        : longPollRequest<DataSets, Shape>(request, h, getData, getResponse);
-    },
-  },
-];
-
-export default routes;
