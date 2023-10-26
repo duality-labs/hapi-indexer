@@ -152,25 +152,11 @@ const routes = [
                   }`
                 );
               }
-              // wait for next block or for user to end request
-              await new Promise<void>((resolve, reject) => {
-                function onClose() {
-                  reject(new Error('User has closed SSE connection'));
-                }
-                // wait for close event
-                req.once('close', onClose);
-                // and wait for next block
-                waitForNextBlock(Number.POSITIVE_INFINITY)
-                  .then(() => {
-                    // stop waiting for close event once next block has been found
-                    req.removeListener('close', onClose);
-                    resolve();
-                  })
-                  .catch(reject);
-              });
+              // wait for next block
+              await waitForNextBlock(Number.POSITIVE_INFINITY);
               lastHeight = height;
             } catch {
-              // exit loop, request has finished
+              // exit loop, likely getData has failed somehow
               break;
             }
           }
