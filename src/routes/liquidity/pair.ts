@@ -155,8 +155,10 @@ const routes = [
               // wait for next block
               await waitForNextBlock(Number.POSITIVE_INFINITY);
               lastHeight = height;
-            } catch {
+            } catch (err) {
+              logger.error(`SSE update error: ${err}`);
               // exit loop, likely getData has failed somehow
+              res.addTrailers({ Error: (err as Error)?.message ?? 'unknown' });
               break;
             }
           }
