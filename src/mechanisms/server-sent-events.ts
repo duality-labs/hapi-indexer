@@ -45,16 +45,17 @@ export default async function serverSentEventRequest<
       if (aborted) break;
       const [height = lastHeight] = data || [];
       if (res.writable && height <= toHeight) {
+        const firstFrame = lastHeight === fromHeight;
         res.write(
           // make the response chain a "newline separated JSON" string
           // and still send newline chars with no data updates as a
           // "heartbeat" signal
-          `\n\n${
+          `${!firstFrame ? '\n\n' : ''}${
             data && height > lastHeight
               ? JSON.stringify(
                   getResponse(data, query, {
                     paginate: false,
-                    shape: lastHeight === fromHeight,
+                    shape: firstFrame,
                   })
                 )
               : ''
