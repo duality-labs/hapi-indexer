@@ -60,8 +60,7 @@ export default async function serverSentEventRequest<
                     defaults: {
                       shape: firstFrame ? shape : undefined,
                       block_range: {
-                        from_height:
-                          getBlockRange(request.query).from_height || 0,
+                        from_height: lastHeight,
                         to_height: height,
                       },
                     },
