@@ -133,8 +133,9 @@ const routes = [
                 'block_range.from_height': lastHeight.toFixed(0),
               };
               const data = await getData(request.server, request.params, query);
+              if (aborted) break;
               const [height = lastHeight] = data || [];
-              if (!aborted && res.writable) {
+              if (res.writable) {
                 res.write(
                   // make the response chain a "newline separated JSON" string
                   // and still send newline chars with no data updates as a
