@@ -3,6 +3,12 @@
 A Node.js based indexer for the Duality Cosmos chain made with the [Hapi](https://hapi.dev/) server framework
 and with data stored in [SQLite3](https://www.sqlite.org/).
 
+## Versioning
+
+Please note that the package version of the indexer should match the release
+version of the Duality chain that the indexer is targeting in:
+https://github.com/duality-labs/duality/releases
+
 ## Goals
 
 The Goals of the indexer are to:
