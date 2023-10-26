@@ -11,8 +11,8 @@ import { selectRequestMechanism } from '../../mechanisms/_select';
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 
 const dataShape = [
-  ['tick_index', 'reserves'],
-  ['tick_index', 'reserves'],
+  [['tick_index', 'reserves']],
+  [['tick_index', 'reserves']],
 ] as const;
 type Shape = typeof dataShape;
 type DataSets = [Array<DataRow>, Array<DataRow>];

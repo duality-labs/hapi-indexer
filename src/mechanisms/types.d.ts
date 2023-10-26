@@ -8,11 +8,13 @@ import {
   BlockRangeResponse,
 } from '../storage/sqlite3/db/blockRangeUtils';
 
-export interface EndpointResponse<DataSets, Shape>
+type FlattenSingularItems<T> = T extends [infer U] ? U : T;
+
+export interface EndpointResponse<DataSets extends unknown[], Shape>
   extends Partial<PaginatedResponse>,
     BlockRangeResponse {
   shape?: Shape;
-  data: DataSets;
+  data: FlattenSingularItems<DataSets>;
 }
 
 export type GetEndpointData<DataSets extends unknown[]> = (
