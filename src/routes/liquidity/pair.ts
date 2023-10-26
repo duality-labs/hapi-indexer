@@ -7,9 +7,11 @@ import {
 } from '../../storage/sqlite3/db/derived.tick_state/getTokenPairLiquidity';
 import {
   paginateData,
+  PaginatedRequestQuery,
   PaginatedResponse,
 } from '../../storage/sqlite3/db/paginationUtils';
 import {
+  BlockRangeRequestQuery,
   BlockRangeResponse,
   getBlockRange,
 } from '../../storage/sqlite3/db/blockRangeUtils';
@@ -28,6 +30,21 @@ interface PairLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
 const defaultPaginationLimit = 10000;
 const timeoutMs = 3 * minutes * inMs;
 
+async function getData(
+  server: Request['server'],
+  params: Request['params'],
+  query: Partial<PaginatedRequestQuery & BlockRangeRequestQuery>
+) {
+  const blockRange = getBlockRange(query);
+  const { from_height: fromHeight = 0, to_height: toHeight } = blockRange;
+  return getHeightedTokenPairLiquidity(
+    server,
+    params['tokenA'],
+    params['tokenB'],
+    { fromHeight, toHeight }
+  );
+}
+
 const routes = [
   {
     method: 'GET',
@@ -37,16 +54,12 @@ const routes = [
         const blockRange = getBlockRange(request.query);
         const { from_height: fromHeight = 0, to_height: toHeight } = blockRange;
 
-        const getData = () =>
-          getHeightedTokenPairLiquidity(
-            request.server,
-            request.params['tokenA'],
-            request.params['tokenB'],
-            { fromHeight, toHeight }
-          );
-
         // get the liquidity data (but if we *will* wait for new data then skip)
-        let data = fromHeight !== getLastBlockHeight() ? await getData() : null;
+        let data =
+          fromHeight !== getLastBlockHeight()
+            ? await getData(request.server, request.params, request.query)
+            : null;
+
         // await new data if the data does not meet the known height requirement
         if (!toHeight) {
           const timeLeft = getMsLeft(timeoutMs);
@@ -60,7 +73,7 @@ const routes = [
               return h.response('Request Timeout').code(408);
             }
             // get current data
-            data = await getData();
+            data = await getData(request.server, request.params, request.query);
           }
         }
 
@@ -141,12 +154,11 @@ const routes = [
                   .catch(reject);
               });
               // get current data from last known height
-              const data = await getHeightedTokenPairLiquidity(
-                request.server,
-                request.params['tokenA'],
-                request.params['tokenB'],
-                { fromHeight: lastHeight, toHeight }
-              );
+              const query = {
+                ...request.query,
+                'block_range.from_height': lastHeight.toFixed(0),
+              };
+              const data = await getData(request.server, request.params, query);
               const [height = lastHeight, tickStateA = [], tickStateB = []] =
                 data || [];
               if (!aborted && res.writable) {
