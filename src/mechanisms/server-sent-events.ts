@@ -75,7 +75,11 @@ export default async function serverSentEventRequest<
       if (height >= toHeight) {
         break;
       }
-      lastHeight = height;
+      // set new height only if greater than last height
+      // (might be requesting a future fromHeight)
+      if (height > lastHeight) {
+        lastHeight = height;
+      }
       // wait for next block
       await waitForNextBlock(Number.POSITIVE_INFINITY);
     } catch (err) {
