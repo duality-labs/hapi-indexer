@@ -7,8 +7,7 @@ import {
 import { paginateData } from '../../storage/sqlite3/db/paginationUtils';
 import { getBlockRange } from '../../storage/sqlite3/db/blockRangeUtils';
 
-import longPollRequest from '../../mechanisms/long-polling';
-import sseRequest from '../../mechanisms/server-sent-events';
+import { selectRequestMechanism } from '../../mechanisms/_select';
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 
 const dataShape = [
@@ -25,12 +24,8 @@ const routes = [
     method: 'GET',
     path: '/liquidity/pair/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
-      const canUseSSE =
-        request.query['stream'] === 'true' &&
-        request.raw.req.httpVersionMajor === 2;
-      return canUseSSE
-        ? sseRequest<DataSets, Shape>(request, h, getData, getResponse)
-        : longPollRequest<DataSets, Shape>(request, h, getData, getResponse);
+      const requestMechanism = selectRequestMechanism<DataSets, Shape>(request);
+      return requestMechanism(request, h, getData, getResponse);
     },
   },
 ];
