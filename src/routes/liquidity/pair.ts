@@ -3,6 +3,7 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from '../../logger';
 import {
   DataRow,
+  HeightedTokenPairLiquidity,
   getHeightedTokenPairLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTokenPairLiquidity';
 import {
@@ -22,8 +23,10 @@ import {
   minutes,
 } from '../../storage/sqlite3/db/timeseriesUtils';
 
-interface PairLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
-  shape: [['tick_index', 'reserves'], ['tick_index', 'reserves']];
+interface PairLiquidityResponse
+  extends Partial<PaginatedResponse>,
+    BlockRangeResponse {
+  shape?: [['tick_index', 'reserves'], ['tick_index', 'reserves']];
   data: [Array<DataRow>, Array<DataRow>];
 }
 
@@ -43,6 +46,57 @@ async function getData(
     params['tokenB'],
     { fromHeight, toHeight }
   );
+}
+
+function getResponse(
+  data: HeightedTokenPairLiquidity,
+  query: PaginatedRequestQuery & BlockRangeRequestQuery,
+  { paginate, shape }: { paginate: boolean; shape: boolean }
+) {
+  const [height, tickStateA = [], tickStateB = []] = data || [];
+  const response: PairLiquidityResponse = {
+    ...(shape && {
+      shape: [
+        ['tick_index', 'reserves'],
+        ['tick_index', 'reserves'],
+      ],
+    }),
+    ...(paginate
+      ? // use unpaginated data
+        (() => {
+          // paginate the data
+          const [pageA, paginationA] = paginateData(
+            tickStateA,
+            query, // the time extents and frequency and such
+            defaultPaginationLimit
+          );
+          const [pageB, paginationB] = paginateData(
+            tickStateB,
+            query, // the time extents and frequency and such
+            defaultPaginationLimit
+          );
+          return {
+            data: [pageA, pageB],
+            pagination: {
+              // the next key will be the same if it exists on both sides
+              next_key: paginationA.next_key ?? paginationB.next_key,
+              total:
+                paginationA.total !== undefined &&
+                paginationB.total !== undefined
+                  ? paginationA.total + paginationB.total
+                  : undefined,
+            },
+          };
+        })()
+      : // or use unpaginated data
+        { data: [tickStateA, tickStateB] }),
+    // indicate what range the data response covers
+    block_range: {
+      from_height: getBlockRange(query).from_height || 0,
+      to_height: height,
+    },
+  };
+  return response;
 }
 
 const routes = [
@@ -79,33 +133,20 @@ const routes = [
                 'block_range.from_height': lastHeight.toFixed(0),
               };
               const data = await getData(request.server, request.params, query);
-              const [height = lastHeight, tickStateA = [], tickStateB = []] =
-                data || [];
+              const [height = lastHeight] = data || [];
               if (!aborted && res.writable) {
                 res.write(
                   // make the response chain a "newline separated JSON" string
                   // and still send newline chars with no data updates as a
                   // "heartbeat" signal
                   `\n\n${
-                    height > lastHeight
-                      ? JSON.stringify({
-                          shape: [
-                            ['tick_index', 'reserves'],
-                            ['tick_index', 'reserves'],
-                          ],
-                          data: [tickStateA, tickStateB],
-                          pagination: {
-                            next_key: null,
-                            total:
-                              (tickStateA.length || 0) +
-                              (tickStateB.length || 0),
-                          },
-                          // indicate what range the data response covers
-                          block_range: {
-                            from_height: lastHeight,
-                            to_height: height,
-                          },
-                        })
+                    data && height > lastHeight
+                      ? JSON.stringify(
+                          getResponse(data, query, {
+                            paginate: false,
+                            shape: lastHeight === fromHeight,
+                          })
+                        )
                       : ''
                   }`
                 );
@@ -166,41 +207,10 @@ const routes = [
             return h.response('Not Found').code(404);
           }
 
-          const [height, tickStateA, tickStateB] = data;
-
-          // paginate the data
-          const [pageA, paginationA] = paginateData(
-            tickStateA,
-            request.query, // the time extents and frequency and such
-            defaultPaginationLimit
-          );
-          const [pageB, paginationB] = paginateData(
-            tickStateB,
-            request.query, // the time extents and frequency and such
-            defaultPaginationLimit
-          );
-          const response: PairLiquidityResponse = {
-            shape: [
-              ['tick_index', 'reserves'],
-              ['tick_index', 'reserves'],
-            ],
-            data: [pageA, pageB],
-            pagination: {
-              // the next key will be the same if it exists on both sides
-              next_key: paginationA.next_key ?? paginationB.next_key,
-              total:
-                paginationA.total !== undefined &&
-                paginationB.total !== undefined
-                  ? paginationA.total + paginationB.total
-                  : undefined,
-            },
-            // indicate what range the data response covers
-            block_range: {
-              from_height: fromHeight,
-              to_height: height,
-            },
-          };
-          return response;
+          return getResponse(data, request.query, {
+            paginate: true,
+            shape: true,
+          });
         }
       } catch (err: unknown) {
         if (err instanceof Error) {

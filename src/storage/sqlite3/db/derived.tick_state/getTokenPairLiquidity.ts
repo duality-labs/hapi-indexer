@@ -11,7 +11,7 @@ import {
 
 export type DataRow = [tick_index: number, reserves: number];
 
-type HeightedTokenPairLiquidity = [
+export type HeightedTokenPairLiquidity = [
   height: number,
   reservesTokenA: DataRow[],
   reservesTokenB: DataRow[]
