@@ -54,36 +54,6 @@ const routes = [
         const blockRange = getBlockRange(request.query);
         const { from_height: fromHeight = 0, to_height: toHeight } = blockRange;
 
-        // get the liquidity data (but if we *will* wait for new data then skip)
-        let data =
-          fromHeight !== getLastBlockHeight()
-            ? await getData(request.server, request.params, request.query)
-            : null;
-
-        // await new data if the data does not meet the known height requirement
-        if (!toHeight) {
-          const timeLeft = getMsLeft(timeoutMs);
-          // wait until we get new non-empty data
-          while (((data || []) as [][]).every((v) => !v?.length)) {
-            // wait for next block
-            try {
-              await waitForNextBlock(timeLeft());
-            } catch {
-              // but throw timeout if waited for too long
-              return h.response('Request Timeout').code(408);
-            }
-            // get current data
-            data = await getData(request.server, request.params, request.query);
-          }
-        }
-
-        // return errors if needed
-        if (!data) {
-          return h.response('Not Found').code(404);
-        }
-
-        const [height, tickStateA, tickStateB] = data;
-
         const { req, res } = request.raw;
         const canUseSSE =
           request.query['stream'] === 'true' && req.httpVersionMajor === 2;
@@ -164,6 +134,40 @@ const routes = [
           }
           res.destroy();
         } else {
+          // get the liquidity data (but if we *will* wait for new data then skip)
+          let data =
+            fromHeight !== getLastBlockHeight()
+              ? await getData(request.server, request.params, request.query)
+              : null;
+
+          // await new data if the data does not meet the known height requirement
+          if (!toHeight) {
+            const timeLeft = getMsLeft(timeoutMs);
+            // wait until we get new non-empty data
+            while (((data || []) as [][]).every((v) => !v?.length)) {
+              // wait for next block
+              try {
+                await waitForNextBlock(timeLeft());
+              } catch {
+                // but throw timeout if waited for too long
+                return h.response('Request Timeout').code(408);
+              }
+              // get current data
+              data = await getData(
+                request.server,
+                request.params,
+                request.query
+              );
+            }
+          }
+
+          // return errors if needed
+          if (!data) {
+            return h.response('Not Found').code(404);
+          }
+
+          const [height, tickStateA, tickStateB] = data;
+
           // paginate the data
           const [pageA, paginationA] = paginateData(
             tickStateA,
