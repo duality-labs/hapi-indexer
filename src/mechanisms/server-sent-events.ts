@@ -15,7 +15,8 @@ export default async function serverSentEventRequest<
   request: Request,
   h: ResponseToolkit,
   getData: GetEndpointData<DataSets>,
-  getResponse: GetEndpointResponse<DataSets, Shape>
+  getResponse: GetEndpointResponse<DataSets, Shape>,
+  shape: Shape
 ): Promise<void> {
   const {
     from_height: fromHeight = 0,
@@ -56,6 +57,14 @@ export default async function serverSentEventRequest<
                   getResponse(data, query, {
                     paginate: false,
                     shape: firstFrame,
+                    defaults: {
+                      shape: firstFrame ? shape : undefined,
+                      block_range: {
+                        from_height:
+                          getBlockRange(request.query).from_height || 0,
+                        to_height: height,
+                      },
+                    },
                   })
                 )
               : ''

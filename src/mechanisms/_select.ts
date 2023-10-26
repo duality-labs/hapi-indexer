@@ -9,7 +9,8 @@ export function selectRequestMechanism<DataSets extends unknown[], Shape>(
   request: Request,
   h: ResponseToolkit,
   getData: GetEndpointData<DataSets>,
-  getResponse: GetEndpointResponse<DataSets, Shape>
+  getResponse: GetEndpointResponse<DataSets, Shape>,
+  shape: Shape
 ) => Promise<ResponseObject | void> {
   const canUseSSE =
     request.query['stream'] === 'true' &&

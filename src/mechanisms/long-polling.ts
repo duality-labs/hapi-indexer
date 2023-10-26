@@ -19,7 +19,8 @@ export default async function longPollRequest<
   request: Request,
   h: ResponseToolkit,
   getData: GetEndpointData<DataSets>,
-  getResponse: GetEndpointResponse<DataSets, Shape>
+  getResponse: GetEndpointResponse<DataSets, Shape>,
+  shape: Shape
 ): Promise<ResponseObject> {
   try {
     const blockRange = getBlockRange(request.query);
@@ -56,6 +57,13 @@ export default async function longPollRequest<
     const response = getResponse(data, request.query, {
       paginate: true,
       shape: true,
+      defaults: {
+        shape,
+        block_range: {
+          from_height: getBlockRange(request.query).from_height || 0,
+          to_height: height,
+        },
+      },
     });
     return h.response(response).code(200);
   } catch (err: unknown) {

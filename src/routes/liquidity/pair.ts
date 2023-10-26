@@ -5,16 +5,15 @@ import {
   getHeightedTokenPairLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTokenPairLiquidity';
 import { paginateData } from '../../storage/sqlite3/db/paginationUtils';
-import { getBlockRange } from '../../storage/sqlite3/db/blockRangeUtils';
 
 import { selectRequestMechanism } from '../../mechanisms/_select';
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 
-const dataShape = [
+const shape = [
   [['tick_index', 'reserves']],
   [['tick_index', 'reserves']],
 ] as const;
-type Shape = typeof dataShape;
+type Shape = typeof shape;
 type DataSets = [Array<DataRow>, Array<DataRow>];
 
 const defaultPaginationLimit = 10000;
@@ -25,7 +24,7 @@ const routes = [
     path: '/liquidity/pair/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       const requestMechanism = selectRequestMechanism<DataSets, Shape>(request);
-      return requestMechanism(request, h, getData, getResponse);
+      return requestMechanism(request, h, getData, getResponse, shape);
     },
   },
 ];
@@ -46,44 +45,40 @@ const getData: GetEndpointData<DataSets> = async (server, params, query) => {
 const getResponse: GetEndpointResponse<DataSets, Shape> = (
   data,
   query,
-  { paginate, shape }
+  { paginate, defaults }
 ) => {
-  const [height, tickStateA = [], tickStateB = []] = data || [];
-  return {
-    ...(shape && { shape: dataShape }),
-    ...(paginate
-      ? // use unpaginated data
-        (() => {
-          // paginate the data
-          const [pageA, paginationA] = paginateData(
-            tickStateA,
-            query, // the time extents and frequency and such
-            defaultPaginationLimit
-          );
-          const [pageB, paginationB] = paginateData(
-            tickStateB,
-            query, // the time extents and frequency and such
-            defaultPaginationLimit
-          );
-          return {
-            data: [pageA, pageB],
-            pagination: {
-              // the next key will be the same if it exists on both sides
-              next_key: paginationA.next_key ?? paginationB.next_key,
-              total:
-                paginationA.total !== undefined &&
-                paginationB.total !== undefined
-                  ? paginationA.total + paginationB.total
-                  : undefined,
-            },
-          };
-        })()
-      : // or use unpaginated data
-        { data: [tickStateA, tickStateB] }),
-    // indicate what range the data response covers
-    block_range: {
-      from_height: getBlockRange(query).from_height || 0,
-      to_height: height,
-    },
-  };
+  const [, tickStateA = [], tickStateB = []] = data || [];
+  if (paginate) {
+    // paginate the data
+    const [pageA, paginationA] = paginateData(
+      tickStateA,
+      query, // the time extents and frequency and such
+      defaultPaginationLimit
+    );
+    const [pageB, paginationB] = paginateData(
+      tickStateB,
+      query, // the time extents and frequency and such
+      defaultPaginationLimit
+    );
+    return {
+      shape: defaults.shape,
+      data: [pageA, pageB],
+      pagination: {
+        // the next key will be the same if it exists on both sides
+        next_key: paginationA.next_key ?? paginationB.next_key,
+        total:
+          paginationA.total !== undefined && paginationB.total !== undefined
+            ? paginationA.total + paginationB.total
+            : undefined,
+      },
+      block_range: defaults.block_range,
+    };
+  } else {
+    // or use unpaginated data
+    return {
+      shape: defaults.shape,
+      data: [tickStateA, tickStateB],
+      block_range: defaults.block_range,
+    };
+  }
 };
