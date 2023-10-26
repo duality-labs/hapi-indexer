@@ -88,40 +88,40 @@ const routes = [
         const canUseSSE =
           request.query['stream'] === 'true' && req.httpVersionMajor === 2;
 
-        // paginate the data
-        const [pageA, paginationA] = paginateData(
-          tickStateA,
-          request.query, // the time extents and frequency and such
-          canUseSSE ? Number.MAX_SAFE_INTEGER : defaultPaginationLimit
-        );
-        const [pageB, paginationB] = paginateData(
-          tickStateB,
-          request.query, // the time extents and frequency and such
-          canUseSSE ? Number.MAX_SAFE_INTEGER : defaultPaginationLimit
-        );
-        const response: PairLiquidityResponse = {
-          shape: [
-            ['tick_index', 'reserves'],
-            ['tick_index', 'reserves'],
-          ],
-          data: [pageA, pageB],
-          pagination: {
-            // the next key will be the same if it exists on both sides
-            next_key: paginationA.next_key ?? paginationB.next_key,
-            total:
-              paginationA.total !== undefined && paginationB.total !== undefined
-                ? paginationA.total + paginationB.total
-                : undefined,
-          },
-          // indicate what range the data response covers
-          block_range: {
-            from_height: fromHeight,
-            to_height: height,
-          },
-        };
-
         // use SSE if available
         if (canUseSSE) {
+          // paginate the data
+          const [pageA, paginationA] = paginateData(
+            tickStateA,
+            request.query, // the time extents and frequency and such
+            Number.MAX_SAFE_INTEGER
+          );
+          const [pageB, paginationB] = paginateData(
+            tickStateB,
+            request.query, // the time extents and frequency and such
+            Number.MAX_SAFE_INTEGER
+          );
+          const response: PairLiquidityResponse = {
+            shape: [
+              ['tick_index', 'reserves'],
+              ['tick_index', 'reserves'],
+            ],
+            data: [pageA, pageB],
+            pagination: {
+              // the next key will be the same if it exists on both sides
+              next_key: paginationA.next_key ?? paginationB.next_key,
+              total:
+                paginationA.total !== undefined &&
+                paginationB.total !== undefined
+                  ? paginationA.total + paginationB.total
+                  : undefined,
+            },
+            // indicate what range the data response covers
+            block_range: {
+              from_height: fromHeight,
+              to_height: height,
+            },
+          };
           // establish SSE content through headers
           h.response('')
             .type('text/event-stream')
@@ -197,10 +197,41 @@ const routes = [
             }
           }
           res.destroy();
-          return;
+        } else {
+          // paginate the data
+          const [pageA, paginationA] = paginateData(
+            tickStateA,
+            request.query, // the time extents and frequency and such
+            defaultPaginationLimit
+          );
+          const [pageB, paginationB] = paginateData(
+            tickStateB,
+            request.query, // the time extents and frequency and such
+            defaultPaginationLimit
+          );
+          const response: PairLiquidityResponse = {
+            shape: [
+              ['tick_index', 'reserves'],
+              ['tick_index', 'reserves'],
+            ],
+            data: [pageA, pageB],
+            pagination: {
+              // the next key will be the same if it exists on both sides
+              next_key: paginationA.next_key ?? paginationB.next_key,
+              total:
+                paginationA.total !== undefined &&
+                paginationB.total !== undefined
+                  ? paginationA.total + paginationB.total
+                  : undefined,
+            },
+            // indicate what range the data response covers
+            block_range: {
+              from_height: fromHeight,
+              to_height: height,
+            },
+          };
+          return response;
         }
-
-        return response;
       } catch (err: unknown) {
         if (err instanceof Error) {
           logger.error(err);
