@@ -106,7 +106,10 @@ const routes = [
     handler: async (request: Request, h: ResponseToolkit) => {
       try {
         const blockRange = getBlockRange(request.query);
-        const { from_height: fromHeight = 0, to_height: toHeight } = blockRange;
+        const {
+          from_height: fromHeight = 0,
+          to_height: toHeight = Number.POSITIVE_INFINITY,
+        } = blockRange;
 
         const { req, res } = request.raw;
         const canUseSSE =
@@ -135,7 +138,7 @@ const routes = [
               const data = await getData(request.server, request.params, query);
               if (aborted) break;
               const [height = lastHeight] = data || [];
-              if (res.writable) {
+              if (res.writable && height <= toHeight) {
                 res.write(
                   // make the response chain a "newline separated JSON" string
                   // and still send newline chars with no data updates as a
@@ -152,9 +155,14 @@ const routes = [
                   }`
                 );
               }
+              // if we were asked to stop at a certain height: stop
+              // but I don't know why someone would request that
+              if (height >= toHeight) {
+                break;
+              }
+              lastHeight = height;
               // wait for next block
               await waitForNextBlock(Number.POSITIVE_INFINITY);
-              lastHeight = height;
             } catch (err) {
               logger.error(`SSE update error: ${err}`);
               // exit loop, likely getData has failed somehow
