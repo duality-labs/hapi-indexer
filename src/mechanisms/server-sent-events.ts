@@ -36,7 +36,7 @@ export default async function serverSentEventRequest<
   res.write(
     [
       'event: id shape',
-      'data: ["from_height","to_height"]',
+      'data: "block_range.to_height"',
       // add an extra newline for better viewing of concatenated stream
       '\n',
     ].join('\n')
@@ -71,7 +71,7 @@ export default async function serverSentEventRequest<
           // "heartbeat" signal
           [
             'event: update',
-            `id: [${lastHeight},${height}]`,
+            `id: ${height}`,
             `data: ${
               data && height > lastHeight
                 ? JSON.stringify(
