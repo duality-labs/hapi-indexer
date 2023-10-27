@@ -51,26 +51,33 @@ export default async function serverSentEventRequest<
       if (res.writable && height <= toHeight) {
         const firstFrame = lastHeight === fromHeight;
         res.write(
-          // make the response chain a "newline separated JSON" string
-          // and still send newline chars with no data updates as a
+          // send event responses with or without data: "empty" updates are a
           // "heartbeat" signal
-          `${!firstFrame ? '\n\n' : ''}${
-            data && height > lastHeight
-              ? JSON.stringify(
-                  getResponse(data, query, {
-                    paginate: false,
-                    shape: firstFrame,
-                    defaults: {
-                      shape: firstFrame ? shape : undefined,
-                      block_range: {
-                        from_height: lastHeight,
-                        to_height: height,
+          [
+            'event: new block',
+            `id: ${height}`,
+            `data: ${
+              data && height > lastHeight
+                ? JSON.stringify(
+                    getResponse(data, query, {
+                      paginate: false,
+                      shape: firstFrame,
+                      defaults: {
+                        shape: firstFrame ? shape : undefined,
+                        block_range: {
+                          from_height: lastHeight,
+                          to_height: height,
+                        },
                       },
-                    },
-                  })
-                )
-              : ''
-          }`
+                    })
+                  )
+                : ''
+            }`,
+            // add an extra newline for better viewing of concatenated stream
+            '\n',
+          ]
+            .filter(Boolean)
+            .join('\n')
         );
       }
       // if we were asked to stop at a certain height: stop
