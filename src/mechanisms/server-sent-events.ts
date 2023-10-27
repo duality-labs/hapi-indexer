@@ -103,8 +103,16 @@ export default async function serverSentEventRequest<
       await waitForNextBlock(Number.POSITIVE_INFINITY);
     } catch (err) {
       logger.error(`SSE update error: ${err}`);
+      // send error event to user
+      if (res.writable) {
+        res.write(
+          formatChunk({
+            event: 'error',
+            data: (err as Error)?.message ?? `${err}`,
+          })
+        );
+      }
       // exit loop, likely getData has failed somehow
-      res.addTrailers({ Error: (err as Error)?.message ?? 'unknown' });
       break;
     }
   }
