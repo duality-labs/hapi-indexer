@@ -49,6 +49,16 @@ export default async function serverSentEventRequest<
       '\n',
     ].join('\n')
   );
+  // add initial data frame (so next frame has a fromHeight context in ID)
+  res.write(
+    [
+      'event: update',
+      `id: ${fromHeight}`,
+      'data: ',
+      // add an extra newline for better viewing of concatenated stream
+      '\n',
+    ].join('\n')
+  );
   // and listen for new updates to send
   let lastHeight = fromHeight;
   let aborted = false;
