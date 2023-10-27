@@ -397,7 +397,7 @@ export async function catchUp({
 }
 
 // export a function to allow other functions to listen for the next block
-const newHeightEmitter = new EventEmitter();
+const newHeightEmitter = new EventEmitter().setMaxListeners(Infinity);
 // keep track of last block height in a class instance with an internal var
 // this is to help assure lastBlockHeight is not manipulated accidentally
 // and to let us know that when we access lastBlockHeight.get() it may be
