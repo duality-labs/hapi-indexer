@@ -34,30 +34,23 @@ export default async function serverSentEventRequest<
   res.flushHeaders();
   // add shape data
   res.write(
-    [
-      'event: id shape',
-      'data: "block_range.to_height"',
-      // add an extra newline for better viewing of concatenated stream
-      '\n',
-    ].join('\n')
+    formatChunk({
+      event: 'id shape',
+      data: '"block_range.to_height"',
+    })
   );
   res.write(
-    [
-      'event: data shape',
-      `data: ${JSON.stringify(shape)}`,
-      // add an extra newline for better viewing of concatenated stream
-      '\n',
-    ].join('\n')
+    formatChunk({
+      event: 'data shape',
+      data: JSON.stringify(shape),
+    })
   );
   // add initial data frame (so next frame has a fromHeight context in ID)
   res.write(
-    [
-      'event: update',
-      `id: ${fromHeight}`,
-      'data: ',
-      // add an extra newline for better viewing of concatenated stream
-      '\n',
-    ].join('\n')
+    formatChunk({
+      event: 'update',
+      id: fromHeight,
+    })
   );
   // and listen for new updates to send
   let lastHeight = fromHeight;
@@ -79,10 +72,10 @@ export default async function serverSentEventRequest<
         res.write(
           // send event responses with or without data: "empty" updates are a
           // "heartbeat" signal
-          [
-            'event: update',
-            `id: ${height}`,
-            `data: ${
+          formatChunk({
+            event: 'update',
+            id: height,
+            data:
               data && height > lastHeight
                 ? JSON.stringify(
                     // get only the unpaginated data field
@@ -92,13 +85,8 @@ export default async function serverSentEventRequest<
                       defaults: {},
                     }).data
                   )
-                : ''
-            }`,
-            // add an extra newline for better viewing of concatenated stream
-            '\n',
-          ]
-            .filter(Boolean)
-            .join('\n')
+                : '',
+          })
         );
       }
       // if we were asked to stop at a certain height: stop
@@ -121,4 +109,24 @@ export default async function serverSentEventRequest<
     }
   }
   res.destroy();
+}
+
+function formatChunk({
+  event,
+  id,
+  data = '',
+}: {
+  event?: string;
+  id?: string | number;
+  data?: string;
+}): string {
+  return [
+    event !== undefined && `event: ${event}`,
+    id !== undefined && `id: ${id}`,
+    `data: ${data}`,
+    // add an extra newline for better viewing of concatenated stream
+    '\n',
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
