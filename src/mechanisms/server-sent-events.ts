@@ -32,6 +32,15 @@ export default async function serverSentEventRequest<
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
+  // add shape data
+  res.write(
+    [
+      'event: data shape',
+      `data: ${JSON.stringify(shape)}`,
+      // add an extra newline for better viewing of concatenated stream
+      '\n',
+    ].join('\n')
+  );
   // and listen for new updates to send
   let lastHeight = fromHeight;
   let aborted = false;
@@ -49,7 +58,6 @@ export default async function serverSentEventRequest<
       if (aborted) break;
       const [height = lastHeight] = data || [];
       if (res.writable && height <= toHeight) {
-        const firstFrame = lastHeight === fromHeight;
         res.write(
           // send event responses with or without data: "empty" updates are a
           // "heartbeat" signal
@@ -61,9 +69,8 @@ export default async function serverSentEventRequest<
                 ? JSON.stringify(
                     getResponse(data, query, {
                       paginate: false,
-                      shape: firstFrame,
+                      shape: false,
                       defaults: {
-                        shape: firstFrame ? shape : undefined,
                         block_range: {
                           from_height: lastHeight,
                           to_height: height,
