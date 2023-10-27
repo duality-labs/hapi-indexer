@@ -35,6 +35,14 @@ export default async function serverSentEventRequest<
   // add shape data
   res.write(
     [
+      'event: id shape',
+      'data: ["from_height","to_height"]',
+      // add an extra newline for better viewing of concatenated stream
+      '\n',
+    ].join('\n')
+  );
+  res.write(
+    [
       'event: data shape',
       `data: ${JSON.stringify(shape)}`,
       // add an extra newline for better viewing of concatenated stream
@@ -62,21 +70,17 @@ export default async function serverSentEventRequest<
           // send event responses with or without data: "empty" updates are a
           // "heartbeat" signal
           [
-            'event: new block',
-            `id: ${height}`,
+            'event: update',
+            `id: [${lastHeight},${height}]`,
             `data: ${
               data && height > lastHeight
                 ? JSON.stringify(
+                    // get only the unpaginated data field
                     getResponse(data, query, {
                       paginate: false,
                       shape: false,
-                      defaults: {
-                        block_range: {
-                          from_height: lastHeight,
-                          to_height: height,
-                        },
-                      },
-                    })
+                      defaults: {},
+                    }).data
                   )
                 : ''
             }`,
