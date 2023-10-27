@@ -25,10 +25,10 @@ export default async function serverSentEventRequest<
 
   const { req, res } = request.raw;
   // establish SSE content through headers
-  h.response('')
-    .type('text/event-stream')
-    .header('Cache-Control', 'no-cache')
-    .header('Connection', 'keep-alive');
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
   // and listen for new updates to send
   let lastHeight = fromHeight;
   let aborted = false;
