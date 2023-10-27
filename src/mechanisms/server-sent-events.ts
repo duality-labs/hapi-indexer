@@ -26,6 +26,9 @@ export default async function serverSentEventRequest<
   const { req, res } = request.raw;
   // establish SSE content through headers
   res.setHeader('Content-Type', 'text/event-stream');
+  if (request.info.cors.isOriginMatch && request.headers['origin']) {
+    res.setHeader('Access-Control-Allow-Origin', request.headers['origin']);
+  }
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
