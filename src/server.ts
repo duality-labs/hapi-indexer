@@ -9,6 +9,7 @@ import initDbSchema from './storage/sqlite3/schema/schema';
 import * as sync from './sync';
 
 import routes from './routes';
+import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
 
 const {
   RPC_API = '',
@@ -82,10 +83,10 @@ const init = async () => {
     }) as Http2SecureServer & Partial<Server>;
     rawServer.maxHeadersCount = null;
     rawServer.maxRequestsPerSocket = null;
-    rawServer.timeout = 60000;
-    rawServer.headersTimeout = 30000;
-    rawServer.keepAliveTimeout = 30000;
-    rawServer.requestTimeout = 60000;
+    rawServer.timeout = 5 * minutes * inMs;
+    rawServer.headersTimeout = 1 * minutes * inMs;
+    rawServer.keepAliveTimeout = 1 * minutes * inMs;
+    rawServer.requestTimeout = 5 * minutes * inMs;
     rawServer.closeAllConnections = () => undefined;
     rawServer.closeIdleConnections = () => undefined;
     isSecure = true;
