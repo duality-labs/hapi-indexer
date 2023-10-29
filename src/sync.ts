@@ -8,6 +8,7 @@ import { TxResponse } from './@types/tx';
 
 import ingestTxs from './storage/sqlite3/ingest/ingestTxResponse';
 import { inMs, minutes, seconds } from './storage/sqlite3/db/timeseriesUtils';
+import Timer from './utils/timer';
 
 // define the snamke case that the response is actually in
 interface RpcTxResult extends Omit<ResponseDeliverTx, 'gasWanted' | 'gasUsed'> {
@@ -43,43 +44,6 @@ const {
 
 const pollIntervalMs = Number(POLLING_INTERVAL_MS) || 500;
 
-class Timer {
-  state: { [label: string]: { startTime: number; elapsedTime: number } } = {};
-  get(label: string): number | undefined {
-    return this.state[label]?.elapsedTime;
-  }
-  start(...labels: string[] | string[][]) {
-    labels
-      .flatMap((v) => v)
-      .forEach((label) => {
-        // initialize new labels if needed
-        this.state[label] = this.state[label] || {
-          startTime: 0,
-          elapsedTime: 0,
-        };
-        // set starting time
-        this.state[label].startTime = Date.now();
-      });
-    // return handy stop callback
-    return () => this.stop(...labels);
-  }
-  stop(...labels: string[] | string[][]) {
-    labels
-      .flatMap((v) => v)
-      .forEach((label) => {
-        // increment elapsed time
-        this.state[label].elapsedTime +=
-          Date.now() - this.state[label].startTime;
-      });
-  }
-  reset(...labels: string[] | string[][]) {
-    labels
-      .flatMap((v) => v)
-      .forEach((label) => {
-        this.state[label] = { startTime: 0, elapsedTime: 0 };
-      });
-  }
-}
 type PageReader = (options: {
   page?: number;
   timer: Timer;
@@ -161,13 +125,13 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
         );
         // print detailed timing info if processing occured
         if (timer?.get('processing')) {
+          const timerValues = timer.getAll();
           const maxKeyLength = Math.max(
-            ...Object.keys(timer.state).map((key) => key.length)
+            ...timerValues.map(({ label }) => label.length)
           );
           defaultLogger.info(
-            `timing:\n${Object.entries(timer.state)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([label, { elapsedTime }]) => {
+            `timing:\n${timerValues
+              .map(({ label, elapsedTime }) => {
                 return `${label.padEnd(maxKeyLength)} : ${elapsedTime}ms`;
               })
               .join('\n')}`
