@@ -45,15 +45,18 @@ export default class Timer {
       this.state[label].called += 1;
     });
     // return handy stop callback
-    return () => this.stop(label);
+    // note: this callback is not bound to the label's startTime state
+    //       this is for complicated scenarios with parallel async promises that
+    //       would not calculate times correctly with multiple concurrent timers
+    return () => this.stop(label, now);
   }
 
   // stop timer(s)
-  stop(label: string) {
+  stop(label: string, startTime = this.state[label].startTime) {
     const now = performance.now();
     this.expandLabel(label).forEach((label) => {
       // increment elapsed time
-      this.state[label].elapsedTime += now - this.state[label].startTime;
+      this.state[label].elapsedTime += now - startTime;
       // reset timers in case this is called again
       this.state[label].startTime = now;
     });
