@@ -97,9 +97,7 @@ export default async function ingestTxs(
             timer.stop('processing:txs:event.PlaceLimitOrder');
             break;
           case 'TickUpdate':
-            timer.start('processing:txs:event.TickUpdate');
-            await insertEventTickUpdate(tx_result, txEvent, index);
-            timer.stop('processing:txs:event.TickUpdate');
+            await insertEventTickUpdate(tx_result, txEvent, index, timer);
             await upsertDerivedTickStateRows(tx_result, txEvent, index, timer);
             break;
         }
