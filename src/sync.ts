@@ -40,9 +40,11 @@ const {
   POLLING_INTERVAL_MS = '',
   SYNC_PAGE_SIZE = '',
   COLOR_LOGS = '',
+  FETCH_TIMEOUT = '',
 } = process.env;
 
 const pollIntervalMs = Number(POLLING_INTERVAL_MS) || 500;
+const fetchTimeout = Number(FETCH_TIMEOUT) || 60 * seconds * inMs;
 
 type PageReader = (options: {
   page?: number;
@@ -265,7 +267,21 @@ export async function catchUp({
         `fetching:txs:size-${itemsToRequest}`,
       ]);
       try {
-        response = await fetch(url);
+        response = await new Promise((resolve, reject) => {
+          const controller = new AbortController();
+          const signal = controller.signal;
+          // add a time limit for fetching, and increase it on each retry
+          const delay = fetchTimeout * (retryCount + 1);
+          const timeoutID = setTimeout(() => {
+            controller.abort(
+              new Error(`Timeout reached: ${delay}ms (retries: ${retryCount})`)
+            );
+          }, delay);
+          return fetch(url, { signal })
+            .then(resolve)
+            .catch(reject)
+            .finally(() => clearTimeout(timeoutID));
+        });
         stopFetchTimer();
         // allow unexpected status codes to cause a retry instead of exiting
         if (response?.status !== 200) {
