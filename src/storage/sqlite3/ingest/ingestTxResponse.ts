@@ -43,18 +43,18 @@ export default async function ingestTxs(
     timer.stop('processing:txs:block');
 
     // then add token foreign keys
-    timer.start('processing:txs:dex.tokens');
     for (const txEvent of txEvents) {
+      timer.start('processing:txs:dex.tokens');
       await insertDexTokensRows(txEvent);
+      timer.stop('processing:txs:dex.tokens');
     }
-    timer.stop('processing:txs:dex.tokens');
 
     // then add pair foreign keys
-    timer.start('processing:txs:dex.pairs');
     for (const txEvent of txEvents) {
+      timer.start('processing:txs:dex.pairs');
       await insertDexPairsRows(txEvent);
+      timer.stop('processing:txs:dex.pairs');
     }
-    timer.stop('processing:txs:dex.pairs');
 
     // then add transaction rows
     timer.start('processing:txs:tx');
