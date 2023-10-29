@@ -4,11 +4,13 @@ import { TxResponse } from '../../../../@types/tx';
 import db from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
+import Timer from '../../../../utils/timer';
 
 export default async function upsertDerivedVolumeData(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
-  index: number
+  index: number,
+  timer = new Timer()
 ) {
   // repeat checks
   const isDexMessage =
@@ -22,6 +24,7 @@ export default async function upsertDerivedVolumeData(
     const queriedColumn = isForward ? 'ReservesFloat1' : 'ReservesFloat0';
     const otherColumn = !isForward ? 'ReservesFloat1' : 'ReservesFloat0';
     // note that previousReserves may not exist yet
+    timer.start('processing:txs:derived.tx_volume_data:get:tx_volume_data');
     const previousData = await db.get(sql`
       SELECT
         'derived.tx_volume_data'.'ReservesFloat0',
@@ -45,7 +48,9 @@ export default async function upsertDerivedVolumeData(
       LIMIT 1
     `);
     const previousReserves = previousData?.[queriedColumn];
+    timer.stop('processing:txs:derived.tx_volume_data:get:tx_volume_data');
 
+    timer.start('processing:txs:derived.tx_volume_data:get:tick_state');
     // derive data from entire ticks state (useful for maybe some other calculations)
     const currentReserves = await db
       .get(
@@ -83,10 +88,12 @@ export default async function upsertDerivedVolumeData(
         `
       )
       .then((row) => row?.['ReservesFloat'] ?? null);
+    timer.stop('processing:txs:derived.tx_volume_data:get:tick_state');
 
     // if activity has changed current reserves then update data
     if (previousReserves !== currentReserves) {
       const previousOtherSideReserves = previousData?.[otherColumn] ?? 0;
+      timer.start('processing:txs:derived.tx_volume_data:set:tx_volume_data');
       await db.run(sql`
         INSERT OR REPLACE INTO 'derived.tx_volume_data' (
           'ReservesFloat0',
@@ -138,6 +145,7 @@ export default async function upsertDerivedVolumeData(
           )
         )
       `);
+      timer.start('processing:txs:derived.tx_volume_data:set:tx_volume_data');
     }
   }
 }

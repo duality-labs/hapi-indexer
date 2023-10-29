@@ -7,11 +7,13 @@ import upsertDerivedPriceData from './derived.tx_price_data';
 import upsertDerivedVolumeData from './derived.tx_volume_data';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
+import Timer from '../../../../utils/timer';
 
 export async function upsertDerivedTickStateRows(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
-  index: number
+  index: number,
+  timer = new Timer()
 ) {
   const isDexMessage =
     txEvent.type === 'TickUpdate' &&
@@ -20,6 +22,7 @@ export async function upsertDerivedTickStateRows(
 
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     // get previous state to compare against
+    timer.start('processing:txs:derived.tick_state:get:tick_state');
     const previousStateData = await db.get(sql`
       SELECT 'derived.tick_state'.'Reserves'
       FROM 'derived.tick_state'
@@ -54,7 +57,9 @@ export async function upsertDerivedTickStateRows(
     ) {
       return;
     }
+    timer.stop('processing:txs:derived.tick_state:get:tick_state');
 
+    timer.start('processing:txs:derived.tick_state:set:tick_state');
     const { lastID } = await db.run(sql`
       INSERT OR REPLACE INTO 'derived.tick_state' (
         'TickIndex',
@@ -90,11 +95,12 @@ export async function upsertDerivedTickStateRows(
         ${tx_result.height}
       )
     `);
+    timer.stop('processing:txs:derived.tick_state:set:tick_state');
 
     // continue logic for several dependent states
     await Promise.all([
-      upsertDerivedPriceData(tx_result, txEvent, index),
-      upsertDerivedVolumeData(tx_result, txEvent, index),
+      upsertDerivedPriceData(tx_result, txEvent, index, timer),
+      upsertDerivedVolumeData(tx_result, txEvent, index, timer),
     ]);
 
     return lastID;

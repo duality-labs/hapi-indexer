@@ -15,10 +15,14 @@ import { upsertDerivedTickStateRows } from './tables/derived.tick_state';
 
 import decodeEvent from './utils/decodeEvent';
 import { getDexMessageAction, isValidResult } from './utils/utils';
+import Timer from '../../../utils/timer';
 
 let lastHeight = '0';
 let lastTxIndex = 0;
-export default async function ingestTxs(txPage: TxResponse[]) {
+export default async function ingestTxs(
+  txPage: TxResponse[],
+  timer = new Timer()
+) {
   for (const tx_result of txPage) {
     // find this transaction's index
     lastTxIndex = tx_result.height === lastHeight ? lastTxIndex + 1 : 0;
@@ -34,30 +38,42 @@ export default async function ingestTxs(txPage: TxResponse[]) {
     const txEvents = (tx_result.events || []).map(decodeEvent);
 
     // first add block rows
+    timer.start('processing:txs:block');
     await insertBlockRows(tx_result);
+    timer.stop('processing:txs:block');
 
     // then add token foreign keys
+    timer.start('processing:txs:dex.tokens');
     for (const txEvent of txEvents) {
       await insertDexTokensRows(txEvent);
     }
+    timer.stop('processing:txs:dex.tokens');
 
     // then add pair foreign keys
+    timer.start('processing:txs:dex.pairs');
     for (const txEvent of txEvents) {
       await insertDexPairsRows(txEvent);
     }
+    timer.stop('processing:txs:dex.pairs');
 
     // then add transaction rows
+    timer.start('processing:txs:tx');
     await insertTxRows(tx_result, index);
+    timer.stop('processing:txs:tx');
 
     // then add transaction event rows
     let lastMsgID: number | undefined = undefined;
     for (const txEvent of txEvents) {
       // get new or last know related Msg id
+      timer.start('processing:txs:tx_msg');
       const newMsg = await insertTxMsgRows(txEvent);
+      timer.stop('processing:txs:tx_msg');
       lastMsgID = newMsg ? newMsg.lastID : lastMsgID;
 
       // add transaction event
+      timer.start('processing:txs:tx_result.events');
       await insertTxEventRows(tx_result, txEvent, index, lastMsgID);
+      timer.stop('processing:txs:tx_result.events');
 
       // continue logic for dex events
       // if the event was a dex action then use that event to update tables
@@ -66,17 +82,25 @@ export default async function ingestTxs(txPage: TxResponse[]) {
         // add event rows to specific event tables:
         switch (dexAction) {
           case 'Deposit':
+            timer.start('processing:txs:event.Deposit');
             await insertEventDeposit(tx_result, txEvent, index);
+            timer.stop('processing:txs:event.Deposit');
             break;
           case 'Withdraw':
+            timer.start('processing:txs:event.Withdraw');
             await insertEventWithdraw(tx_result, txEvent, index);
+            timer.stop('processing:txs:event.Withdraw');
             break;
           case 'PlaceLimitOrder':
+            timer.start('processing:txs:event.PlaceLimitOrder');
             await insertEventPlaceLimitOrder(tx_result, txEvent, index);
+            timer.stop('processing:txs:event.PlaceLimitOrder');
             break;
           case 'TickUpdate':
+            timer.start('processing:txs:event.TickUpdate');
             await insertEventTickUpdate(tx_result, txEvent, index);
-            await upsertDerivedTickStateRows(tx_result, txEvent, index);
+            timer.stop('processing:txs:event.TickUpdate');
+            await upsertDerivedTickStateRows(tx_result, txEvent, index, timer);
             break;
         }
       }

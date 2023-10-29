@@ -338,9 +338,10 @@ export async function catchUp({
 
       const stopProcessingTimer = timer.start('processing:txs');
       // ingest single tx
-      await ingestTxs([
-        translateTxResponse(tx_result, { height, timestamp, txhash: hash }),
-      ]);
+      await ingestTxs(
+        [translateTxResponse(tx_result, { height, timestamp, txhash: hash })],
+        timer
+      );
       stopProcessingTimer();
 
       // note current block height
