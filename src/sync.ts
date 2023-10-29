@@ -142,8 +142,8 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
             `timing:\n${timerValues
               .map(({ label, elapsedTime, called }) => {
                 return `${label.padEnd(maxKeyLength)} : ${elapsedTime
-                  .toFixed(0)
-                  .padStart(maxMsLength)}ms (called ${called
+                  .toFixed(2)
+                  .padStart(maxMsLength + 3)}ms (called ${called
                   .toFixed(0)
                   .padStart(maxCalledLength)} times)`;
               })
