@@ -31,6 +31,7 @@ export default class Timer {
 
   // start timer(s)
   start(...labels: string[] | string[][]) {
+    const now = performance.now();
     labels
       .flatMap((v) => v)
       .flatMap((v) => this.expandLabel(v))
@@ -42,7 +43,7 @@ export default class Timer {
           called: 0,
         };
         // set starting time
-        this.state[label].startTime = performance.now();
+        this.state[label].startTime = now;
         // increment called times
         this.state[label].called += 1;
       });
@@ -52,15 +53,15 @@ export default class Timer {
 
   // stop timer(s)
   stop(...labels: string[] | string[][]) {
+    const now = performance.now();
     labels
       .flatMap((v) => v)
       .flatMap((v) => this.expandLabel(v))
       .forEach((label) => {
         // increment elapsed time
-        this.state[label].elapsedTime +=
-          performance.now() - this.state[label].startTime;
+        this.state[label].elapsedTime += now - this.state[label].startTime;
         // reset timers in case this is called again
-        this.state[label].startTime = performance.now();
+        this.state[label].startTime = now;
       });
   }
 
