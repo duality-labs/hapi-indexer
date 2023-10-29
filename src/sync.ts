@@ -255,9 +255,6 @@ export async function catchUp({
         `fetching:txs:last:size-${itemsToRequest}`,
       ]);
       const stopFetchTimer = timer.start([
-        'fetching',
-        'fetching:txs',
-        'fetching:txs:last',
         `fetching:txs:try-${retryCount}`,
         `fetching:txs:size-${itemsToRequest}`,
         `fetching:txs:last:size-${itemsToRequest}`,
@@ -276,7 +273,7 @@ export async function catchUp({
         retryCount += 1;
         // delay the next request with a linear back-off;
         const delay = retryCount * 1 * seconds * inMs;
-        const stopWaitTimer = timer.start(['back-off', 'back-off:txs']);
+        const stopWaitTimer = timer.start('back-off:txs');
         await new Promise((resolve) => setTimeout(resolve, delay));
         stopWaitTimer();
         logger.error(
@@ -286,11 +283,7 @@ export async function catchUp({
     }
 
     // read the RPC tx search results for tx hashes
-    const stopParsingTimer = timer.start([
-      'parsing',
-      'parsing:txs',
-      `parsing:txs:size-${itemsToRequest}`,
-    ]);
+    const stopParsingTimer = timer.start(`parsing:txs:size-${itemsToRequest}`);
     const { result } = (await response.json()) as RpcTxSearchResponse;
     stopParsingTimer();
     for (const { height, hash, tx_result } of result.txs) {
@@ -307,8 +300,6 @@ export async function catchUp({
         const url = `${RPC_API}/header?height=${height}`;
         do {
           const stopFetchTimer = timer.start([
-            'fetching',
-            'fetching:height',
             `fetching:height:try-${retryCount}`,
           ]);
           try {
@@ -327,12 +318,12 @@ export async function catchUp({
             retryCount += 1;
             // delay the next request with a linear back-off;
             const delay = retryCount * 1 * seconds * inMs;
-            const stopWaitTimer = timer.start(['back-off', 'back-off:height']);
+            const stopWaitTimer = timer.start('back-off:height');
             await new Promise((resolve) => setTimeout(resolve, delay));
             stopWaitTimer();
           }
         } while (response?.status !== 200);
-        const stopParsingTimer = timer.start(['parsing', 'parsing:height']);
+        const stopParsingTimer = timer.start('parsing:height');
         const { result } =
           (await response.json()) as RpcBlockHeaderLookupResponse;
         stopParsingTimer();
@@ -340,7 +331,7 @@ export async function catchUp({
       }
       const timestamp = blockTimestamps[height];
 
-      const stopProcessingTimer = timer.start(['processing', 'processing:txs']);
+      const stopProcessingTimer = timer.start('processing:txs');
       // ingest single tx
       await ingestTxs([
         translateTxResponse(tx_result, { height, timestamp, txhash: hash }),
