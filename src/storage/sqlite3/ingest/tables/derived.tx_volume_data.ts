@@ -145,7 +145,7 @@ export default async function upsertDerivedVolumeData(
           )
         )
       `);
-      timer.start('processing:txs:derived.tx_volume_data:set:tx_volume_data');
+      timer.stop('processing:txs:derived.tx_volume_data:set:tx_volume_data');
     }
   }
 }
