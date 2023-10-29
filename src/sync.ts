@@ -145,7 +145,9 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
                   .toFixed(2)
                   .padStart(maxMsLength + 3)}ms (called ${called
                   .toFixed(0)
-                  .padStart(maxCalledLength)} times)`;
+                  .padStart(maxCalledLength)} times: ${(elapsedTime / called)
+                  .toFixed(3)
+                  .padStart(maxMsLength + 4)}ms per call)`;
               })
               .join('\n')}`
           );
