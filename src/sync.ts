@@ -260,15 +260,9 @@ export async function catchUp({
       const url = `${RPC_API}/tx_search?query="${encodeURIComponent(
         `tx.height>=${fromBlockHeight} AND message.module='dex'`
       )}"&per_page=${itemsToRequest}&page=${page}`;
-      // reset timers that just note the last time of each type of request
-      timer.reset([
-        'fetching:txs:last',
-        `fetching:txs:last:size-${itemsToRequest}`,
-      ]);
       const stopFetchTimer = timer.start([
         `fetching:txs:try-${retryCount}`,
         `fetching:txs:size-${itemsToRequest}`,
-        `fetching:txs:last:size-${itemsToRequest}`,
       ]);
       try {
         response = await fetch(url);
