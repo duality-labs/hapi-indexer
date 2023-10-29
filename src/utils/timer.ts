@@ -1,7 +1,7 @@
 export default class Timer {
   // store timers in state property
   private state: {
-    [label: string]: { startTime: number; elapsedTime: number };
+    [label: string]: { startTime: number; elapsedTime: number; called: number };
   } = {};
 
   // allow labels categorized by ":" character to start and stop parent timers
@@ -17,7 +17,11 @@ export default class Timer {
   getAll() {
     return Object.entries(this.state)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([label, { elapsedTime }]) => ({ label, elapsedTime }));
+      .map(([label, { elapsedTime, called }]) => ({
+        label,
+        elapsedTime,
+        called,
+      }));
   }
 
   // get timer
@@ -35,9 +39,12 @@ export default class Timer {
         this.state[label] = this.state[label] || {
           startTime: 0,
           elapsedTime: 0,
+          called: 0,
         };
         // set starting time
         this.state[label].startTime = Date.now();
+        // increment called times
+        this.state[label].called += 1;
       });
     // return handy stop callback
     return () => this.stop(...labels);
@@ -63,7 +70,7 @@ export default class Timer {
       .flatMap((v) => v)
       // don't expand labels for reset timers, it would wipe out parent timers
       .forEach((label) => {
-        this.state[label] = { startTime: 0, elapsedTime: 0 };
+        this.state[label] = { startTime: 0, elapsedTime: 0, called: 0 };
       });
   }
 }

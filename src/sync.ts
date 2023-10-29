@@ -129,10 +129,21 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
           const maxKeyLength = Math.max(
             ...timerValues.map(({ label }) => label.length)
           );
+          const maxMsLength = Math.max(
+            ...timerValues.map((v) => v.elapsedTime.toFixed(0).length)
+          );
+          const maxCalledLength = Math.max(
+            ...timerValues.map((v) => v.called.toFixed(0).length)
+          );
+
           defaultLogger.info(
             `timing:\n${timerValues
-              .map(({ label, elapsedTime }) => {
-                return `${label.padEnd(maxKeyLength)} : ${elapsedTime}ms`;
+              .map(({ label, elapsedTime, called }) => {
+                return `${label.padEnd(maxKeyLength)} : ${elapsedTime
+                  .toFixed(0)
+                  .padStart(maxMsLength)}ms (called ${called
+                  .toFixed(0)
+                  .padStart(maxCalledLength)} times)`;
               })
               .join('\n')}`
           );
