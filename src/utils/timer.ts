@@ -30,58 +30,44 @@ export default class Timer {
   }
 
   // start timer(s)
-  start(...labels: string[] | string[][]) {
+  start(label: string) {
     const now = performance.now();
-    labels
-      .flatMap((v) => v)
-      .flatMap((v) => this.expandLabel(v))
-      .forEach((label) => {
-        // initialize new labels if needed
-        this.state[label] = this.state[label] || {
-          startTime: 0,
-          elapsedTime: 0,
-          called: 0,
-        };
-        // set starting time
-        this.state[label].startTime = now;
-        // increment called times
-        this.state[label].called += 1;
-      });
+    this.expandLabel(label).forEach((label) => {
+      // initialize new labels if needed
+      this.state[label] = this.state[label] || {
+        startTime: 0,
+        elapsedTime: 0,
+        called: 0,
+      };
+      // set starting time
+      this.state[label].startTime = now;
+      // increment called times
+      this.state[label].called += 1;
+    });
     // return handy stop callback
-    return () => this.stop(...labels);
+    return () => this.stop(label);
   }
 
   // stop timer(s)
-  stop(...labels: string[] | string[][]) {
+  stop(label: string) {
     const now = performance.now();
-    labels
-      .flatMap((v) => v)
-      .flatMap((v) => this.expandLabel(v))
-      .forEach((label) => {
-        // increment elapsed time
-        this.state[label].elapsedTime += now - this.state[label].startTime;
-        // reset timers in case this is called again
-        this.state[label].startTime = now;
-      });
+    this.expandLabel(label).forEach((label) => {
+      // increment elapsed time
+      this.state[label].elapsedTime += now - this.state[label].startTime;
+      // reset timers in case this is called again
+      this.state[label].startTime = now;
+    });
   }
 
   // reset timer(s)
-  reset(...labels: string[] | string[][]) {
-    labels
-      .flatMap((v) => v)
-      // don't expand labels for reset timers, it would wipe out parent timers
-      .forEach((label) => {
-        this.state[label] = { startTime: 0, elapsedTime: 0, called: 0 };
-      });
+  reset(label: string) {
+    // don't expand labels for reset timers, it would wipe out parent timers
+    this.state[label] = { startTime: 0, elapsedTime: 0, called: 0 };
   }
 
   // remove timer(s)
-  remove(...labels: string[] | string[][]) {
-    labels
-      .flatMap((v) => v)
-      // don't expand labels for remove timers, it would wipe out parent timers
-      .forEach((label) => {
-        delete this.state[label];
-      });
+  remove(label: string) {
+    // don't expand labels for remove timers, it would wipe out parent timers
+    delete this.state[label];
   }
 }
