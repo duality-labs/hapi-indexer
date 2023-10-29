@@ -262,11 +262,12 @@ export async function catchUp({
       const url = `${RPC_API}/tx_search?query="${encodeURIComponent(
         `tx.height>=${fromBlockHeight} AND message.module='dex'`
       )}"&per_page=${itemsToRequest}&page=${page}`;
-      const stopFetchTimer = timer.start([
-        `fetching:txs:try-${retryCount}`,
-        `fetching:txs:size-${itemsToRequest}`,
-      ]);
+      // create timer label for this request (and label for last request)
+      const fetchTxsTimerLabel = `fetching:txs:try-${retryCount
+        .toFixed(0)
+        .padStart(3, '0')}:last`;
       try {
+        timer.start(fetchTxsTimerLabel);
         response = await new Promise((resolve, reject) => {
           const controller = new AbortController();
           const signal = controller.signal;
@@ -282,7 +283,7 @@ export async function catchUp({
             .catch(reject)
             .finally(() => clearTimeout(timeoutID));
         });
-        stopFetchTimer();
+        timer.stop(fetchTxsTimerLabel);
         // allow unexpected status codes to cause a retry instead of exiting
         if (response?.status !== 200) {
           throw new Error(
@@ -290,7 +291,9 @@ export async function catchUp({
           );
         }
       } catch (e) {
-        stopFetchTimer();
+        timer.stop(fetchTxsTimerLabel);
+        // remove single "last" label, it will be retried again
+        timer.remove(fetchTxsTimerLabel);
         retryCount += 1;
         // delay the next request with a linear back-off;
         const delay = retryCount * 1 * seconds * inMs;
@@ -322,19 +325,22 @@ export async function catchUp({
         let response: Response | undefined = undefined;
         const url = `${RPC_API}/header?height=${height}`;
         do {
-          const stopFetchTimer = timer.start([
-            `fetching:height:try-${retryCount}`,
-          ]);
+          const fetchHeightTimerLabel = `fetching:height:try-${retryCount
+            .toFixed(0)
+            .padEnd(3, '0')}:last`;
           try {
+            timer.start(fetchHeightTimerLabel);
             response = await fetch(url);
-            stopFetchTimer();
+            timer.stop(fetchHeightTimerLabel);
             if (response?.status !== 200) {
               throw new Error(
                 `RPC API returned status code: ${url} ${response?.status}`
               );
             }
           } catch (e) {
-            stopFetchTimer();
+            timer.stop(fetchHeightTimerLabel);
+            // remove single "last" label, it will be retried again
+            timer.remove(fetchHeightTimerLabel);
             logger.error(
               `Could not fetch block: ${url} (status: ${response?.status})`
             );

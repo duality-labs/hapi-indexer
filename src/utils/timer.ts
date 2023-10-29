@@ -73,4 +73,14 @@ export default class Timer {
         this.state[label] = { startTime: 0, elapsedTime: 0, called: 0 };
       });
   }
+
+  // remove timer(s)
+  remove(...labels: string[] | string[][]) {
+    labels
+      .flatMap((v) => v)
+      // don't expand labels for remove timers, it would wipe out parent timers
+      .forEach((label) => {
+        delete this.state[label];
+      });
+  }
 }
