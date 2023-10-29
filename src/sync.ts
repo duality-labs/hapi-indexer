@@ -297,8 +297,10 @@ export async function catchUp({
         const stopWaitTimer = timer.start('back-off:txs');
         await new Promise((resolve) => setTimeout(resolve, delay));
         stopWaitTimer();
-        logger.error(
-          `Could not fetch txs from URL: ${url} (status: ${response?.status})`
+        defaultLogger.error(
+          `Could not fetch txs from URL: ${url} (status: ${
+            response?.status ?? (e as Error)?.message
+          })`
         );
       }
     }
