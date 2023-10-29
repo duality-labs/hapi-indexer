@@ -7,7 +7,7 @@ import * as sync from './sync';
 
 import routes from './routes';
 
-const { RPC_API = '' } = process.env;
+const { RPC_API = '', ALLOW_ROUTES_BEFORE_SYNCED = '' } = process.env;
 
 async function testConnection(apiUrl: string): Promise<boolean> {
   try {
@@ -124,7 +124,10 @@ const init = async () => {
   await initDb();
   await initDbSchema();
   serverTimes.indexing = new Date();
-  await sync.catchUp();
+  // prevent routes from being usable until the indexer is synced with the chain
+  if (ALLOW_ROUTES_BEFORE_SYNCED !== 'true') {
+    await sync.catchUp();
+  }
   serverTimes.indexed = new Date();
 
   // add indexer routes
