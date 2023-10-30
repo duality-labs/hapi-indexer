@@ -230,7 +230,6 @@ function translateTxResponse(
   };
 }
 
-let maxBlockHeight = 0;
 const blockTimestamps: { [height: string]: string } = {};
 // restrict items per page to between 1-100, and default to 100
 // note: this number should be 1 or divisible by 10
@@ -239,7 +238,8 @@ const itemsPerPage = Math.max(1, Math.min(100, Number(SYNC_PAGE_SIZE) || 100));
 export async function catchUp({
   fromBlockHeight = 0,
   logger = defaultLogger,
-} = {}) {
+} = {}): Promise<number> {
+  let maxBlockHeight = 0;
   // read tx pages
   await iterateThroughPages(async ({ page: offset = 0, timer }) => {
     // we default starting page to 1 as this API has 1-based page numbers
@@ -382,10 +382,33 @@ export async function catchUp({
       currentItemCount < totalItemCount ? currentItemCount : null;
     return [pageItemCount, totalItemCount, nextOffset];
   }, logger.child({ label: 'transaction' }));
+
+  return maxBlockHeight;
 }
 
 // export a function to allow other functions to listen for the next block
 const newHeightEmitter = new EventEmitter();
+// keep track of last block height in a class instance with an internal var
+// this is to help assure lastBlockHeight is not manipulated accidentally
+// and to let us know that when we access lastBlockHeight.get() it may be
+// different each time during an asynchronous function
+class BlockHeight {
+  private lastBlockHeight = 0;
+  get() {
+    return this.lastBlockHeight;
+  }
+  set(height: number) {
+    if (height > this.lastBlockHeight) {
+      this.lastBlockHeight = height;
+      newHeightEmitter.emit('newHeight', height);
+    }
+  }
+}
+// last block height means "last completed/finalized block height"
+// it should be safe to assume no new transactions will appear in this block
+const lastBlockHeight = new BlockHeight();
+
+// export a function to allow other functions to listen for the next block
 export function waitForNextBlock(maxMs = 1 * minutes * inMs): Promise<number> {
   return new Promise((resolve, reject) => {
     // add timeout
@@ -408,28 +431,31 @@ export function waitForNextBlock(maxMs = 1 * minutes * inMs): Promise<number> {
 
 export async function keepUp() {
   defaultLogger.info(
-    `keeping up: polling from block height: ${maxBlockHeight}`
+    `keeping up: polling from block height: ${lastBlockHeight.get()}`
   );
   let lastHeartbeatTime = Date.now();
 
   // poll for updates
   async function poll() {
     pollingLogger.info('keeping up: polling');
-    const lastBlockHeight = maxBlockHeight;
     const startTime = Date.now();
     try {
-      await catchUp({
-        fromBlockHeight: maxBlockHeight + 1,
+      const previousLastBlockHeight = lastBlockHeight.get();
+      const maxTxBlockHeight = await catchUp({
+        fromBlockHeight: previousLastBlockHeight + 1,
         logger: pollingLogger,
       });
       const now = Date.now();
       const duration = now - startTime;
 
+      // all txs for the endpoint have been processed so we can set
+      // the new lastBlockHeight and inform all listeners of the new value
+      lastBlockHeight.set(maxTxBlockHeight);
+
       // log block height increments
-      if (maxBlockHeight > lastBlockHeight) {
-        newHeightEmitter.emit('newHeight', maxBlockHeight);
+      if (maxTxBlockHeight > previousLastBlockHeight) {
         defaultLogger.info(
-          `keeping up: last block processed: ${maxBlockHeight}`
+          `keeping up: last block processed: ${maxTxBlockHeight}`
         );
         lastHeartbeatTime = now;
       } else {
