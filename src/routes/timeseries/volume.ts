@@ -20,8 +20,8 @@ const routes = [
         if (err instanceof Error) {
           logger.error(err);
           return h
-            .response(`something happened: ${err.message || '?'}`)
-            .code(500);
+            .response(err.message || 'An unknown error occurred')
+            .code(Number(err.cause) || 500);
         }
         return h.response('An unknown error occurred').code(500);
       }
@@ -43,8 +43,8 @@ const routes = [
         if (err instanceof Error) {
           logger.error(err);
           return h
-            .response(`something happened: ${err.message || '?'}`)
-            .code(500);
+            .response(err.message || 'An unknown error occurred')
+            .code(Number(err.cause) || 500);
         }
         return h.response('An unknown error occurred').code(500);
       }
