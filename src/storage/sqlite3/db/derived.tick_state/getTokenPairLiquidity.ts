@@ -114,20 +114,20 @@ function getLiquidityCache(server: Request['server']) {
         const [token0, token1] = `${id}`.split('|');
         const [fromHeight, toHeight] = `${id}`.split('|').slice(2).map(Number);
         if (!token0 || !token1) {
-          throw new Error('Tokens not specified');
+          throw new Error('Tokens not specified', { cause: 400 });
         }
         // it is important that the cache is called with height restrictions:
         // this ensures that the result is deterministic and can be cached
         // indefinitely (an unbound height result may change with time)
         if (fromHeight === undefined || toHeight === undefined) {
-          throw new Error('Height restrictions are required');
+          throw new Error('Height restrictions are required', { cause: 400 });
         }
         const lastBlockHeight = getLastBlockHeight();
         if (fromHeight > lastBlockHeight || toHeight > lastBlockHeight) {
-          throw new Error('Height is not bound to known data');
+          throw new Error('Height is not bound to known data', { cause: 400 });
         }
         if (toHeight <= fromHeight) {
-          throw new Error('Height query will produce no data');
+          throw new Error('Height query will produce no data', { cause: 400 });
         }
         const heightedPairState = await new Promise<HeightedTokenPairLiquidity>(
           (resolve, reject) => {
