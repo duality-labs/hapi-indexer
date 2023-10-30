@@ -315,6 +315,19 @@ export async function catchUp({
     const { result } = (await response.json()) as RpcTxSearchResponse;
     stopParsingTimer();
     for (const { height, hash, tx_result } of result.txs) {
+      // note current block height
+      const newHeight = Number(height);
+      if (newHeight > maxBlockHeight) {
+        // set last known (completed) block height to the previous height
+        // as we don't expect to see any further transactions from that block
+        lastBlockHeight.set(maxBlockHeight);
+        // set this loop to continue only after listeners of the
+        // waitForNextBlock (and the 'newHeight' event) have been resolved
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        // set new height for the next for-loop if condition
+        maxBlockHeight = newHeight;
+      }
+
       // skip this tx if the result code was 0 (there was an error)
       if (tx_result.code !== 0) {
         continue;
@@ -369,9 +382,6 @@ export async function catchUp({
         timer
       );
       stopProcessingTimer();
-
-      // note current block height
-      maxBlockHeight = Number(height);
     }
 
     // return next page information for page iterating function
