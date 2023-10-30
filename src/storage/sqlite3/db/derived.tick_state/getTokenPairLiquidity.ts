@@ -1,7 +1,7 @@
 import BigNumber from 'bignumber.js';
 import sql from 'sql-template-strings';
-import { CachePolicyOptions, Request } from '@hapi/hapi';
-import { Policy } from '@hapi/catbox';
+import { Request } from '@hapi/hapi';
+import { Policy, PolicyOptions } from '@hapi/catbox';
 
 import db from '../db';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
@@ -101,7 +101,7 @@ type HeightedTokenPairLiquidity = [
 
 type LiquidityCache = Policy<
   HeightedTokenPairLiquidity,
-  CachePolicyOptions<HeightedTokenPairLiquidity>
+  PolicyOptions<HeightedTokenPairLiquidity>
 >;
 
 let liquidityCache: LiquidityCache;
@@ -173,9 +173,7 @@ export async function getHeightedTokenPairLiquidity(
   const response = await liquidityCache.get(cacheKey);
   // return the response data in the correct order
   if (response) {
-    const [height, tickState0, tickState1] = Array.isArray(response)
-      ? response
-      : response.value;
+    const [height, tickState0, tickState1] = response;
     return invertedOrder
       ? [height, tickState1, tickState0]
       : [height, tickState0, tickState1];
