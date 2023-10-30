@@ -1,10 +1,10 @@
 import BigNumber from 'bignumber.js';
-import sql from 'sql-template-strings';
 import { Request } from '@hapi/hapi';
 import { Policy, PolicyOptions } from '@hapi/catbox';
 
 import db from '../db';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
+import getLatestTickStateCTE from './getLatestDerivedTickState';
 import { getLastBlockHeight } from '../../../../sync';
 
 export type DataRow = [tick_index: number, reserves: number];
@@ -24,60 +24,29 @@ async function getTickState(
   const reverseDirection = token1 === token;
   return await db
     .all<TickStateTableRow[]>(
-      sql`
-      WITH 'latest.derived.tick_state' AS (
-        SELECT
-          'derived.tick_state'.'TickIndex' as 'TickIndex',
-          'derived.tick_state'.'Reserves' as 'Reserves'
-        FROM
-          'derived.tick_state'
-        WHERE (
-          'derived.tick_state'.'related.dex.pair' = (
-            SELECT
-              'dex.pairs'.'id'
-            FROM
-              'dex.pairs'
-            WHERE (
-              'dex.pairs'.'token0' = ${token0} AND
-              'dex.pairs'.'token1' = ${token1}
-            )
-          ) AND
-          'derived.tick_state'.'related.dex.token' = (
-            SELECT
-              'dex.tokens'.'id'
-            FROM
-              'dex.tokens'
-            WHERE (
-              'dex.tokens'.'Token' = ${token}
-            )
-          ) AND
-          'derived.tick_state'.'related.block.header.height' > ${fromHeight} AND
-          'derived.tick_state'.'related.block.header.height' <= ${toHeight}
-        )
-        GROUP BY 'derived.tick_state'.'TickIndex'
-        HAVING max('derived.tick_state'.'related.block.header.height')
-      )
-    `.append(`--sql
-      SELECT
-        'latest.derived.tick_state'.'TickIndex' as 'tickIndex',
-        'latest.derived.tick_state'.'Reserves' as 'reserves'
-      FROM
-        'latest.derived.tick_state'
-      ${
-        // add a filtering of zero values if querying from the beginning
-        // as zero values won't be helpful to receive or use
-        fromHeight === 0
-          ? `--sql
-              WHERE 'latest.derived.tick_state'.'Reserves' != '0'
-            `
-          : ''
-      }
-      -- order by tick side
-      -- order by most important (middle) ticks first
-      ORDER BY 'latest.derived.tick_state'.'TickIndex' ${
-        reverseDirection ? 'ASC' : 'DESC'
-      }
-    `)
+      // append plain SQL (without sql substitution) for conditional sections
+      getLatestTickStateCTE(token0, token1, token, { fromHeight, toHeight })
+        .append(`--sql
+          SELECT
+            'latest.derived.tick_state'.'TickIndex' as 'tickIndex',
+            'latest.derived.tick_state'.'Reserves' as 'reserves'
+          FROM
+            'latest.derived.tick_state'
+          ${
+            // add a filtering of zero values if querying from the beginning
+            // as zero values won't be helpful to receive or use
+            fromHeight === 0
+              ? `--sql
+                  WHERE 'latest.derived.tick_state'.'Reserves' != '0'
+                `
+              : ''
+          }
+          -- order by tick side
+          -- order by most important (middle) ticks first
+          ORDER BY 'latest.derived.tick_state'.'TickIndex' ${
+            reverseDirection ? 'ASC' : 'DESC'
+          }
+        `)
     )
     // transform data for the tickIndexes to be in terms of A/B.
     .then((data) => {
