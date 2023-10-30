@@ -429,6 +429,9 @@ export function waitForNextBlock(maxMs = 1 * minutes * inMs): Promise<number> {
   });
 }
 
+interface RpcAbciResponse {
+  result: { last_block_height: string };
+}
 export async function keepUp() {
   defaultLogger.info(
     `keeping up: polling from block height: ${lastBlockHeight.get()}`
@@ -441,6 +444,18 @@ export async function keepUp() {
     const startTime = Date.now();
     try {
       const previousLastBlockHeight = lastBlockHeight.get();
+      // get last known block height before querying transactions
+      // this value is only used if the transactions list from the block height
+      // contains no transactions (and we can't derive the last known block height)
+      const lastAbciBlockHeight =
+        previousLastBlockHeight > 0
+          ? await fetch(`${RPC_API}/abci_info`)
+              .then((response) => response.json() as Promise<RpcAbciResponse>)
+              .then(({ result }) => {
+                return Number(result.last_block_height) || 0;
+              })
+          : 0;
+
       const maxTxBlockHeight = await catchUp({
         fromBlockHeight: previousLastBlockHeight + 1,
         logger: pollingLogger,
@@ -448,14 +463,15 @@ export async function keepUp() {
       const now = Date.now();
       const duration = now - startTime;
 
-      // all txs for the endpoint have been processed so we can set
+      // all txs for the lastAbciBlockHeight have been processed so we can set
       // the new lastBlockHeight and inform all listeners of the new value
-      lastBlockHeight.set(maxTxBlockHeight);
+      const newBlockHeight = maxTxBlockHeight || lastAbciBlockHeight;
+      lastBlockHeight.set(newBlockHeight);
 
       // log block height increments
-      if (maxTxBlockHeight > previousLastBlockHeight) {
+      if (newBlockHeight > previousLastBlockHeight) {
         defaultLogger.info(
-          `keeping up: last block processed: ${maxTxBlockHeight}`
+          `keeping up: last block processed: ${newBlockHeight}`
         );
         lastHeartbeatTime = now;
       } else {
