@@ -418,6 +418,11 @@ class BlockHeight {
 // it should be safe to assume no new transactions will appear in this block
 const lastBlockHeight = new BlockHeight();
 
+// expose last block height synchronously to other files, but not the set method
+export function getLastBlockHeight() {
+  return lastBlockHeight.get();
+}
+
 // export a function to allow other functions to listen for the next block
 export function waitForNextBlock(maxMs = 1 * minutes * inMs): Promise<number> {
   return new Promise((resolve, reject) => {
