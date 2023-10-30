@@ -2,6 +2,7 @@ import sql from 'sql-template-strings';
 import { TxResponse } from '../../../../@types/tx';
 
 import db from '../../db/db';
+import getLatestTickStateCTE from '../../db/derived.tick_state/getLatestDerivedTickState';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
@@ -54,35 +55,19 @@ export default async function upsertDerivedPriceData(
     const currentTickIndex = await db
       .get(
         // append plain SQL (without value substitution) to have conditional query
-        sql`
+        getLatestTickStateCTE(
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1'],
+          txEvent.attributes['TokenIn'],
+          { fromHeight: 0, toHeight: Number(tx_result.height) }
+        ).append(`--sql
           SELECT
-            'derived.tick_state'.'TickIndex'
+            'latest.derived.tick_state'.'TickIndex'
           FROM
-            'derived.tick_state'
-          WHERE (
-            'derived.tick_state'.'related.dex.pair' = (
-              SELECT
-                'dex.pairs'.'id'
-              FROM
-                'dex.pairs'
-              WHERE (
-                'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-                'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-              )
-            ) AND
-            'derived.tick_state'.'related.dex.token' = (
-              SELECT
-                'dex.tokens'.'id'
-              FROM
-                'dex.tokens'
-              WHERE (
-                'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
-              )
-            ) AND
-            'derived.tick_state'.'Reserves' != '0'
-          )
-        `.append(`--sql
-          ORDER BY 'derived.tick_state'.'TickIndex' ${
+            'latest.derived.tick_state'
+          WHERE
+            'latest.derived.tick_state'.'Reserves' != '0'
+          ORDER BY 'latest.derived.tick_state'.'TickIndex' ${
             isForward ? 'ASC' : 'DESC'
           }
           LIMIT 1

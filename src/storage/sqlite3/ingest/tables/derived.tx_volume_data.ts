@@ -2,6 +2,7 @@ import sql from 'sql-template-strings';
 import { TxResponse } from '../../../../@types/tx';
 
 import db from '../../db/db';
+import getLatestTickStateCTE from '../../db/derived.tick_state/getLatestDerivedTickState';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
@@ -54,38 +55,24 @@ export default async function upsertDerivedVolumeData(
     // derive data from entire ticks state (useful for maybe some other calculations)
     const currentReserves = await db
       .get(
-        // get all token reserves of a token in a pair (as a float for ease)
-        sql`
+        getLatestTickStateCTE(
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1'],
+          txEvent.attributes['TokenIn'],
+          { fromHeight: 0, toHeight: Number(tx_result.height) }
+        ).append(sql`
           SELECT
-            SUM( CAST('derived.tick_state'.'Reserves' AS FLOAT) ) as ReservesFloat
+            -- get all token reserves of a token in a pair (as a float for ease)
+            SUM( CAST('latest.derived.tick_state'.'Reserves' AS FLOAT) ) as 'ReservesFloat'
           FROM
-            'derived.tick_state'
+            'latest.derived.tick_state'
           WHERE (
-            'derived.tick_state'.'related.dex.pair' = (
-              SELECT
-                'dex.pairs'.'id'
-              FROM
-                'dex.pairs'
-              WHERE (
-                'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-                'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-              )
-            ) AND
-            'derived.tick_state'.'related.dex.token' = (
-              SELECT
-                'dex.tokens'.'id'
-              FROM
-                'dex.tokens'
-              WHERE (
-                'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
-              )
-            ) AND
-            'derived.tick_state'.'Reserves' != '0'
+            'latest.derived.tick_state'.'Reserves' != '0'
           )
           GROUP BY
-            'derived.tick_state'.'related.dex.pair',
-            'derived.tick_state'.'related.dex.token'
-        `
+            'latest.derived.tick_state'.'related.dex.pair',
+            'latest.derived.tick_state'.'related.dex.token'
+        `)
       )
       .then((row) => row?.['ReservesFloat'] ?? null);
     timer.stop('processing:txs:derived.tx_volume_data:get:tick_state');

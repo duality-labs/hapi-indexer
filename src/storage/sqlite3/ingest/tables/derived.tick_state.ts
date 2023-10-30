@@ -2,6 +2,7 @@ import sql from 'sql-template-strings';
 import { TxResponse } from '../../../../@types/tx';
 
 import db from '../../db/db';
+import getLatestTickStateCTE from '../../db/derived.tick_state/getLatestDerivedTickState';
 
 import upsertDerivedPriceData from './derived.tx_price_data';
 import upsertDerivedVolumeData from './derived.tx_volume_data';
@@ -23,32 +24,22 @@ export async function upsertDerivedTickStateRows(
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     // get previous state to compare against
     timer.start('processing:txs:derived.tick_state:get:tick_state');
-    const previousStateData = await db.get(sql`
-      SELECT 'derived.tick_state'.'Reserves'
-      FROM 'derived.tick_state'
-      WHERE (
-        'derived.tick_state'.'related.dex.pair' = (
-          SELECT
-            'dex.pairs'.'id'
-          FROM
-            'dex.pairs'
-          WHERE (
-            'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-            'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-          )
-        ) AND
-        'derived.tick_state'.'related.dex.token' = (
-          SELECT
-            'dex.tokens'.'id'
-          FROM
-            'dex.tokens'
-          WHERE (
-            'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
-          )
-        ) AND
-        'derived.tick_state'.'TickIndex' = ${txEvent.attributes['TickIndex']}
-      )
-    `);
+    const previousStateData = await db.get(
+      getLatestTickStateCTE(
+        txEvent.attributes['Token0'],
+        txEvent.attributes['Token1'],
+        txEvent.attributes['TokenIn'],
+        { fromHeight: 0, toHeight: Number(tx_result.height) }
+      ).append(sql`
+        SELECT 'latest.derived.tick_state'.'Reserves'
+        FROM 'latest.derived.tick_state'
+        WHERE (
+          'latest.derived.tick_state'.'TickIndex' = ${txEvent.attributes['TickIndex']}
+        )
+        ORDER BY 'latest.derived.tick_state'.'related.block.header.height' DESC
+        LIMIT 1
+      `)
+    );
 
     // check if this data is not an update and exit early
     if (
