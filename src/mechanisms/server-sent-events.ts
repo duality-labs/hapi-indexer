@@ -9,14 +9,15 @@ import {
 import { GetEndpointData, GetEndpointResponse } from './types';
 
 export default async function serverSentEventRequest<
+  PluginContext,
   DataSets extends unknown[],
   Shape
 >(
   request: Request,
   h: ResponseToolkit,
-  getData: GetEndpointData<DataSets>,
-  getResponse: GetEndpointResponse<DataSets, Shape>,
-  shape: Shape
+  shape: Shape,
+  getData: GetEndpointData<PluginContext, DataSets>,
+  getResponse: GetEndpointResponse<DataSets, Shape>
 ): Promise<void> {
   const {
     from_height: fromHeight = 0,
@@ -65,7 +66,7 @@ export default async function serverSentEventRequest<
         ...request.query,
         'block_range.from_height': lastHeight.toFixed(0),
       };
-      const data = await getData(request.server, request.params, query);
+      const data = await getData(request.params, query, h.context);
       if (aborted) break;
       const [height = lastHeight] = data || [];
       if (res.writable && height <= toHeight) {
@@ -79,11 +80,7 @@ export default async function serverSentEventRequest<
               data && height > lastHeight
                 ? JSON.stringify(
                     // get only the unpaginated data field
-                    getResponse(data, query, {
-                      paginate: false,
-                      shape: false,
-                      defaults: {},
-                    }).data
+                    getResponse(data, query).data
                   )
                 : '',
           })

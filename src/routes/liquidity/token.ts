@@ -5,8 +5,9 @@ import {
   getHeightedTokenPairLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTokenPairLiquidity';
 import { paginateData } from '../../storage/sqlite3/db/paginationUtils';
-import { selectRequestMechanism } from '../../mechanisms/_select';
+import processRequest from '../../mechanisms';
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
+import { LiquidityPluginContext } from '.';
 
 const shape = [['tick_index', 'reserves']] as const;
 type Shape = typeof shape;
@@ -19,25 +20,30 @@ const routes = [
     method: 'GET',
     path: '/liquidity/token/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
-      const requestMechanism = selectRequestMechanism<DataSets, Shape>(request);
-      return requestMechanism(request, h, getData, getResponse, shape);
+      return processRequest<LiquidityPluginContext, DataSets, Shape>({
+        request,
+        h,
+        shape,
+        getData,
+        getPaginatedResponse,
+        getResponse,
+      });
     },
   },
 ];
 
 export default routes;
 
-const getData: GetEndpointData<DataSets> = async (server, params, query) => {
-  const blockRange = getBlockRange(query);
-  const { from_height: fromHeight = 0, to_height: toHeight } = blockRange;
+const getData: GetEndpointData<LiquidityPluginContext, DataSets> = async (
+  params,
+  query,
+  context
+) => {
   const data = await getHeightedTokenPairLiquidity(
-    server,
+    context.caches.tickLiquidityCache,
     params['tokenA'],
     params['tokenB'],
-    {
-      fromHeight,
-      toHeight,
-    }
+    query
   );
   if (data) {
     const [height, tickStateA] = data;
@@ -46,31 +52,26 @@ const getData: GetEndpointData<DataSets> = async (server, params, query) => {
   return null;
 };
 
-const getResponse: GetEndpointResponse<DataSets, Shape> = (
+const getPaginatedResponse: GetEndpointResponse<DataSets, Shape> = (
   data,
-  query,
-  { paginate, defaults }
+  query
 ) => {
   const [, tickStateA = []] = data || [];
-  if (paginate) {
-    // paginate the data
-    const [page, pagination] = paginateData(
-      tickStateA,
-      query, // the time extents and frequency and such
-      defaultPaginationLimit
-    );
-    return {
-      shape: defaults.shape,
-      data: page,
-      pagination: pagination,
-      block_range: defaults.block_range,
-    };
-  } else {
-    // or use unpaginated data
-    return {
-      shape: defaults.shape,
-      data: tickStateA,
-      block_range: defaults.block_range,
-    };
-  }
+  // paginate the data
+  const [page, pagination] = paginateData(
+    tickStateA,
+    query, // the time extents and frequency and such
+    defaultPaginationLimit
+  );
+  return {
+    data: page,
+    pagination: pagination,
+  };
+};
+
+const getResponse: GetEndpointResponse<DataSets, Shape> = (data) => {
+  const [, tickStateA = []] = data || [];
+  return {
+    data: tickStateA,
+  };
 };

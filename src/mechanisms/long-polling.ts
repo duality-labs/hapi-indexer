@@ -8,19 +8,24 @@ import {
   minutes,
 } from '../storage/sqlite3/db/timeseriesUtils';
 import { getBlockRange } from '../storage/sqlite3/db/blockRangeUtils';
-import { GetEndpointData, GetEndpointResponse } from './types';
+import {
+  EndpointResponse,
+  GetEndpointData,
+  GetEndpointResponse,
+} from './types';
 
 const timeoutMs = 3 * minutes * inMs;
 
 export default async function longPollRequest<
+  PluginContext,
   DataSets extends unknown[],
   Shape
 >(
   request: Request,
   h: ResponseToolkit,
-  getData: GetEndpointData<DataSets>,
-  getResponse: GetEndpointResponse<DataSets, Shape>,
-  shape: Shape
+  shape: Shape,
+  getData: GetEndpointData<PluginContext, DataSets>,
+  getResponse: GetEndpointResponse<DataSets, Shape>
 ): Promise<ResponseObject> {
   try {
     const blockRange = getBlockRange(request.query);
@@ -29,7 +34,7 @@ export default async function longPollRequest<
     // get the liquidity data (but if we *will* wait for new data then skip)
     let data =
       fromHeight !== getLastBlockHeight()
-        ? await getData(request.server, request.params, request.query)
+        ? await getData(request.params, request.query, h.context)
         : null;
 
     // await new data if the data does not meet the known height requirement
@@ -45,7 +50,7 @@ export default async function longPollRequest<
           return h.response('Request Timeout').code(408);
         }
         // get current data
-        data = await getData(request.server, request.params, request.query);
+        data = await getData(request.params, request.query, h.context);
       }
     }
 
@@ -54,17 +59,18 @@ export default async function longPollRequest<
       return h.response('Not Found').code(404);
     }
 
-    const response = getResponse(data, request.query, {
-      paginate: true,
-      shape: true,
-      defaults: {
-        shape,
-        block_range: {
-          from_height: getBlockRange(request.query).from_height || 0,
-          to_height: height,
-        },
+    const [height] = data;
+    const partialResponse = getResponse(data, request.query);
+    // construct response in correct order with applied defaults
+    const response: EndpointResponse<DataSets, Shape> = {
+      shape: partialResponse?.shape ?? shape,
+      data: partialResponse?.data,
+      pagination: partialResponse?.pagination,
+      block_range: partialResponse?.block_range ?? {
+        from_height: getBlockRange(request.query).from_height || 0,
+        to_height: height,
       },
-    });
+    };
     return h.response(response).code(200);
   } catch (err: unknown) {
     if (err instanceof Error) {

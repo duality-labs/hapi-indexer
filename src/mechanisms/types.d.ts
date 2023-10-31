@@ -17,16 +17,20 @@ export interface EndpointResponse<DataSets extends unknown[], Shape>
   data: FlattenSingularItems<DataSets>;
 }
 
-export type GetEndpointData<DataSets extends unknown[]> = (
-  server: Request['server'],
+export type GetEndpointData<PluginContext, DataSets extends unknown[]> = (
   params: Request['params'],
-  query: PaginatedRequestQuery & BlockRangeRequestQuery
+  query: PaginatedRequestQuery & BlockRangeRequestQuery,
+  context: PluginContext
 ) => Promise<[height: number, ...DataSets] | null>;
+
+export type PaginateData<DataSets extends unknown[], Shape> = (
+  data: [height: number, ...DataSets],
+  query: PaginatedRequestQuery & BlockRangeRequestQuery
+) => EndpointResponse<DataSets, Shape>;
 
 export type GetEndpointResponse<DataSets extends unknown[], Shape> = (
   data: [height: number, ...DataSets],
-  query: PaginatedRequestQuery & BlockRangeRequestQuery,
-  options: GetEndpointResponseOptions<DataSets, Shape>
+  query: PaginatedRequestQuery & BlockRangeRequestQuery
 ) => EndpointResponse<DataSets, Shape>;
 
 export interface GetEndpointResponseOptions<DataSets extends unknown[], Shape> {

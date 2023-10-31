@@ -1,13 +1,9 @@
-import { Request } from '@hapi/hapi';
-
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
+import { LiquidityCache, getTickLiquidity } from './getTickLiquidity';
+
 import { getLastBlockHeight } from '../../../../sync';
-import {
-  LiquidityCache,
-  TickLiquidity,
-  getTickLiquidity,
-  tickLiquidityCache,
-} from './getTickLiquidity';
+import { RequestQuery } from '@hapi/hapi';
+import { getBlockRange } from '../blockRangeUtils';
 
 export type DataRow = [tick_index: number, reserves: number];
 
@@ -17,27 +13,16 @@ export type HeightedTokenPairLiquidity = [
   reservesTokenB: DataRow[]
 ];
 
-let liquidityCache: LiquidityCache;
-function getLiquidityCache(server: Request['server']) {
-  if (!liquidityCache) {
-    liquidityCache = server.cache<TickLiquidity>({
-      segment: '/liquidity/token/tokenA/tokenB',
-      ...tickLiquidityCache,
-    });
-  }
-  return liquidityCache;
-}
-
 export async function getHeightedTokenPairLiquidity(
-  server: Request['server'],
+  liquidityCache: LiquidityCache,
   tokenA: string,
   tokenB: string,
-  {
-    fromHeight = 0,
-    toHeight = getLastBlockHeight(),
-  }: { fromHeight?: string | number; toHeight?: string | number } = {}
+  query: RequestQuery
 ): Promise<HeightedTokenPairLiquidity | null> {
-  const liquidityCache = getLiquidityCache(server);
+  const {
+    from_height: fromHeight = 0,
+    to_height: toHeight = getLastBlockHeight(),
+  } = getBlockRange(query);
   const invertedOrder = await hasInvertedOrder(tokenA, tokenB);
   const token0 = invertedOrder ? tokenB : tokenA;
   const token1 = invertedOrder ? tokenA : tokenB;
