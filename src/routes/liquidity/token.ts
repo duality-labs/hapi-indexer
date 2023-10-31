@@ -20,9 +20,7 @@ const routes = [
     method: 'GET',
     path: '/liquidity/token/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
-      return processRequest<Plugins, DataSets, Shape>({
-        request,
-        h,
+      return processRequest<Plugins, DataSets, Shape>(request, h, {
         shape,
         getData,
         getPaginatedResponse,
