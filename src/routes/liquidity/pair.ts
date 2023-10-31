@@ -8,7 +8,7 @@ import { paginateData } from '../../storage/sqlite3/db/paginationUtils';
 
 import processRequest from '../../mechanisms';
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
-import { LiquidityPluginContext } from '.';
+import { Plugins } from '.';
 
 const shape = [
   [['tick_index', 'reserves']],
@@ -24,7 +24,7 @@ const routes: ServerRoute[] = [
     method: 'GET',
     path: '/liquidity/pair/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
-      return processRequest<LiquidityPluginContext, DataSets, Shape>({
+      return processRequest<Plugins, DataSets, Shape>({
         request,
         h,
         shape,
@@ -38,13 +38,13 @@ const routes: ServerRoute[] = [
 
 export default routes;
 
-const getData: GetEndpointData<LiquidityPluginContext, DataSets> = async (
+const getData: GetEndpointData<Plugins, DataSets> = async (
   params,
   query,
   context
 ) => {
   return await getHeightedTokenPairLiquidity(
-    context.caches.tickLiquidityCache,
+    context.tickLiquidityCache,
     params['tokenA'],
     params['tokenB'],
     query
