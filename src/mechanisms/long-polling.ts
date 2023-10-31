@@ -8,10 +8,12 @@ import {
   minutes,
 } from '../storage/sqlite3/db/timeseriesUtils';
 import { getBlockRange } from '../storage/sqlite3/db/blockRangeUtils';
+
 import {
   EndpointResponse,
   GetEndpointData,
   GetEndpointResponse,
+  ServerPluginContext,
 } from './types';
 
 const timeoutMs = 3 * minutes * inMs;
@@ -71,7 +73,15 @@ export default async function longPollRequest<
         to_height: height,
       },
     };
-    return h.response(response).code(200);
+    return h
+      .response(
+        request.generateResponse(response, {
+          marshal: (
+            request.server.plugins as ServerPluginContext
+          ).compressResponse?.withKey(request.url.toJSON()),
+        })
+      )
+      .code(200);
   } catch (err: unknown) {
     if (err instanceof Error) {
       logger.error(err);

@@ -8,6 +8,7 @@ import db, { init as initDb } from './storage/sqlite3/db/db';
 import initDbSchema from './storage/sqlite3/schema/schema';
 import * as sync from './sync';
 
+import * as responseCompression from './plugins/response-compression';
 import { plugin as liquidityPlugin } from './routes/liquidity';
 import routes from './routes';
 import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
@@ -114,6 +115,8 @@ const init = async () => {
     listener: rawServer as Server,
     tls: isSecure,
   });
+
+  await server.register([responseCompression.plugin]);
 
   // add status route
   server.route({

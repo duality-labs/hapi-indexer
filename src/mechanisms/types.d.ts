@@ -1,4 +1,5 @@
 import { Request } from '@hapi/hapi';
+import { CompressResponsePluginContext } from '../plugins/response-compression';
 import {
   PaginatedRequestQuery,
   PaginatedResponse,
@@ -7,6 +8,8 @@ import {
   BlockRangeRequestQuery,
   BlockRangeResponse,
 } from '../storage/sqlite3/db/blockRangeUtils';
+
+export type ServerPluginContext = Partial<CompressResponsePluginContext>;
 
 type FlattenSingularItems<T> = T extends [infer U] ? U : T;
 

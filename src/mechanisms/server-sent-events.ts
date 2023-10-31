@@ -6,7 +6,11 @@ import {
   BlockRangeRequestQuery,
   getBlockRange,
 } from '../storage/sqlite3/db/blockRangeUtils';
-import { GetEndpointData, GetEndpointResponse } from './types';
+import {
+  GetEndpointData,
+  GetEndpointResponse,
+  ServerPluginContext,
+} from './types';
 
 export default async function serverSentEventRequest<
   PluginContext,
@@ -78,10 +82,12 @@ export default async function serverSentEventRequest<
             id: height,
             data:
               data && height > lastHeight
-                ? JSON.stringify(
-                    // get only the unpaginated data field
+                ? (await (request.server.plugins as ServerPluginContext)[
+                    'compressResponse'
+                  ]?.getCachedValue(
+                    request.url.toJSON(),
                     getResponse(data, query).data
-                  )
+                  )) ?? JSON.stringify(getResponse(data, query).data)
                 : '',
           })
         );
