@@ -1,66 +1,15 @@
-import BigNumber from 'bignumber.js';
 import { Request } from '@hapi/hapi';
-import { Policy, PolicyOptions } from '@hapi/catbox';
 
-import db from '../db';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
-import getLatestTickStateCTE from './getLatestDerivedTickState';
 import { getLastBlockHeight } from '../../../../sync';
+import {
+  LiquidityCache,
+  TickLiquidity,
+  getTickLiquidity,
+  tickLiquidityCache,
+} from './getTickLiquidity';
 
 export type DataRow = [tick_index: number, reserves: number];
-
-interface TickStateTableRow {
-  tickIndex: number;
-  reserves: string;
-}
-
-async function getTickState(
-  token0: string,
-  token1: string,
-  token: string,
-  fromHeight: number,
-  toHeight: number
-) {
-  const reverseDirection = token1 === token;
-  return await db
-    .all<TickStateTableRow[]>(
-      // append plain SQL (without sql substitution) for conditional sections
-      getLatestTickStateCTE(token0, token1, token, { fromHeight, toHeight })
-        .append(`--sql
-          SELECT
-            'latest.derived.tick_state'.'TickIndex' as 'tickIndex',
-            'latest.derived.tick_state'.'Reserves' as 'reserves'
-          FROM
-            'latest.derived.tick_state'
-          ${
-            // add a filtering of zero values if querying from the beginning
-            // as zero values won't be helpful to receive or use
-            fromHeight === 0
-              ? `--sql
-                  WHERE 'latest.derived.tick_state'.'Reserves' != '0'
-                `
-              : ''
-          }
-          -- order by tick side
-          -- order by most important (middle) ticks first
-          ORDER BY 'latest.derived.tick_state'.'TickIndex' ${
-            reverseDirection ? 'ASC' : 'DESC'
-          }
-        `)
-    )
-    // transform data for the tickIndexes to be in terms of A/B.
-    .then((data) => {
-      return data.map((row): DataRow => {
-        return [
-          // invert the indexes depending on which price ratio was asked for
-          // so the indexes are in terms of token/otherToken
-          reverseDirection ? -row['tickIndex'] : row['tickIndex'],
-          // return reserves as a number (of smaller precision to save bytes)
-          Number(new BigNumber(row['reserves']).toPrecision(3)),
-        ];
-      });
-    });
-}
 
 type HeightedTokenPairLiquidity = [
   height: number,
@@ -68,56 +17,12 @@ type HeightedTokenPairLiquidity = [
   reservesTokenB: DataRow[]
 ];
 
-type LiquidityCache = Policy<
-  HeightedTokenPairLiquidity,
-  PolicyOptions<HeightedTokenPairLiquidity>
->;
-
 let liquidityCache: LiquidityCache;
 function getLiquidityCache(server: Request['server']) {
   if (!liquidityCache) {
-    liquidityCache = server.cache<HeightedTokenPairLiquidity>({
+    liquidityCache = server.cache<TickLiquidity>({
       segment: '/liquidity/token/tokenA/tokenB',
-      expiresIn: 1000 * 60, // allow for a few block heights
-      generateFunc: async (id) => {
-        const [token0, token1] = `${id}`.split('|');
-        const [fromHeight, toHeight] = `${id}`.split('|').slice(2).map(Number);
-        if (!token0 || !token1) {
-          throw new Error('Tokens not specified', { cause: 400 });
-        }
-        // it is important that the cache is called with height restrictions:
-        // this ensures that the result is deterministic and can be cached
-        // indefinitely (an unbound height result may change with time)
-        if (fromHeight === undefined || toHeight === undefined) {
-          throw new Error('Height restrictions are required', { cause: 400 });
-        }
-        const lastBlockHeight = getLastBlockHeight();
-        if (fromHeight > lastBlockHeight || toHeight > lastBlockHeight) {
-          throw new Error('Height is not bound to known data', { cause: 400 });
-        }
-        if (toHeight <= fromHeight) {
-          throw new Error('Height query will produce no data', { cause: 400 });
-        }
-        const heightedPairState = await new Promise<HeightedTokenPairLiquidity>(
-          (resolve, reject) => {
-            db.getDatabaseInstance().parallelize(() => {
-              Promise.all([
-                // get result height
-                toHeight,
-                // get tokenA liquidity
-                getTickState(token0, token1, token0, fromHeight, toHeight),
-                // get tokenB liquidity
-                getTickState(token0, token1, token1, fromHeight, toHeight),
-              ])
-                .then((promises) => resolve(promises))
-                .catch((error) => reject(error));
-            });
-          }
-        );
-        // return this cache set
-        return heightedPairState;
-      },
-      generateTimeout: 1000 * 20,
+      ...tickLiquidityCache,
     });
   }
   return liquidityCache;
@@ -136,16 +41,17 @@ export async function getHeightedTokenPairLiquidity(
   const invertedOrder = await hasInvertedOrder(tokenA, tokenB);
   const token0 = invertedOrder ? tokenB : tokenA;
   const token1 = invertedOrder ? tokenA : tokenB;
+  const heights = { fromHeight, toHeight };
 
   // get liquidity state through cache
-  const cacheKey = [token0, token1, fromHeight, toHeight].join('|');
-  const response = await liquidityCache.get(cacheKey);
+  const [tickStateA, tickStateB] = await Promise.all([
+    getTickLiquidity(liquidityCache, token0, token1, tokenA, heights),
+    getTickLiquidity(liquidityCache, token0, token1, tokenB, heights),
+  ]);
   // return the response data in the correct order
-  if (response) {
-    const [height, tickState0, tickState1] = response;
-    return invertedOrder
-      ? [height, tickState1, tickState0]
-      : [height, tickState0, tickState1];
+  const height = Number(toHeight);
+  if (height > 0 && tickStateA !== null && tickStateB !== null) {
+    return [height, tickStateB, tickStateA];
   } else {
     return null;
   }
