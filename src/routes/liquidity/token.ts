@@ -13,7 +13,7 @@ import {
   BlockRangeResponse,
   getBlockRange,
 } from '../../storage/sqlite3/db/blockRangeUtils';
-import { waitForNextBlock } from '../../sync';
+import { getLastBlockHeight, waitForNextBlock } from '../../sync';
 import {
   getMsLeft,
   inMs,
@@ -45,14 +45,14 @@ const routes = [
             { fromHeight, toHeight }
           );
 
-        // get the liquidity data
-        let data = await getData();
+        // get the liquidity data (but if we *will* wait for new data then skip)
+        let data = fromHeight !== getLastBlockHeight() ? await getData() : null;
 
         // await new data if the data does not meet the known height requirement
-        if (data && fromHeight > 0) {
+        if (!toHeight) {
           const timeLeft = getMsLeft(timeoutMs);
-          // wait until we get new data (newer than known height header)
-          while ((data?.[0] || 0) <= fromHeight) {
+          // wait until we get new non-empty data
+          while (((data || []) as [][]).every((v) => !v?.length)) {
             // wait for next block
             try {
               await waitForNextBlock(timeLeft());
@@ -71,22 +71,6 @@ const routes = [
         }
 
         const [height, tickStateA] = data;
-        if (toHeight) {
-          if (height > toHeight) {
-            return h
-              .response(
-                `Token liquidity for height ${toHeight} data is no longer available`
-              )
-              .code(412);
-          }
-          if (height < toHeight) {
-            return h
-              .response(
-                `Token liquidity for height ${toHeight} data is not yet available`
-              )
-              .code(412);
-          }
-        }
 
         // paginate the data
         const [page, pagination] = paginateData(
@@ -109,8 +93,8 @@ const routes = [
         if (err instanceof Error) {
           logger.error(err);
           return h
-            .response(`something happened: ${err.message || '?'}`)
-            .code(500);
+            .response(err.message || 'An unknown error occurred')
+            .code(Number(err.cause) || 500);
         }
         return h.response('An unknown error occurred').code(500);
       }

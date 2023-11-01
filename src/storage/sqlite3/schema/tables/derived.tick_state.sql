@@ -24,12 +24,13 @@ CREATE TABLE 'derived.tick_state' (
 
 /* add unique index for tick state to ensure no duplicate tick state */
 CREATE UNIQUE INDEX
-  'derived.tick_state--related.dex.pair,related.dex.token,TickIndex'
+  'derived.tick_state--related.dex.pair,related.dex.token,TickIndex,related.block.header.height'
 ON
   'derived.tick_state' (
     'related.dex.pair',
     'related.dex.token',
-    'TickIndex'
+    'TickIndex',
+    'related.block.header.height'
   );
 
 /* add index for quicker lookups filtering to block height */
