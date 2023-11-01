@@ -24,7 +24,6 @@ const routes = [
         shape,
         getData,
         getPaginatedResponse,
-        getResponse,
       });
     },
   },
@@ -64,12 +63,5 @@ const getPaginatedResponse: GetEndpointResponse<DataSets, Shape> = (
   return {
     data: page,
     pagination: pagination,
-  };
-};
-
-const getResponse: GetEndpointResponse<DataSets, Shape> = (data) => {
-  const [, tickStateA = []] = data || [];
-  return {
-    data: tickStateA,
   };
 };

@@ -23,13 +23,14 @@ export interface PaginationInput {
 interface PaginationOutput {
   next_key: string | null;
   total?: number;
+  totals?: number[]; // non-standard: show each total of multiple returned lists
 }
 
 export interface PaginatedResponse {
   pagination: PaginationOutput;
 }
 
-function decodePagination(
+export function decodePagination(
   query: PaginatedRequestQuery,
   defaultPageSize = 1000
 ): Required<PaginationInput> {
