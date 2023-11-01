@@ -13,12 +13,10 @@ export default function processRequest<
   {
     getData,
     getPaginatedResponse,
-    getResponse,
     shape,
   }: {
     getData: GetEndpointData<PluginContext, DataSets>;
     getPaginatedResponse: GetEndpointResponse<DataSets, Shape>;
-    getResponse: GetEndpointResponse<DataSets, Shape>;
     shape: Shape;
   }
 ) {
@@ -26,6 +24,6 @@ export default function processRequest<
     request.query['stream'] === 'true' &&
     request.raw.req.httpVersionMajor === 2;
   return canUseSSE
-    ? serverSentEventRequest(request, h, shape, getData, getResponse)
+    ? serverSentEventRequest(request, h, shape, getData, getPaginatedResponse)
     : longPollRequest(request, h, shape, getData, getPaginatedResponse);
 }

@@ -11,6 +11,10 @@ import {
   GetEndpointResponse,
   ServerPluginContext,
 } from './types';
+import {
+  PaginatedRequestQuery,
+  decodePagination,
+} from '../storage/sqlite3/db/paginationUtils';
 
 export default async function serverSentEventRequest<
   PluginContext,
@@ -21,7 +25,7 @@ export default async function serverSentEventRequest<
   h: ResponseToolkit,
   shape: Shape,
   getData: GetEndpointData<PluginContext, DataSets>,
-  getResponse: GetEndpointResponse<DataSets, Shape>
+  getPaginatedResponse: GetEndpointResponse<DataSets, Shape>
 ): Promise<void> {
   const {
     from_height: fromHeight = 0,
@@ -41,7 +45,7 @@ export default async function serverSentEventRequest<
   res.write(
     formatChunk({
       event: 'id shape',
-      data: '"block_range.to_height"',
+      data: '"block_range.to_height:start-end/total_items"',
     })
   );
   res.write(
@@ -61,6 +65,7 @@ export default async function serverSentEventRequest<
   const cachedStringify = (request.server.plugins as ServerPluginContext)
     .compressResponse?.getCachedValue;
   // and listen for new updates to send
+  let { offset } = decodePagination(request.query);
   let lastHeight = fromHeight;
   let aborted = false;
   req.once('close', () => (aborted = true));
@@ -69,29 +74,59 @@ export default async function serverSentEventRequest<
     // wait for next block
     try {
       // get current data from last known height
-      const query: BlockRangeRequestQuery = {
+      const query: PaginatedRequestQuery & BlockRangeRequestQuery = {
+        // default to only a "first height page" of small chunks
+        'pagination.limit': !fromHeight && !offset ? '100' : '10000',
         ...request.query,
+        'pagination.count_total': 'true',
         'block_range.from_height': lastHeight.toFixed(0),
       };
       const data = await getData(request.params, query, h.context);
       if (aborted) break;
       const [height = lastHeight] = data || [];
       if (res.writable && height <= toHeight) {
-        const response = data && getResponse(data, query).data;
-        res.write(
-          // send event responses with or without data: "empty" updates are a
-          // "heartbeat" signal
-          formatChunk({
-            event: 'update',
-            id: height,
-            data:
-              response && height > lastHeight
-                ? // respond with possibly cached and compressed JSON string
-                  (await cachedStringify?.(request.url.toJSON(), response)) ??
-                  JSON.stringify(response)
-                : '',
-          })
-        );
+        do {
+          const queryWithOffset = {
+            ...query,
+            'pagination.offset': offset.toFixed(0),
+          };
+          const response = data && getPaginatedResponse(data, queryWithOffset);
+          const page = response?.data;
+          const pageSize =
+            // calculate page size depending on the pagination being
+            // of one list or multiple lists
+            (response?.pagination?.totals?.length ?? 0) > 1
+              ? (page as unknown[][]).reduce(
+                  (acc, page) => Math.max(acc, page.length),
+                  0
+                )
+              : page?.length ?? 0;
+          const nextOffset = offset + (pageSize ?? 0);
+          const total = response?.pagination?.total || 1;
+          res.write(
+            // send event responses with or without data: "empty" updates are a
+            // "heartbeat" signal
+            formatChunk({
+              event: 'update',
+              id:
+                offset > 0 || total > nextOffset
+                  ? `${height}:${offset + 1}-${nextOffset}/${total}`
+                  : height,
+              data:
+                // respond with possibly cached and compressed JSON string
+                (await cachedStringify?.(
+                  `${request.url.pathname}?query=${JSON.stringify(
+                    queryWithOffset
+                  )}`,
+                  page
+                )) || JSON.stringify(page),
+            })
+          );
+
+          // calculate next offset or reset to 0
+          offset =
+            pageSize && response?.pagination?.next_key ? offset + pageSize : 0;
+        } while (offset > 0);
       }
       // if we were asked to stop at a certain height: stop
       // but I don't know why someone would request that

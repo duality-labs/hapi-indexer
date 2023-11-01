@@ -28,7 +28,6 @@ const routes: ServerRoute[] = [
         shape,
         getData,
         getPaginatedResponse,
-        getResponse,
       });
     },
   },
@@ -70,17 +69,16 @@ export const getPaginatedResponse: GetEndpointResponse<DataSets, Shape> = (
     pagination: {
       // the next key will be the same if it exists on both sides
       next_key: paginationA.next_key ?? paginationB.next_key,
+      // total should make sense that: total = lastOffset + lastPage.length
+      // which for an endpoint returning multiple lists is the longest list
       total:
         paginationA.total !== undefined && paginationB.total !== undefined
-          ? paginationA.total + paginationB.total
+          ? Math.max(paginationA.total, paginationB.total)
+          : undefined,
+      totals:
+        paginationA.total !== undefined && paginationB.total !== undefined
+          ? [paginationA.total, paginationB.total]
           : undefined,
     },
-  };
-};
-
-export const getResponse: GetEndpointResponse<DataSets, Shape> = (data) => {
-  const [, tickStateA = [], tickStateB = []] = data || [];
-  return {
-    data: [tickStateA, tickStateB],
   };
 };
