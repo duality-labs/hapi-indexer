@@ -38,3 +38,11 @@ ON
     'related.dex.pair',
     'related.tx_result.events'
   );
+
+/* add index for quicker lookups filtering to block height */
+CREATE INDEX
+  'derived.tx_volume_data--related.block.header.height'
+ON
+  'derived.tx_volume_data' (
+    'related.block.header.height'
+  );
