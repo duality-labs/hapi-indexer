@@ -14,7 +14,7 @@ import routes from './routes';
 import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
 
 function safeReadFileText(filename: string) {
-  if (fs.existsSync(filename)) {
+  if (filename && fs.existsSync(filename)) {
     return fs.readFileSync(filename);
   }
 }
@@ -22,8 +22,10 @@ function safeReadFileText(filename: string) {
 const {
   RPC_API = '',
   ALLOW_ROUTES_BEFORE_SYNCED = '',
-  SSL_PRIVATE_KEY = safeReadFileText('ssl-key.pem') || '',
-  SSL_PUBLIC_KEY = safeReadFileText('ssl-cert.pem') || '',
+  SSL_PRIVATE_KEY_FILE = 'ssl-key.pem',
+  SSL_PUBLIC_KEY_FILE = 'ssl-cert.pem',
+  SSL_PRIVATE_KEY = safeReadFileText(SSL_PRIVATE_KEY_FILE) || '',
+  SSL_PUBLIC_KEY = safeReadFileText(SSL_PUBLIC_KEY_FILE) || '',
 } = process.env;
 
 async function testConnection(apiUrl: string): Promise<boolean> {
