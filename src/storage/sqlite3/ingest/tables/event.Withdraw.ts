@@ -70,8 +70,8 @@ export default async function insertEventWithdraw(
         FROM
           'dex.pairs'
         WHERE (
-          'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-          'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
+          'dex.pairs'.'token0' = ${txEvent.attributes['Token0']} AND
+          'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
         )
       )
     )

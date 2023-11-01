@@ -81,8 +81,8 @@ export default async function insertEventPlaceLimitOrder(
         FROM
           'dex.pairs'
         WHERE (
-          'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-          'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
+          'dex.pairs'.'token0' = ${txEvent.attributes['Token0']} AND
+          'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
         )
       ),
       (
@@ -91,7 +91,7 @@ export default async function insertEventPlaceLimitOrder(
         FROM
           'dex.tokens'
         WHERE (
-          'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
+          'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
         )
       ),
       (
@@ -100,7 +100,7 @@ export default async function insertEventPlaceLimitOrder(
         FROM
           'dex.tokens'
         WHERE (
-          'dex.tokens'.'Token' = ${
+          'dex.tokens'.'token' = ${
             // derive TokenOut
             txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
               ? txEvent.attributes['Token0']

@@ -33,7 +33,7 @@ export default function getLatestTickStateCTE(
           FROM
             'dex.tokens'
           WHERE (
-            'dex.tokens'.'Token' = ${token}
+            'dex.tokens'.'token' = ${token}
           )
         ) AND
         'derived.tick_state'.'related.block.header.height' > ${fromHeight} AND

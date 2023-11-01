@@ -110,8 +110,8 @@ export default async function insertEventTickUpdate(
         FROM
           'dex.pairs'
         WHERE (
-          'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-          'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
+          'dex.pairs'.'token0' = ${txEvent.attributes['Token0']} AND
+          'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
         )
       ),
       (
@@ -120,7 +120,7 @@ export default async function insertEventTickUpdate(
         FROM
           'dex.tokens'
         WHERE (
-          'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
+          'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
         )
       )
     )
