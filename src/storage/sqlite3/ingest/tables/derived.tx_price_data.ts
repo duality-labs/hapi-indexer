@@ -4,11 +4,13 @@ import { TxResponse } from '../../../../@types/tx';
 import db from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
+import Timer from '../../../../utils/timer';
 
 export default async function upsertDerivedPriceData(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
-  index: number
+  index: number,
+  timer = new Timer()
 ) {
   // repeat checks
   const isDexMessage =
@@ -21,6 +23,7 @@ export default async function upsertDerivedPriceData(
       txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
     const tickSide = isForward ? 'LowestTick1' : 'HighestTick0';
     // note that previousTickIndex may not exist yet
+    timer.start('processing:txs:derived.tx_price_data:get:tx_price_data');
     const previousPriceData = await db.get(sql`
       SELECT
         'derived.tx_price_data'.'HighestTick0',
@@ -44,7 +47,9 @@ export default async function upsertDerivedPriceData(
       LIMIT 1
     `);
     const previousTickIndex = previousPriceData?.[tickSide];
+    timer.stop('processing:txs:derived.tx_price_data:get:tx_price_data');
 
+    timer.start('processing:txs:derived.tx_price_data:get:tick_state');
     // derive data from entire ticks state (useful for maybe some other calculations)
     const currentTickIndex = await db
       .get(
@@ -84,6 +89,7 @@ export default async function upsertDerivedPriceData(
         `)
       )
       .then((row) => row?.['TickIndex'] ?? null);
+    timer.stop('processing:txs:derived.tx_price_data:get:tick_state');
 
     // if activity has changed current price then update data
     if (previousTickIndex !== currentTickIndex) {
@@ -91,6 +97,7 @@ export default async function upsertDerivedPriceData(
         (isForward
           ? previousPriceData?.['HighestTick0']
           : previousPriceData?.['LowestTick1']) ?? null;
+      timer.start('processing:txs:derived.tx_price_data:set:tx_price_data');
       await db.run(sql`
         INSERT OR REPLACE INTO 'derived.tx_price_data' (
 
@@ -146,6 +153,7 @@ export default async function upsertDerivedPriceData(
           )
         )
       `);
+      timer.stop('processing:txs:derived.tx_price_data:set:tx_price_data');
     }
   }
 }

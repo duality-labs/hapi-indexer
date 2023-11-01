@@ -5,12 +5,15 @@ import { TxResponse } from '../../../../@types/tx';
 import db from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
+import Timer from '../../../../utils/timer';
 
 export default async function insertEventTickUpdate(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
-  index: number
+  index: number,
+  timer = new Timer()
 ) {
+  timer.start('processing:txs:event.TickUpdate:get:event.TickUpdate');
   const previousTickUpdate = await db.get<{ Reserves: string }>(sql`
     SELECT
       'event.TickUpdate'.'Reserves'
@@ -26,6 +29,7 @@ export default async function insertEventTickUpdate(
       'event.TickUpdate'.'related.tx_result.events' DESC
     LIMIT 1
   `);
+  timer.stop('processing:txs:event.TickUpdate:get:event.TickUpdate');
 
   const previousReserves = previousTickUpdate?.['Reserves'] || '0';
   const currentReserves = txEvent.attributes['Reserves'] || '0';
@@ -35,6 +39,7 @@ export default async function insertEventTickUpdate(
     return;
   }
 
+  timer.start('processing:txs:event.TickUpdate:set:event.TickUpdate');
   await db.run(sql`
     INSERT INTO 'event.TickUpdate' (
 
@@ -120,4 +125,5 @@ export default async function insertEventTickUpdate(
       )
     )
   `);
+  timer.stop('processing:txs:event.TickUpdate:set:event.TickUpdate');
 }

@@ -8,6 +8,7 @@ import { TxResponse } from './@types/tx';
 
 import ingestTxs from './storage/sqlite3/ingest/ingestTxResponse';
 import { inMs, minutes, seconds } from './storage/sqlite3/db/timeseriesUtils';
+import Timer from './utils/timer';
 
 // define the snamke case that the response is actually in
 interface RpcTxResult extends Omit<ResponseDeliverTx, 'gasWanted' | 'gasUsed'> {
@@ -39,32 +40,15 @@ const {
   POLLING_INTERVAL_MS = '',
   SYNC_PAGE_SIZE = '',
   COLOR_LOGS = '',
+  FETCH_TIMEOUT = '',
 } = process.env;
 
 const pollIntervalMs = Number(POLLING_INTERVAL_MS) || 500;
+const fetchTimeout = Number(FETCH_TIMEOUT) || 60 * seconds * inMs;
 
-class Timer {
-  value = 0;
-  startTime = 0;
-  start() {
-    this.startTime = Date.now();
-  }
-  stop() {
-    return (this.value += Date.now() - this.startTime);
-  }
-  reset() {
-    this.value = 0;
-    this.startTime = 0;
-  }
-}
-interface SyncTimers {
-  fetching: Timer;
-  parsing: Timer;
-  processing: Timer;
-}
 type PageReader = (options: {
   page?: number;
-  timers: SyncTimers;
+  timer: Timer;
 }) => Promise<
   [pageItemCount: number, totalItemCount: number, nextOffset: number | null]
 >;
@@ -107,36 +91,86 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
     numerator: number,
     divisor: number,
     message?: string,
-    timers?: SyncTimers
+    timer?: Timer
   ) {
     const now = Date.now();
     const elapsedTime = now - lastProgressTime;
-    if (message || timers || elapsedTime > 1000) {
+    if (message || timer || elapsedTime > 1000) {
       // send import timing logs to console as well as file
-      (timers?.processing.value ? defaultLogger : logger).info(
-        message ||
+      if (message) {
+        logger.info(message);
+      }
+      // log all tx imports that got processed
+      else if (timer?.get('processing')) {
+        defaultLogger.info(
           `import progress: ${formatNumber(
             (100 * numerator) / divisor,
             1,
             5
           )}% (${formatNumber(numerator)} items) ${
-            timers
+            timer
               ? `(fetching: ${formatNumber(
-                  timers.fetching.value,
+                  timer.get('fetching') ?? 0,
                   0,
                   6
                 )}ms, parsing: ${formatNumber(
-                  timers.parsing.value,
+                  timer.get('parsing') ?? 0,
                   0,
                   3
                 )}ms, processing: ${formatNumber(
-                  timers.processing.value / (numerator - lastNumerator),
+                  (timer.get('processing') ?? 0) / (numerator - lastNumerator),
                   0,
                   3
                 )}ms per item)`
               : `(${formatNumber(elapsedTime, 0, 6)}ms)`
           }`
-      );
+        );
+        // print detailed timing info if processing occured
+        if (timer?.get('processing')) {
+          const timerValues = timer.getAll();
+          const maxKeyLength = Math.max(
+            ...timerValues.map(({ label }) => label.length)
+          );
+          const maxMsLength = Math.max(
+            ...timerValues.map((v) => v.elapsedTime.toFixed(0).length)
+          );
+          const maxCalledLength = Math.max(
+            ...timerValues.map((v) => v.called.toFixed(0).length)
+          );
+
+          defaultLogger.info(
+            `timing:\n${timerValues
+              .map(({ label, elapsedTime, called }) => {
+                return `${label.padEnd(maxKeyLength)} : ${elapsedTime
+                  .toFixed(2)
+                  .padStart(maxMsLength + 3)}ms (called ${called
+                  .toFixed(0)
+                  .padStart(maxCalledLength)} times: ${(elapsedTime / called)
+                  .toFixed(3)
+                  .padStart(maxMsLength + 4)}ms per call)`;
+              })
+              .join('\n')}`
+          );
+        }
+      }
+      // log empty polling information to file but not console
+      else {
+        logger.info(
+          `poll: (${formatNumber(numerator)} items) ${
+            timer
+              ? `(fetching: ${formatNumber(
+                  timer.get('fetching') ?? 0,
+                  0,
+                  6
+                )}ms, parsing: ${formatNumber(
+                  timer.get('parsing') ?? 0,
+                  0,
+                  3
+                )}ms`
+              : `(${formatNumber(elapsedTime, 0, 6)}ms)`
+          }`
+        );
+      }
       lastProgressTime = now;
       lastNumerator = numerator;
     }
@@ -149,15 +183,11 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   const startTime = Date.now();
   printProgress(0, 1, 'import starting');
   do {
-    const timers: SyncTimers = {
-      fetching: new Timer(),
-      parsing: new Timer(),
-      processing: new Timer(),
-    };
+    const timer = new Timer();
     // read page data and return counting details
     const [pageItemCount, totalItemCount, nextPage] = await readPage({
       page: currentPage,
-      timers,
+      timer,
     });
 
     // update progress
@@ -166,7 +196,7 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
     currentPage = nextPage;
 
     // see progress
-    printProgress(currentItemCount, totalItemCount, '', timers);
+    printProgress(currentItemCount, totalItemCount, '', timer);
   } while (currentItemCount > previousItemCount && !!currentPage);
   const duration = Date.now() - startTime;
   printProgress(
@@ -211,16 +241,17 @@ export async function catchUp({
   logger = defaultLogger,
 } = {}) {
   // read tx pages
-  await iterateThroughPages(async ({ page: offset = 0, timers }) => {
+  await iterateThroughPages(async ({ page: offset = 0, timer }) => {
     // we default starting page to 1 as this API has 1-based page numbers
     // max API response page item count is 100
     let response: Response | undefined = undefined;
     let retryCount = 0;
+    let itemsToRequest = itemsPerPage;
     while (!response) {
       // back-off items to request exponentially
       // (it is possible that some chunks of transactions are very large)
       // itemsToRequest follows back-off of: 100, 10, 1, 1, 1, ..., 0
-      let itemsToRequest = Math.ceil(itemsPerPage / Math.pow(10, retryCount));
+      itemsToRequest = Math.ceil(itemsPerPage / Math.pow(10, retryCount));
       // ensure that page number is a round number, because offsetting the items
       // with an RPC query requires "page" which is dependent on "per_page" size
       while (offset % itemsToRequest !== 0) {
@@ -233,10 +264,28 @@ export async function catchUp({
       const url = `${RPC_API}/tx_search?query="${encodeURIComponent(
         `tx.height>=${fromBlockHeight} AND message.module='dex'`
       )}"&per_page=${itemsToRequest}&page=${page}`;
+      // create timer label for this request (and label for last request)
+      const fetchTxsTimerLabel = `fetching:txs:try-${retryCount
+        .toFixed(0)
+        .padStart(3, '0')}:last`;
       try {
-        timers.fetching.start();
-        response = await fetch(url);
-        timers.fetching.stop();
+        timer.start(fetchTxsTimerLabel);
+        response = await new Promise((resolve, reject) => {
+          const controller = new AbortController();
+          const signal = controller.signal;
+          // add a time limit for fetching, and increase it on each retry
+          const delay = fetchTimeout * (retryCount + 1);
+          const timeoutID = setTimeout(() => {
+            controller.abort(
+              new Error(`Timeout reached: ${delay}ms (retries: ${retryCount})`)
+            );
+          }, delay);
+          return fetch(url, { signal })
+            .then(resolve)
+            .catch(reject)
+            .finally(() => clearTimeout(timeoutID));
+        });
+        timer.stop(fetchTxsTimerLabel);
         // allow unexpected status codes to cause a retry instead of exiting
         if (response?.status !== 200) {
           throw new Error(
@@ -244,21 +293,27 @@ export async function catchUp({
           );
         }
       } catch (e) {
-        timers.fetching.stop();
+        timer.stop(fetchTxsTimerLabel);
+        // remove single "last" label, it will be retried again
+        timer.remove(fetchTxsTimerLabel);
         retryCount += 1;
         // delay the next request with a linear back-off;
         const delay = retryCount * 1 * seconds * inMs;
+        const stopWaitTimer = timer.start('back-off:txs');
         await new Promise((resolve) => setTimeout(resolve, delay));
-        logger.error(
-          `Could not fetch txs from URL: ${url} (status: ${response?.status})`
+        stopWaitTimer();
+        defaultLogger.error(
+          `Could not fetch txs from URL: ${url} (status: ${
+            response?.status ?? (e as Error)?.message
+          })`
         );
       }
     }
 
     // read the RPC tx search results for tx hashes
-    timers.parsing.start();
+    const stopParsingTimer = timer.start(`parsing:txs:size-${itemsToRequest}`);
     const { result } = (await response.json()) as RpcTxSearchResponse;
-    timers.parsing.stop();
+    stopParsingTimer();
     for (const { height, hash, tx_result } of result.txs) {
       // skip this tx if the result code was 0 (there was an error)
       if (tx_result.code !== 0) {
@@ -272,40 +327,48 @@ export async function catchUp({
         let response: Response | undefined = undefined;
         const url = `${RPC_API}/header?height=${height}`;
         do {
+          const fetchHeightTimerLabel = `fetching:height:try-${retryCount
+            .toFixed(0)
+            .padEnd(3, '0')}:last`;
           try {
-            timers.fetching.start();
+            timer.start(fetchHeightTimerLabel);
             response = await fetch(url);
-            timers.fetching.stop();
+            timer.stop(fetchHeightTimerLabel);
             if (response?.status !== 200) {
               throw new Error(
                 `RPC API returned status code: ${url} ${response?.status}`
               );
             }
           } catch (e) {
-            timers.fetching.stop();
+            timer.stop(fetchHeightTimerLabel);
+            // remove single "last" label, it will be retried again
+            timer.remove(fetchHeightTimerLabel);
             logger.error(
               `Could not fetch block: ${url} (status: ${response?.status})`
             );
             retryCount += 1;
             // delay the next request with a linear back-off;
             const delay = retryCount * 1 * seconds * inMs;
+            const stopWaitTimer = timer.start('back-off:height');
             await new Promise((resolve) => setTimeout(resolve, delay));
+            stopWaitTimer();
           }
         } while (response?.status !== 200);
-        timers.parsing.start();
+        const stopParsingTimer = timer.start('parsing:height');
         const { result } =
           (await response.json()) as RpcBlockHeaderLookupResponse;
-        timers.parsing.stop();
+        stopParsingTimer();
         blockTimestamps[height] = result.header.time;
       }
       const timestamp = blockTimestamps[height];
 
-      timers.processing.start();
+      const stopProcessingTimer = timer.start('processing:txs');
       // ingest single tx
-      await ingestTxs([
-        translateTxResponse(tx_result, { height, timestamp, txhash: hash }),
-      ]);
-      timers.processing.stop();
+      await ingestTxs(
+        [translateTxResponse(tx_result, { height, timestamp, txhash: hash })],
+        timer
+      );
+      stopProcessingTimer();
 
       // note current block height
       maxBlockHeight = Number(height);
