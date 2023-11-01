@@ -35,9 +35,3 @@ export type GetEndpointResponse<DataSets extends unknown[], Shape> = (
   data: [height: number, ...DataSets],
   query: PaginatedRequestQuery & BlockRangeRequestQuery
 ) => EndpointResponse<DataSets, Shape>;
-
-export interface GetEndpointResponseOptions<DataSets extends unknown[], Shape> {
-  paginate: boolean;
-  shape: boolean;
-  defaults: Partial<EndpointResponse<DataSets, Shape>>;
-}
