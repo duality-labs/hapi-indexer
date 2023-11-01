@@ -13,11 +13,17 @@ import { plugin as liquidityPlugin } from './routes/liquidity';
 import routes from './routes';
 import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
 
+function safeReadFileText(filename: string) {
+  if (fs.existsSync(filename)) {
+    return fs.readFileSync(filename);
+  }
+}
+
 const {
   RPC_API = '',
   ALLOW_ROUTES_BEFORE_SYNCED = '',
-  SSL_PRIVATE_KEY = fs.readFileSync('ssl-key.pem') || '',
-  SSL_PUBLIC_KEY = fs.readFileSync('ssl-cert.pem') || '',
+  SSL_PRIVATE_KEY = safeReadFileText('ssl-key.pem') || '',
+  SSL_PUBLIC_KEY = safeReadFileText('ssl-cert.pem') || '',
 } = process.env;
 
 async function testConnection(apiUrl: string): Promise<boolean> {
@@ -78,6 +84,9 @@ const init = async () => {
   let isSecure = false;
   let rawServer: (Http2SecureServer & Partial<Server>) | Server | null = null;
   try {
+    if (!SSL_PUBLIC_KEY || !SSL_PRIVATE_KEY) {
+      throw new Error('Cannot create secure server without keys');
+    }
     // add HTTP2 server with added properties to bring in line with HTTP server
     rawServer = http2.createSecureServer({
       key: SSL_PRIVATE_KEY,
@@ -92,7 +101,8 @@ const init = async () => {
     rawServer.closeAllConnections = () => undefined;
     rawServer.closeIdleConnections = () => undefined;
     isSecure = true;
-  } catch {
+  } catch (e) {
+    logger.info(`Could not create secure server: ${(e as Error)?.message}`);
     rawServer = http.createServer();
   }
 
