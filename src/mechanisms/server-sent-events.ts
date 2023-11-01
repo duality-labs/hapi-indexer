@@ -57,6 +57,9 @@ export default async function serverSentEventRequest<
       id: fromHeight,
     })
   );
+  // fetch response
+  const cachedStringify = (request.server.plugins as ServerPluginContext)
+    .compressResponse?.getCachedValue;
   // and listen for new updates to send
   let lastHeight = fromHeight;
   let aborted = false;
@@ -74,6 +77,7 @@ export default async function serverSentEventRequest<
       if (aborted) break;
       const [height = lastHeight] = data || [];
       if (res.writable && height <= toHeight) {
+        const response = data && getResponse(data, query).data;
         res.write(
           // send event responses with or without data: "empty" updates are a
           // "heartbeat" signal
@@ -81,13 +85,10 @@ export default async function serverSentEventRequest<
             event: 'update',
             id: height,
             data:
-              data && height > lastHeight
-                ? (await (request.server.plugins as ServerPluginContext)[
-                    'compressResponse'
-                  ]?.getCachedValue(
-                    request.url.toJSON(),
-                    getResponse(data, query).data
-                  )) ?? JSON.stringify(getResponse(data, query).data)
+              response && height > lastHeight
+                ? // respond with possibly cached and compressed JSON string
+                  (await cachedStringify?.(request.url.toJSON(), response)) ??
+                  JSON.stringify(response)
                 : '',
           })
         );
