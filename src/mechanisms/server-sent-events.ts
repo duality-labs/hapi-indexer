@@ -1,7 +1,7 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../logger';
-import { waitForNextBlock } from '../sync';
+import { getLastBlockHeight, waitForNextBlock } from '../sync';
 import {
   BlockRangeRequestQuery,
   getBlockRange,
@@ -76,10 +76,15 @@ export default async function serverSentEventRequest<
       // get current data from last known height
       const query: PaginatedRequestQuery & BlockRangeRequestQuery = {
         // default to only a "first height page" of small chunks
-        'pagination.limit': !fromHeight && !offset ? '100' : '10000',
+        'pagination.limit': !lastHeight && !offset ? '100' : '10000',
         ...request.query,
         'pagination.count_total': 'true',
+        // add explicit block height range for caching (generating cache ID)
         'block_range.from_height': lastHeight.toFixed(0),
+        'block_range.to_height': Math.min(
+          toHeight,
+          getLastBlockHeight()
+        ).toFixed(0),
       };
       const data = await getData(request.params, query, h.context);
       if (aborted) break;
@@ -115,7 +120,7 @@ export default async function serverSentEventRequest<
               data:
                 // respond with possibly cached and compressed JSON string
                 (await cachedStringify?.(
-                  `${request.url.pathname}?query=${JSON.stringify(
+                  `${request.url.pathname}?${new URLSearchParams(
                     queryWithOffset
                   )}`,
                   page
