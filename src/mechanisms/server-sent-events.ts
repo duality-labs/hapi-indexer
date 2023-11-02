@@ -100,6 +100,9 @@ export default async function serverSentEventRequest<
           const pageSize =
             // calculate page size depending on the pagination being
             // of one list or multiple lists
+            // todo: pagination could be generalized into two functions
+            //       paginateSingleDataSet and paginateMultipleDataSets
+            //       which could add pagination_meta fields here for these calcs
             (response?.pagination?.totals?.length ?? 0) > 1
               ? (page as unknown[][]).reduce(
                   (acc, page) => Math.max(acc, page.length),
