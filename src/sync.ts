@@ -397,7 +397,7 @@ export async function catchUp({
 }
 
 // export a function to allow other functions to listen for the next block
-const newHeightEmitter = new EventEmitter();
+const newHeightEmitter = new EventEmitter().setMaxListeners(Infinity);
 // keep track of last block height in a class instance with an internal var
 // this is to help assure lastBlockHeight is not manipulated accidentally
 // and to let us know that when we access lastBlockHeight.get() it may be
@@ -427,12 +427,17 @@ export function getLastBlockHeight() {
 export function waitForNextBlock(maxMs = 1 * minutes * inMs): Promise<number> {
   return new Promise((resolve, reject) => {
     // add timeout
-    const timeout = setTimeout(() => {
-      // cancel listener
-      newHeightEmitter.removeListener('newHeight', listener);
-      // return error
-      reject(new Error(`New Height listener timeout after ${maxMs / 1000}s`));
-    }, maxMs);
+    const timeout =
+      maxMs > 0
+        ? setTimeout(() => {
+            // cancel listener
+            newHeightEmitter.removeListener('newHeight', listener);
+            // return error
+            reject(
+              new Error(`New Height listener timeout after ${maxMs / 1000}s`)
+            );
+          }, Math.min(Math.pow(2, 31) - 1, maxMs))
+        : -1;
     // add listener
     const listener = (height: number) => {
       // remove timoue

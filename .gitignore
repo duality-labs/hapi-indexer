@@ -3,6 +3,9 @@
 # dependencies
 /node_modules
 
+# SSL certificate keys
+ssl-*.pem
+
 # testing
 /coverage
 

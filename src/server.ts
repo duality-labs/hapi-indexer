@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import http, { Server } from 'node:http';
+import http2, { Http2SecureServer } from 'node:http2';
 import Hapi from '@hapi/hapi';
 import logger from './logger';
 
@@ -5,9 +8,25 @@ import db, { init as initDb } from './storage/sqlite3/db/db';
 import initDbSchema from './storage/sqlite3/schema/schema';
 import * as sync from './sync';
 
+import * as responseCompression from './plugins/response-compression';
+import { plugin as liquidityPlugin } from './routes/liquidity';
 import routes from './routes';
+import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
 
-const { RPC_API = '', ALLOW_ROUTES_BEFORE_SYNCED = '' } = process.env;
+function safeReadFileText(filename: string) {
+  if (filename && fs.existsSync(filename)) {
+    return fs.readFileSync(filename);
+  }
+}
+
+const {
+  RPC_API = '',
+  ALLOW_ROUTES_BEFORE_SYNCED = '',
+  SSL_PRIVATE_KEY_FILE = 'ssl-key.pem',
+  SSL_PUBLIC_KEY_FILE = 'ssl-cert.pem',
+  SSL_PRIVATE_KEY = safeReadFileText(SSL_PRIVATE_KEY_FILE) || '',
+  SSL_PUBLIC_KEY = safeReadFileText(SSL_PUBLIC_KEY_FILE) || '',
+} = process.env;
 
 async function testConnection(apiUrl: string): Promise<boolean> {
   try {
@@ -62,6 +81,33 @@ const init = async () => {
   } while (!connected);
   serverTimes.connected = new Date();
 
+  // setup either a secure HTTP2 server or normal HTTP server
+  // depending on whether SSL keys are available
+  let isSecure = false;
+  let rawServer: (Http2SecureServer & Partial<Server>) | Server | null = null;
+  try {
+    if (!SSL_PUBLIC_KEY || !SSL_PRIVATE_KEY) {
+      throw new Error('Cannot create secure server without keys');
+    }
+    // add HTTP2 server with added properties to bring in line with HTTP server
+    rawServer = http2.createSecureServer({
+      key: SSL_PRIVATE_KEY,
+      cert: SSL_PUBLIC_KEY,
+    }) as Http2SecureServer & Partial<Server>;
+    rawServer.maxHeadersCount = null;
+    rawServer.maxRequestsPerSocket = null;
+    rawServer.timeout = 5 * minutes * inMs;
+    rawServer.headersTimeout = 1 * minutes * inMs;
+    rawServer.keepAliveTimeout = 1 * minutes * inMs;
+    rawServer.requestTimeout = 5 * minutes * inMs;
+    rawServer.closeAllConnections = () => undefined;
+    rawServer.closeIdleConnections = () => undefined;
+    isSecure = true;
+  } catch (e) {
+    logger.info(`Could not create secure server: ${(e as Error)?.message}`);
+    rawServer = http.createServer();
+  }
+
   // start server before adding in indexer routes
   // (so that the server may report the indexing status)
   const server = Hapi.server({
@@ -78,7 +124,11 @@ const init = async () => {
         additionalHeaders: ['X-Requested-With'],
       },
     },
+    listener: rawServer as Server,
+    tls: isSecure,
   });
+
+  await server.register([responseCompression.plugin]);
 
   // add status route
   server.route({
@@ -87,6 +137,7 @@ const init = async () => {
     handler: () => {
       return {
         status: 'OK',
+        http2Available: isSecure,
         server: {
           status: serverTimes.started
             ? 'OK'
@@ -129,6 +180,9 @@ const init = async () => {
     await sync.catchUp();
   }
   serverTimes.indexed = new Date();
+
+  // and indexer plugin routes
+  server.register(liquidityPlugin);
 
   // add indexer routes
   routes.forEach((route) => {

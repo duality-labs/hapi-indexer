@@ -1,119 +1,84 @@
-import { Request, ResponseToolkit } from '@hapi/hapi';
+import { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi';
 
-import logger from '../../logger';
 import {
   DataRow,
   getHeightedTokenPairLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTokenPairLiquidity';
-import {
-  paginateData,
-  PaginatedResponse,
-} from '../../storage/sqlite3/db/paginationUtils';
-import {
-  BlockRangeResponse,
-  getBlockRange,
-} from '../../storage/sqlite3/db/blockRangeUtils';
-import { getLastBlockHeight, waitForNextBlock } from '../../sync';
-import {
-  getMsLeft,
-  inMs,
-  minutes,
-} from '../../storage/sqlite3/db/timeseriesUtils';
+import { paginateData } from '../../storage/sqlite3/db/paginationUtils';
 
-interface PairLiquidityResponse extends PaginatedResponse, BlockRangeResponse {
-  shape: [['tick_index', 'reserves'], ['tick_index', 'reserves']];
-  data: [Array<DataRow>, Array<DataRow>];
-}
+import processRequest from '../../mechanisms';
+import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
+import { Plugins } from '.';
+
+const shape = [
+  [['tick_index', 'reserves']],
+  [['tick_index', 'reserves']],
+] as const;
+type Shape = typeof shape;
+type DataSets = [Array<DataRow>, Array<DataRow>];
 
 const defaultPaginationLimit = 10000;
-const timeoutMs = 3 * minutes * inMs;
 
-const routes = [
+const routes: ServerRoute[] = [
   {
     method: 'GET',
     path: '/liquidity/pair/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
-      try {
-        const blockRange = getBlockRange(request.query);
-        const { from_height: fromHeight = 0, to_height: toHeight } = blockRange;
-
-        const getData = () =>
-          getHeightedTokenPairLiquidity(
-            request.server,
-            request.params['tokenA'],
-            request.params['tokenB'],
-            { fromHeight, toHeight }
-          );
-
-        // get the liquidity data (but if we *will* wait for new data then skip)
-        let data = fromHeight !== getLastBlockHeight() ? await getData() : null;
-        // await new data if the data does not meet the known height requirement
-        if (!toHeight) {
-          const timeLeft = getMsLeft(timeoutMs);
-          // wait until we get new non-empty data
-          while (((data || []) as [][]).every((v) => !v?.length)) {
-            // wait for next block
-            try {
-              await waitForNextBlock(timeLeft());
-            } catch {
-              // but throw timeout if waited for too long
-              return h.response('Request Timeout').code(408);
-            }
-            // get current data
-            data = await getData();
-          }
-        }
-
-        // return errors if needed
-        if (!data) {
-          return h.response('Not Found').code(404);
-        }
-
-        const [height, tickStateA, tickStateB] = data;
-
-        // paginate the data
-        const [pageA, paginationA] = paginateData(
-          tickStateA,
-          request.query, // the time extents and frequency and such
-          defaultPaginationLimit
-        );
-        const [pageB, paginationB] = paginateData(
-          tickStateB,
-          request.query, // the time extents and frequency and such
-          defaultPaginationLimit
-        );
-        const response: PairLiquidityResponse = {
-          shape: [
-            ['tick_index', 'reserves'],
-            ['tick_index', 'reserves'],
-          ],
-          data: [pageA, pageB],
-          pagination: {
-            // the next key will be the same if it exists on both sides
-            next_key: paginationA.next_key ?? paginationB.next_key,
-            total:
-              paginationA.total !== undefined && paginationB.total !== undefined
-                ? paginationA.total + paginationB.total
-                : undefined,
-          },
-          // indicate what range the data response covers
-          block_range: {
-            from_height: fromHeight,
-            to_height: height,
-          },
-        };
-        return response;
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          logger.error(err);
-          return h
-            .response(err.message || 'An unknown error occurred')
-            .code(Number(err.cause) || 500);
-        }
-        return h.response('An unknown error occurred').code(500);
-      }
+      return processRequest<Plugins, DataSets, Shape>(request, h, {
+        shape,
+        getData,
+        getPaginatedResponse,
+      });
     },
   },
 ];
 
 export default routes;
+
+const getData: GetEndpointData<Plugins, DataSets> = async (
+  params,
+  query,
+  context
+) => {
+  return await getHeightedTokenPairLiquidity(
+    context.tickLiquidityCache,
+    params['tokenA'],
+    params['tokenB'],
+    query
+  );
+};
+
+export const getPaginatedResponse: GetEndpointResponse<DataSets, Shape> = (
+  data,
+  query
+) => {
+  const [, tickStateA = [], tickStateB = []] = data || [];
+  // paginate the data
+  const [pageA, paginationA] = paginateData(
+    tickStateA,
+    query, // the time extents and frequency and such
+    defaultPaginationLimit
+  );
+  const [pageB, paginationB] = paginateData(
+    tickStateB,
+    query, // the time extents and frequency and such
+    defaultPaginationLimit
+  );
+  return {
+    data: [pageA, pageB],
+    pagination: {
+      // the next key will be the same if it exists on both sides
+      next_key: paginationA.next_key ?? paginationB.next_key,
+      // total should make sense that: total = lastOffset + lastPage.length
+      // which for an endpoint returning multiple lists is the longest list
+      total:
+        paginationA.total !== undefined && paginationB.total !== undefined
+          ? Math.max(paginationA.total, paginationB.total)
+          : undefined,
+      totals:
+        paginationA.total !== undefined && paginationB.total !== undefined
+          ? [paginationA.total, paginationB.total]
+          : undefined,
+    },
+  };
+};
