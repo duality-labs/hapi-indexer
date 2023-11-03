@@ -8,7 +8,7 @@ import {
 export interface PluginContext {
   get: () => Promise<TokenPrices>;
 }
-export interface CompressResponsePluginContext {
+export interface CachedTokenPricesPluginContext {
   cachedTokenPrices?: PluginContext;
 }
 

@@ -38,6 +38,7 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
 ) => {
   const data = await getHeightedTokenPairsLiquidity(
     context.tokenPairsLiquidityCache,
+    context.cachedTokenPrices,
     query
   );
   if (data) {

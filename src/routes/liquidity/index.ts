@@ -6,17 +6,19 @@ import {
 } from '../../storage/sqlite3/db/derived.tick_state/getTickLiquidity';
 import {
   LiquidityCache as TokenPairsLiquidityCache,
-  TokenPairsLiquidity,
+  TokensVolumeTableRow,
   tokenPairsLiquidityCache,
 } from '../../storage/sqlite3/db/derived.tick_state/getTokenPairsLiquidity';
 
 import liquidityTokenRoutes from './token';
 import liquidityPairRoutes from './pair';
 import liquidityPairsRoutes from './pairs';
+import { CachedTokenPricesPluginContext } from '../../plugins/cached-token-prices';
 
 export interface Plugins {
   tickLiquidityCache: TickLiquidityCache;
   tokenPairsLiquidityCache: TokenPairsLiquidityCache;
+  cachedTokenPrices: CachedTokenPricesPluginContext['cachedTokenPrices'];
 }
 
 export const plugin: Plugin<ServerRegisterOptions> = {
@@ -27,10 +29,13 @@ export const plugin: Plugin<ServerRegisterOptions> = {
         segment: 'tick-liquidity',
         ...tickLiquidityCache,
       }),
-      tokenPairsLiquidityCache: server.cache<TokenPairsLiquidity>({
+      tokenPairsLiquidityCache: server.cache<TokensVolumeTableRow[]>({
         segment: 'token-pairs-liquidity',
         ...tokenPairsLiquidityCache,
       }),
+      // add global cache to the plugin context
+      cachedTokenPrices: (server.plugins as CachedTokenPricesPluginContext)
+        .cachedTokenPrices,
     };
     server.bind(pluginContext);
     server.route([

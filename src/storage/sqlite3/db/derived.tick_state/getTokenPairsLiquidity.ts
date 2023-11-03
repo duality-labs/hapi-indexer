@@ -5,6 +5,7 @@ import db from '../db';
 import { getLastBlockHeight } from '../../../../sync';
 import { RequestQuery } from '@hapi/hapi';
 import { getBlockRange } from '../blockRangeUtils';
+import { PluginContext as CachedTokenPrices } from '../../../../plugins/cached-token-prices';
 
 export type DataRow = [
   token0: string,
@@ -14,18 +15,20 @@ export type DataRow = [
 ];
 export type TokenPairsLiquidity = DataRow[];
 export type LiquidityCache = Policy<
-  TokenPairsLiquidity,
-  PolicyOptions<TokenPairsLiquidity>
+  TokensVolumeTableRow[],
+  PolicyOptions<TokensVolumeTableRow[]>
 >;
 
-interface TickStateTableRow {
+export interface TokensVolumeTableRow {
+  tokenID0: number;
+  tokenID1: number;
   token0: string;
   token1: string;
   reserves0: number;
   reserves1: number;
 }
 
-export const tokenPairsLiquidityCache: PolicyOptions<TokenPairsLiquidity> = {
+export const tokenPairsLiquidityCache: PolicyOptions<TokensVolumeTableRow[]> = {
   expiresIn: 1000 * 60, // allow for a few block heights
   generateFunc: async (id) => {
     const [fromHeight, toHeight] = `${id}`.split('|').map(Number);
@@ -44,12 +47,13 @@ export const tokenPairsLiquidityCache: PolicyOptions<TokenPairsLiquidity> = {
     }
 
     // return the result set
-    return await db
-      .all<TickStateTableRow[]>(
-        sql`
+    return await db.all<TokensVolumeTableRow[]>(
+      sql`
           SELECT
             'dex.tokens_0'.'token' as 'token0',
             'dex.tokens_1'.'token' as 'token1',
+            'dex.tokens_0'.'id' as 'tokenID0',
+            'dex.tokens_1'.'id' as 'tokenID1',
             'derived.tx_volume_data'.'ReservesFloat0' as 'reserves0',
             'derived.tx_volume_data'.'ReservesFloat1' as 'reserves1'
           FROM
@@ -76,13 +80,7 @@ export const tokenPairsLiquidityCache: PolicyOptions<TokenPairsLiquidity> = {
           GROUP BY 'derived.tx_volume_data'.'related.dex.pair'
           HAVING max('derived.tx_volume_data'.'related.tx_result.events')
         `
-      )
-      // transform data for the tickIndexes to be in terms of A/B.
-      .then((data: TickStateTableRow[]) => {
-        return data.map((row): DataRow => {
-          return [row.token0, row.token1, row.reserves0, row.reserves1];
-        });
-      });
+    );
   },
   generateTimeout: 1000 * 20,
 };
@@ -94,6 +92,7 @@ export type HeightedTokenPairsLiquidity = [
 
 export async function getHeightedTokenPairsLiquidity(
   liquidityCache: LiquidityCache,
+  cachedTokenPrices: CachedTokenPrices | undefined,
   query: RequestQuery
 ): Promise<HeightedTokenPairsLiquidity | null> {
   const {
@@ -103,9 +102,28 @@ export async function getHeightedTokenPairsLiquidity(
 
   // get liquidity state through cache
   const cacheID = [fromHeight, toHeight].join('|');
-  const tokenPairsLiquidity = await liquidityCache.get(cacheID);
+  const [tableRows, tokenPrices] = await Promise.all([
+    liquidityCache.get(cacheID),
+    cachedTokenPrices?.get(),
+  ]);
   // return the response data
-  if (tokenPairsLiquidity !== null) {
+  if (tableRows) {
+    // combine liquidity data with price data
+    const getReserveValue = tokenPrices
+      ? (row: TokensVolumeTableRow) => {
+          return (
+            row.reserves0 * (tokenPrices[row.token0].usd || 0) +
+            row.reserves1 * (tokenPrices[row.token1].usd || 0)
+          );
+        }
+      : () => 0;
+    const tokenPairsLiquidity = tableRows
+      .sort((a, b) => {
+        return getReserveValue(b) - getReserveValue(a);
+      })
+      .map((row): DataRow => {
+        return [row.token0, row.token1, row.reserves0, row.reserves1];
+      });
     return [toHeight, tokenPairsLiquidity];
   } else {
     return null;
