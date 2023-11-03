@@ -1,12 +1,12 @@
 import { Plugin, ServerRegisterOptions } from '@hapi/hapi';
 import {
-  CoinGeckoSimplePriceResponse,
+  TokenPrices,
   CoinPriceCache,
   coinPriceCache,
 } from '../storage/sqlite3/ingest/utils/coingecko';
 
 export interface PluginContext {
-  get: () => Promise<CoinGeckoSimplePriceResponse>;
+  get: () => Promise<TokenPrices>;
 }
 export interface CompressResponsePluginContext {
   cachedTokenPrices?: PluginContext;

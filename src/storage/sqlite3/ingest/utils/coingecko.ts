@@ -10,14 +10,11 @@ interface CoinGeckoSimplePrice {
   usd: number;
   last_updated_at: number; // unix timestamp
 }
-export interface CoinGeckoSimplePriceResponse {
-  [coingecko_id: string]: CoinGeckoSimplePrice;
+export interface TokenPrices {
+  [tokenID: string]: CoinGeckoSimplePrice;
 }
 
-export type CoinPriceCache = Policy<
-  CoinGeckoSimplePriceResponse,
-  PolicyOptions<CoinGeckoSimplePriceResponse>
->;
+export type CoinPriceCache = Policy<TokenPrices, PolicyOptions<TokenPrices>>;
 
 const expectedCacheTime = COIN_GECKO_PRO_API_KEY
   ? // Pro API keys have high 500K+ requests/month: use freshness limit
@@ -25,18 +22,19 @@ const expectedCacheTime = COIN_GECKO_PRO_API_KEY
   : // Demo API keys have 10K requests/month: use under request limit
     15 * minutes * inMs;
 
-let lastCoinPriceCacheResult: CoinGeckoSimplePriceResponse = {};
-export const coinPriceCache: PolicyOptions<CoinGeckoSimplePriceResponse> = {
+let lastCoinPriceCacheResult: TokenPrices = {};
+export const coinPriceCache: PolicyOptions<TokenPrices> = {
   // allow data to be replaced at expectedCacheTime, but return stale data quick
   staleIn: expectedCacheTime,
   staleTimeout: 1 * seconds * inMs,
   // allow return of stale data for a while after (in case of network failures)
   expiresIn: expectedCacheTime * 2,
-  generateFunc: async (): Promise<CoinGeckoSimplePriceResponse> => {
+  generateFunc: async (): Promise<TokenPrices> => {
     // get all CoinGecko IDs known to the dex
-    const rows = await db.get<Array<{ coingecko_id: string }>>(
+    const rows = await db.get<Array<{ id: string; coingecko_id: string }>>(
       sql`
         SELECT
+          'dex.tokens'.'id'
           'dex.tokens'.'coingecko_id'
         FROM
           'dex.tokens'
@@ -45,6 +43,10 @@ export const coinPriceCache: PolicyOptions<CoinGeckoSimplePriceResponse> = {
       `
     );
     if (rows && rows.length > 0) {
+      const coingeckoIDMap = rows.reduce((acc, row) => {
+        acc[row.coingecko_id] = row.id;
+        return acc;
+      }, {} as { [coingeckoID: string]: string });
       const coingeckoIDs = rows.map((row) => row.coingecko_id);
 
       // construct CoinGecko query from IDs
@@ -70,8 +72,20 @@ export const coinPriceCache: PolicyOptions<CoinGeckoSimplePriceResponse> = {
       try {
         const response = await fetch(url, { headers });
         if (response.status === 200) {
-          lastCoinPriceCacheResult =
-            (await response.json()) as CoinGeckoSimplePriceResponse;
+          const data = (await response.json()) as {
+            [coingeckoID: string]: CoinGeckoSimplePrice;
+          };
+          // put into TokenPrices format (non-CoinGecko specific)
+          lastCoinPriceCacheResult = Object.entries(data).reduce(
+            (acc, [coingeckoID, price]) => {
+              const tokenID = coingeckoIDMap[coingeckoID];
+              if (tokenID) {
+                acc[tokenID] = price;
+              }
+              return acc;
+            },
+            {} as TokenPrices
+          );
         }
       } catch (e) {
         // log the error
@@ -89,11 +103,11 @@ export const coinPriceCache: PolicyOptions<CoinGeckoSimplePriceResponse> = {
 // so that price and USD volume data can be used as a sorting metric
 export async function getTokenPrices(
   coinPriceCache: CoinPriceCache
-): Promise<CoinGeckoSimplePriceResponse> {
+): Promise<TokenPrices> {
   const response = await coinPriceCache.get('');
   if (response) {
     // format of response was chosen using `getDecoratedValue: false`
-    return response as CoinGeckoSimplePriceResponse;
+    return response as TokenPrices;
   }
   // return last known result (may be empty)
   return lastCoinPriceCacheResult;
