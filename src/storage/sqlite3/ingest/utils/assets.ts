@@ -3,8 +3,12 @@ import { ChainRegistryClient } from '@chain-registry/client';
 const { REST_API = '', CHAIN_REGISTRY_CHAIN_NAME = '' } = process.env;
 
 export async function getAssetInfo(chainDenom: string) {
-  const chainName = ibcDenomRegex.test(chainDenom)
-    ? await getIbcChainName(chainDenom)
+  const ibcDenom = chainDenom.match(ibcDenomRegex)?.[0];
+  const baseDenom = ibcDenom
+    ? await getIbcTraceInfo(chainDenom).then((v) => v?.base_denom)
+    : chainDenom;
+  const chainName = ibcDenom
+    ? await getIbcChainName(ibcDenom)
     : CHAIN_REGISTRY_CHAIN_NAME;
 
   if (chainName) {
@@ -20,7 +24,10 @@ export async function getAssetInfo(chainDenom: string) {
     const assetList = client.getChainAssetList(chainName);
     // search the found chain for the base assets
     const chainAsset = assetList.assets.find((asset) => {
-      return asset.base === chainDenom;
+      // I think this is wrong: we're on the foreign chain looking for an IBC denom?
+      //   - we should be either on the main chain looking for IBC denoms
+      //   - or on the foreign chain looking for base denoms
+      return asset.base === baseDenom;
     });
     if (chainAsset) {
       return chainAsset;
@@ -30,7 +37,8 @@ export async function getAssetInfo(chainDenom: string) {
     const ibcAsset = generatedAssetList
       .flatMap((list) => list.assets)
       .find((asset) => {
-        return asset.base === chainDenom;
+        // I think this is wrong: we're on the foreign chain looking for an IBC denom?
+        return asset.base === baseDenom;
       });
     if (ibcAsset) {
       return ibcAsset;
@@ -47,6 +55,7 @@ interface QueryDenomTraceResponse {
   denom_trace: DenomTrace;
 }
 
+// cache these requests
 async function getIbcTraceInfo(chainDenom: string) {
   const ibcHash = chainDenom.match(ibcDenomRegex)?.[1];
   if (REST_API && ibcHash) {

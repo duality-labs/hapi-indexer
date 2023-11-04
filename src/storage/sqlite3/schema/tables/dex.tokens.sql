@@ -6,9 +6,12 @@ CREATE TABLE 'dex.tokens' (
 
   -- add chain-registry fields to describe IBC tokens
   'chain_name' TEXT,
-  'base_denom' TEXT,
   'port_id' TEXT,
   'channel_id' TEXT,
+  'base.denom' TEXT,
+  'base.exponent': INTEGER,
+  'display.denom' TEXT,
+  'display.exponent': INTEGER,
 
   -- add found CoinGecko ID for price queries
   'coingecko_id' TEXT
