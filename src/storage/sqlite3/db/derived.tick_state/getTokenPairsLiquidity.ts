@@ -108,6 +108,7 @@ export async function getHeightedTokenPairsLiquidity(
   ]);
   // return the response data
   if (tableRows) {
+    console.log('tableRows', { tableRows, tokenPrices, cachedTokenPrices });
     // combine liquidity data with price data
     const getReserveValue = tokenPrices
       ? (row: TokensVolumeTableRow) => {

@@ -66,6 +66,7 @@ export const coinPriceCache: PolicyOptions<TokenPrices> = {
 
       // fetch Coin Gecko prices
       try {
+        console.log('fetching from coin gecko:', url, headers)
         const response = await fetch(url, { headers });
         if (response.status === 200) {
           const data = (await response.json()) as {

@@ -24,3 +24,6 @@ ON
   'dex.tokens' (
     'token'
   );
+
+INSERT INTO 'dex.tokens' ('token', 'coingecko_id', 'chain_name', 'base_denom') values ("stake", "neutron-3", "neutron", "untrn");
+INSERT INTO 'dex.tokens' ('token', 'coingecko_id', 'chain_name', 'base_denom', 'port_id', 'channel_id') values ("token", "cosmos", "cosmoshub", "uatom", "transfer", "channel-1");
