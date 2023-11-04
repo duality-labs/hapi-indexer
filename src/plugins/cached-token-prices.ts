@@ -12,7 +12,7 @@ export interface CachedTokenPricesPluginContext {
   cachedTokenPrices?: PluginContext;
 }
 
-export const name = 'cached-token-prices';
+export const name = 'cachedTokenPrices';
 export const plugin: Plugin<ServerRegisterOptions> = {
   name,
   register: async function (server) {

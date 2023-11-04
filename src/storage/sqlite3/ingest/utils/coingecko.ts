@@ -31,10 +31,10 @@ export const coinPriceCache: PolicyOptions<TokenPrices> = {
   expiresIn: expectedCacheTime * 2,
   generateFunc: async (): Promise<TokenPrices> => {
     // get all CoinGecko IDs known to the dex
-    const rows = await db.get<Array<{ id: string; coingecko_id: string }>>(
+    const rows = await db.all<Array<{ id: string; coingecko_id: string }>>(
       sql`
         SELECT
-          'dex.tokens'.'id'
+          'dex.tokens'.'id',
           'dex.tokens'.'coingecko_id'
         FROM
           'dex.tokens'
@@ -43,17 +43,13 @@ export const coinPriceCache: PolicyOptions<TokenPrices> = {
       `
     );
     if (rows && rows.length > 0) {
-      const coingeckoIDMap = rows.reduce((acc, row) => {
-        acc[row.coingecko_id] = row.id;
-        return acc;
-      }, {} as { [coingeckoID: string]: string });
       const coingeckoIDs = rows.map((row) => row.coingecko_id);
 
       // construct CoinGecko query from IDs
+      // docs: https://www.coingecko.com/api/documentation
       const queryParams = new URLSearchParams({
         ids: coingeckoIDs.join(','),
         vs_currencies: 'usd',
-        include_last_updated_at: '',
       });
       const url = `${
         COIN_GECKO_PRO_API_KEY
@@ -78,9 +74,11 @@ export const coinPriceCache: PolicyOptions<TokenPrices> = {
           // put into TokenPrices format (non-CoinGecko specific)
           lastCoinPriceCacheResult = Object.entries(data).reduce(
             (acc, [coingeckoID, price]) => {
-              const tokenID = coingeckoIDMap[coingeckoID];
-              if (tokenID) {
-                acc[tokenID] = price;
+              const token = rows.find(
+                (row) => row.coingecko_id === coingeckoID
+              );
+              if (token) {
+                acc[token.id] = price;
               }
               return acc;
             },

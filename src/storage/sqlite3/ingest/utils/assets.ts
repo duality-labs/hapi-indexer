@@ -40,8 +40,8 @@ export async function getAssetInfo(chainDenom: string) {
 
 const ibcDenomRegex = /^ibc\/([0-9A-Fa-f]+)$/;
 interface DenomTrace {
-  path: 'string';
-  base_denom: 'string';
+  path: string;
+  base_denom: string;
 }
 interface QueryDenomTraceResponse {
   denom_trace: DenomTrace;
@@ -93,7 +93,7 @@ async function getIbcClientState(channelId: string, portId: string) {
 async function getIbcChainName(chainDenom: string) {
   const ibcTrace = await getIbcTraceInfo(chainDenom);
   if (ibcTrace) {
-    // search chain registry for expected asset data
+    // search chain for IBC asset data
     // "path" is just the combination of "port" and "channel"
     const [port, channel] = ibcTrace.path.split('/');
     const clientState = await getIbcClientState(channel, port);
