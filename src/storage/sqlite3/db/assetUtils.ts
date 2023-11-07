@@ -17,10 +17,13 @@ function getAssetLists(): AssetList[] {
 
     // get asset lists
     return [
+      // get asset lists of IBC connected chains
+      // place generated assets first because they hold more detail:
+      // some IBC denoms assets may be placed on the main chain asset list
+      // because they can be used as fee denoms: and may have sparse info
+      ...client.getGeneratedAssetLists(chainName),
       // get asset list of chain
       client.getChainAssetList(chainName),
-      // get asset lists of IBC connected chains
-      ...client.getGeneratedAssetLists(chainName),
     ].filter(Boolean);
   } else {
     throw new Error('main CHAIN_NAME is not defined');
