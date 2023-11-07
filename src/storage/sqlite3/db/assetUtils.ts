@@ -3,6 +3,16 @@ import { ChainRegistryClient } from '@chain-registry/client';
 import { Asset, AssetList } from '@chain-registry/types';
 
 const { CHAIN_REGISTRY_CHAIN_NAME = '' } = process.env;
+const { NODE_ENV = '', DEV_DENOM_MAP = '' } = process.env;
+
+// dev token map allows dev tokens to pretend to be real (chain or IBC) tokens
+interface DevDenomMap {
+  [token: string]: string;
+}
+const devDenomMap: DevDenomMap | undefined =
+  DEV_DENOM_MAP && (NODE_ENV === 'development' || NODE_ENV === 'test')
+    ? JSON.parse(DEV_DENOM_MAP)
+    : undefined;
 
 function getAssetLists(): AssetList[] {
   const chainName = CHAIN_REGISTRY_CHAIN_NAME;
@@ -38,9 +48,11 @@ export function getAsset(
   return assetLists
     .flatMap((assetList) => assetList)
     .flatMap((assetList) => assetList.assets)
-    .find((asset) => {
-      return asset.base === chainDenom;
-    });
+    .find(
+      devDenomMap
+        ? (asset) => asset.base === (devDenomMap[chainDenom] || chainDenom)
+        : (asset) => asset.base === chainDenom
+    );
 }
 
 export function getDenomExponent(
