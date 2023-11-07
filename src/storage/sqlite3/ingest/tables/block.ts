@@ -1,4 +1,4 @@
-import sql from 'sql-template-strings';
+import { sql } from 'kysely';
 import { TxResponse } from '../../../../@types/tx';
 
 import db from '../../db/db';
@@ -21,7 +21,7 @@ async function get(tx_result: TxResponse) {
 }
 
 async function set(tx_result: TxResponse) {
-  return db.run(sql`
+  return db.executeQuery(sql`
     INSERT OR IGNORE INTO 'block' (
       'header.height',
       'header.time',
@@ -31,7 +31,7 @@ async function set(tx_result: TxResponse) {
       ${tx_result.timestamp},
       ${getBlockTimeFromTxResult(tx_result)}
     )
-  `);
+  `.compile(db));
 }
 
 export default async function insertBlockRows(tx_result: TxResponse) {

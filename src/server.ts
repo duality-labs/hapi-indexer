@@ -4,7 +4,7 @@ import http2, { Http2SecureServer } from 'node:http2';
 import Hapi from '@hapi/hapi';
 import logger from './logger';
 
-import db, { init as initDb } from './storage/sqlite3/db/db';
+import db from './storage/sqlite3/db/db';
 import initDbSchema from './storage/sqlite3/schema/schema';
 import * as sync from './sync';
 
@@ -172,7 +172,6 @@ const init = async () => {
   serverTimes.started = new Date();
 
   // wait for database to be set up before adding indexer routes
-  await initDb();
   await initDbSchema();
   serverTimes.indexing = new Date();
   // prevent routes from being usable until the indexer is synced with the chain
@@ -194,7 +193,7 @@ const init = async () => {
 
 process.on('unhandledRejection', async (err) => {
   logger.error(err);
-  await db.close();
+  await db.destroy();
   process.exit(1);
 });
 

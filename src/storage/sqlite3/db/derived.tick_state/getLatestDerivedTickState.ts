@@ -1,4 +1,9 @@
-import sql from 'sql-template-strings';
+import { ExpressionBuilder, expressionBuilder, sql } from 'kysely';
+
+const eb = expressionBuilder();
+const q = (eb: ExpressionBuilder<unknown, never>) => {
+  return eb.selectFrom('derived.tick_state')
+}
 
 export default function getLatestTickStateCTE(
   token0: string,
