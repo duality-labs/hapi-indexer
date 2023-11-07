@@ -10,6 +10,7 @@ import defaultLogger from '../logger';
 const { REST_API = '', CHAIN_REGISTRY_CHAIN_NAME = '' } = process.env;
 
 type AssetListsCache = Policy<AssetList[], PolicyOptions<AssetList[]>>;
+type ChainIdQueryCache = Policy<string | null, PolicyOptions<string | null>>;
 type ChainQueryCache = Policy<Asset, PolicyOptions<Asset>>;
 
 const name = 'cachedAssets' as const;
@@ -63,6 +64,41 @@ export const plugin: Plugin<ServerRegisterOptions> = {
     });
 
     // create cache for assets
+    const chainIdQueryCache: ChainIdQueryCache = server.cache({
+      segment: 'chain-id-queries',
+      // allow data to be replaced infrequently, and return stale data quick
+      staleIn: 24 * hours * inMs,
+      staleTimeout: 1 * seconds * inMs,
+      // don't expire data, old data is better than no data here
+      expiresIn: Number.MAX_SAFE_INTEGER,
+      // generate a main chain AssetList and IBC chain AssetList if passed as ID
+      generateFunc: async (id): Promise<string | null> => {
+        const ibcTracePath = `${id}`;
+        if (!ibcTracePath) {
+          throw new Error(
+            `no IBC trace path information was found for: ${id}`,
+            {
+              cause: 404,
+            }
+          );
+        }
+
+        // search chain for IBC asset data
+        // "path" is just the combination of "port" and "channel"
+        const [port, channel] = ibcTracePath.split('/');
+        const clientState = await getIbcClientState(channel, port);
+        const chainId = clientState?.client_state?.chain_id;
+        if (!chainId) {
+          throw new Error(`no chain ID was found for IBC path ${id}`, {
+            cause: 404,
+          });
+        }
+        return chainId;
+      },
+      generateTimeout: 60 * seconds * inMs,
+    });
+
+    // create cache for assets
     const chainQueryCache: ChainQueryCache = server.cache({
       segment: 'chain-asset-queries',
       // allow data to be replaced infrequently, and return stale data quick
@@ -87,8 +123,7 @@ export const plugin: Plugin<ServerRegisterOptions> = {
         // search chain for IBC asset data
         // "path" is just the combination of "port" and "channel"
         const [port, channel] = ibcTrace.path.split('/');
-        const clientState = await getIbcClientState(channel, port);
-        const chainId = clientState?.client_state?.chain_id;
+        const chainId = await chainIdQueryCache.get(ibcTrace.path);
 
         // note: the chains dependency from chain-registry here means we cannot
         //       identify chains newer than the version saved in chain-registry
