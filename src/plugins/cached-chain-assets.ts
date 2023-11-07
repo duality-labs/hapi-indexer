@@ -6,6 +6,7 @@ import { Plugin, ServerRegisterOptions } from '@hapi/hapi';
 
 import { hours, inMs, seconds } from '../storage/sqlite3/db/timeseriesUtils';
 import defaultLogger from '../logger';
+import { devDenomMap } from '../storage/sqlite3/db/assetUtils';
 
 const { REST_API = '', CHAIN_REGISTRY_CHAIN_NAME = '' } = process.env;
 
@@ -108,7 +109,7 @@ export const plugin: Plugin<ServerRegisterOptions> = {
       expiresIn: Number.MAX_SAFE_INTEGER,
       // generate a main chain AssetList and IBC chain AssetList if passed as ID
       generateFunc: async (id): Promise<Asset> => {
-        const chainDenom = `${id}`;
+        const chainDenom = devDenomMap?.[`${id}`] || `${id}`;
         const ibcHash = chainDenom.match(ibcDenomRegex)?.[1];
         const ibcTrace = ibcHash && (await getIbcTraceInfo(chainDenom));
         if (!ibcHash || !ibcTrace) {

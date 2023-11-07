@@ -9,7 +9,7 @@ const { NODE_ENV = '', DEV_DENOM_MAP = '' } = process.env;
 interface DevDenomMap {
   [token: string]: string;
 }
-const devDenomMap: DevDenomMap | undefined =
+export const devDenomMap: DevDenomMap | undefined =
   DEV_DENOM_MAP && (NODE_ENV === 'development' || NODE_ENV === 'test')
     ? JSON.parse(DEV_DENOM_MAP)
     : undefined;
