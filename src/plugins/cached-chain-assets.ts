@@ -16,6 +16,7 @@ const name = 'cachedAssets' as const;
 export interface PluginContext {
   [name]: {
     getAsset: (chainDenom: string) => Promise<Asset | undefined>;
+    getAssetLists: (chainName: string) => Promise<AssetList[]>;
   };
 }
 const ibcDenomRegex = /^ibc\/([0-9A-Fa-f]+)$/;
@@ -163,6 +164,15 @@ export const plugin: Plugin<ServerRegisterOptions> = {
             );
           }
         }
+      },
+      getAssetLists: async (chainName: string) => {
+        const assetLists = await assetListsCache.get(chainName);
+        if (!assetLists) {
+          throw new Error(`Cannot find asset lists for: ${chainName}`, {
+            cause: 404,
+          });
+        }
+        return assetLists;
       },
     };
 
