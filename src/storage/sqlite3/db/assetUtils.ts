@@ -42,3 +42,20 @@ export function getAsset(
       return asset.base === chainDenom;
     });
 }
+
+export function getDenomExponent(
+  asset: Asset,
+  denom: string
+): number | undefined {
+  return asset.denom_units.find(
+    (unit) => unit.denom === denom || unit.aliases?.includes(denom)
+  )?.exponent;
+}
+
+export function getBaseDenomExponent(asset: Asset): number | undefined {
+  return getDenomExponent(asset, asset.base);
+}
+
+export function getDisplayDenomExponent(asset: Asset): number | undefined {
+  return getDenomExponent(asset, asset.display);
+}

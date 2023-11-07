@@ -36,10 +36,7 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
   query,
   context
 ) => {
-  const data = await getHeightedTokenPairsLiquidity(
-    context.tokenPairsLiquidityCache,
-    query
-  );
+  const data = await getHeightedTokenPairsLiquidity(query, context);
   if (data) {
     const [height, tokenPairsLiquidity] = data;
     return [height, tokenPairsLiquidity];
