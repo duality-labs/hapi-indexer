@@ -18,7 +18,7 @@ export type LiquidityCache = Policy<
   PolicyOptions<TokenPairsLiquidity>
 >;
 
-interface TickStateTableRow {
+interface TokensVolumeTableRow {
   token0: string;
   token1: string;
   reserves0: number;
@@ -45,7 +45,7 @@ export const tokenPairsLiquidityCache: PolicyOptions<TokenPairsLiquidity> = {
 
     // return the result set
     return await db
-      .all<TickStateTableRow[]>(
+      .all<TokensVolumeTableRow[]>(
         sql`
           SELECT
             'dex.tokens_0'.'token' as 'token0',
@@ -78,8 +78,8 @@ export const tokenPairsLiquidityCache: PolicyOptions<TokenPairsLiquidity> = {
         `
       )
       // transform data for the tickIndexes to be in terms of A/B.
-      .then((data: TickStateTableRow[]) => {
-        return data.map((row): DataRow => {
+      .then((data: TokensVolumeTableRow[]) => {
+        return data.map<DataRow>((row) => {
           return [row.token0, row.token1, row.reserves0, row.reserves1];
         });
       });
@@ -89,7 +89,7 @@ export const tokenPairsLiquidityCache: PolicyOptions<TokenPairsLiquidity> = {
 
 export type HeightedTokenPairsLiquidity = [
   height: number,
-  tokenPairsLiquidity: DataRow[]
+  tokenPairsLiquidity: TokenPairsLiquidity
 ];
 
 export async function getHeightedTokenPairsLiquidity(
