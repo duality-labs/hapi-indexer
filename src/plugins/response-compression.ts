@@ -1,15 +1,14 @@
 import { Policy, PolicyOptions } from '@hapi/catbox';
 import { Plugin, ResponseObject, ServerRegisterOptions } from '@hapi/hapi';
 
+const name = 'compressResponse' as const;
 export interface PluginContext {
-  getCachedValue: (cacheKey: string, data: unknown) => Promise<string>;
-  withKey: (cacheKey: string) => (data: ResponseObject) => Promise<string>;
-}
-export interface CompressResponsePluginContext {
-  compressResponse?: PluginContext;
+  [name]: {
+    getCachedValue: (cacheKey: string, data: unknown) => Promise<string>;
+    withKey: (cacheKey: string) => (data: ResponseObject) => Promise<string>;
+  };
 }
 
-export const name = 'compressResponse';
 export const plugin: Plugin<ServerRegisterOptions> = {
   name,
   register: async function (server) {
@@ -19,7 +18,7 @@ export const plugin: Plugin<ServerRegisterOptions> = {
       PolicyOptions<string>
     > = server.cache<string>({ segment: 'compressed-responses' });
     // add cache method into response context
-    const pluginContext: PluginContext = {
+    const pluginContext: PluginContext['compressResponse'] = {
       getCachedValue: async (cacheKey: string, data: unknown) => {
         let cachedResponse = await responseCache.get(cacheKey);
         if (!cachedResponse) {

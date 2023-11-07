@@ -17,8 +17,9 @@ interface TokenPrices {
 }
 type CoinPriceCache = Policy<TokenPrices, PolicyOptions<TokenPrices>>;
 
-export interface CachedTokenPricesPluginContext {
-  cachedTokenPrices: {
+const name = 'cachedTokenPrices' as const;
+export interface PluginContext {
+  [name]: {
     get: () => Promise<TokenPrices>;
   };
 }
@@ -29,7 +30,6 @@ const expectedCacheTime = COIN_GECKO_PRO_API_KEY
   : // Demo API keys have 10K requests/month: use under request limit
     15 * minutes * inMs;
 
-export const name = 'cachedTokenPrices';
 export const plugin: Plugin<ServerRegisterOptions> = {
   name,
   register: async function (server) {
@@ -95,7 +95,7 @@ export const plugin: Plugin<ServerRegisterOptions> = {
       generateTimeout: 30 * seconds * inMs,
     });
     // add cache method into response context
-    const pluginContext: CachedTokenPricesPluginContext['cachedTokenPrices'] = {
+    const pluginContext: PluginContext['cachedTokenPrices'] = {
       get: async () => {
         return (await cache.get('')) ?? lastCoinPriceCacheResult;
       },
