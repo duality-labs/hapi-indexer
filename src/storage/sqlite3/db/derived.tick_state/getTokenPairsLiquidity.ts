@@ -105,7 +105,7 @@ export async function getHeightedTokenPairsLiquidity(
   query: RequestQuery,
   context: Plugins
 ): Promise<HeightedTokenPairsLiquidity | null> {
-  const { tokenPairsLiquidityCache, cachedTokenPrices } = context;
+  const { tokenPairsLiquidityCache, cachedTokenPrices, cachedAssets } = context;
   const {
     from_height: fromHeight = 0,
     to_height: toHeight = getLastBlockHeight(),
@@ -119,8 +119,11 @@ export async function getHeightedTokenPairsLiquidity(
   ]);
   // return the response data
   if (tokenPairsLiquidity !== null) {
-    const getChainDenomPrice = (chainDenom: string) => {
-      const asset = getAsset(chainDenom);
+    const getChainDenomPrice = async (chainDenom: string) => {
+      // get static asset
+      const staticAsset = getAsset(chainDenom);
+      // or get dynamic asset if static asset is not available
+      const asset = staticAsset || (await cachedAssets.getAsset(chainDenom));
       if (asset) {
         const price = tokenPrices[asset.coingecko_id ?? '']?.usd || 0;
         const denomExponent = getDenomExponent(asset, chainDenom) || 0;
@@ -129,17 +132,22 @@ export async function getHeightedTokenPairsLiquidity(
       }
       return 0;
     };
-    const sortedtokenPairsLiquidity = tokenPairsLiquidity
-      // add value column to rows for sorting
-      .map<TokensValueTableRow>(([token0, token1, reserves0, reserves1]) => ({
-        token0,
-        token1,
-        reserves0,
-        reserves1,
-        value:
-          reserves0 * getChainDenomPrice(token0) +
-          reserves1 * getChainDenomPrice(token1),
-      }))
+    const valuedTokenPairsLiquidity = await Promise.all(
+      tokenPairsLiquidity
+        // add value column to rows for sorting
+        .map<Promise<TokensValueTableRow>>(
+          async ([token0, token1, reserves0, reserves1]) => ({
+            token0,
+            token1,
+            reserves0,
+            reserves1,
+            value:
+              reserves0 * (await getChainDenomPrice(token0)) +
+              reserves1 * (await getChainDenomPrice(token1)),
+          })
+        )
+    );
+    const sortedtokenPairsLiquidity = valuedTokenPairsLiquidity
       // sort by value data
       // note: sorting doesn't need to be exact (eg. exact price this second)
       //       its more of a guide for clients to follow
