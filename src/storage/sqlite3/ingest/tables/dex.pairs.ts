@@ -3,22 +3,17 @@ import sql from 'sql-template-tag';
 import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
-import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
+import getPairID from '../../db/dex.pairs/getPairID';
 
 export default async function insertDexPairsRows(
   txEvent: DecodedTxEvent
 ): Promise<number | undefined> {
   // if event has tokens, ensure these tokens are present in the DB
   if (txEvent.attributes.Token0 && txEvent.attributes.Token1) {
-    const { id } =
-      (await db.get<{ id: number }>(
-        ...prepare(
-          selectSortedPairID(
-            txEvent.attributes['Token0'],
-            txEvent.attributes['Token1']
-          )
-        )
-      )) || {};
+    const id = await getPairID(
+      txEvent.attributes['Token0'],
+      txEvent.attributes['Token1']
+    );
 
     if (id) {
       return id;
