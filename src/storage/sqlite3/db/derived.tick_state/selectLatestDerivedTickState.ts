@@ -2,7 +2,7 @@ import sql from 'sql-template-tag';
 import { selectTokenID } from '../dex.tokens/selectTokenID';
 import { selectSortedPairID } from '../dex.pairs/selectPairID';
 
-export default function getLatestTickStateCTE(
+export default function selectLatestTickState(
   token0: string,
   token1: string,
   token: string,

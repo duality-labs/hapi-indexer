@@ -2,7 +2,7 @@ import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
 import db, { prepare } from '../../db/db';
-import getLatestTickStateCTE from '../../db/derived.tick_state/getLatestDerivedTickState';
+import selectLatestTickState from '../../db/derived.tick_state/selectLatestDerivedTickState';
 
 import upsertDerivedPriceData from './derived.tx_price_data';
 import upsertDerivedVolumeData from './derived.tx_volume_data';
@@ -28,7 +28,7 @@ export async function upsertDerivedTickStateRows(
     timer.start('processing:txs:derived.tick_state:get:tick_state');
     const previousStateData = await db.get(
       ...prepare(sql`
-        WITH 'latest.derived.tick_state' AS (${getLatestTickStateCTE(
+        WITH 'latest.derived.tick_state' AS (${selectLatestTickState(
           txEvent.attributes['Token0'],
           txEvent.attributes['Token1'],
           txEvent.attributes['TokenIn'],

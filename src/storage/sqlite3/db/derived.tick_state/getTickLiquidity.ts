@@ -3,7 +3,7 @@ import BigNumber from 'bignumber.js';
 import { Policy, PolicyOptions } from '@hapi/catbox';
 
 import db, { prepare } from '../db';
-import getLatestTickStateCTE from './getLatestDerivedTickState';
+import selectLatestTickState from './selectLatestDerivedTickState';
 
 import { getLastBlockHeight } from '../../../../sync';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
@@ -47,7 +47,7 @@ export const tickLiquidityCache: PolicyOptions<TickLiquidity> = {
     return await db
       .all<TickStateTableRow[]>(
         ...prepare(sql`
-          WITH 'latest.derived.tick_state' AS (${getLatestTickStateCTE(
+          WITH 'latest.derived.tick_state' AS (${selectLatestTickState(
             token0,
             token1,
             tokenIn,
