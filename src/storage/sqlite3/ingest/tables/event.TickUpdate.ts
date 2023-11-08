@@ -6,6 +6,7 @@ import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
+import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
 
 export default async function insertEventTickUpdate(
   tx_result: TxResponse,
@@ -117,15 +118,7 @@ export default async function insertEventTickUpdate(
           'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
         )
       ),
-      (
-        SELECT
-          'dex.tokens'.'id'
-        FROM
-          'dex.tokens'
-        WHERE (
-          'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
-        )
-      )
+      (${selectTokenID(txEvent.attributes['TokenIn'])})
     )
     `)
   );

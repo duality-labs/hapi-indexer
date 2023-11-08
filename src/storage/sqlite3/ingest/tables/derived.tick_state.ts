@@ -9,6 +9,7 @@ import upsertDerivedVolumeData from './derived.tx_volume_data';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
+import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
 
 export async function upsertDerivedTickStateRows(
   tx_result: TxResponse,
@@ -78,15 +79,7 @@ export async function upsertDerivedTickStateRows(
             'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
           )
         ),
-        (
-          SELECT
-            'dex.tokens'.'id'
-          FROM
-            'dex.tokens'
-          WHERE (
-            'dex.tokens'.'token' = ${txEvent.attributes['TokenIn']}
-          )
-        ),
+        (${selectTokenID(txEvent.attributes['TokenIn'])}),
         ${tx_result.height}
       )
       `)

@@ -1,4 +1,5 @@
 import sql from 'sql-template-tag';
+import { selectTokenID } from '../dex.tokens/selectTokenID';
 
 export default function getLatestTickStateCTE(
   token0: string,
@@ -26,15 +27,7 @@ export default function getLatestTickStateCTE(
             'dex.pairs'.'token1' = ${token1}
           )
         ) AND
-        'derived.tick_state'.'related.dex.token' = (
-          SELECT
-            'dex.tokens'.'id'
-          FROM
-            'dex.tokens'
-          WHERE (
-            'dex.tokens'.'token' = ${token}
-          )
-        ) AND
+        'derived.tick_state'.'related.dex.token' = (${selectTokenID(token)}) AND
         'derived.tick_state'.'related.block.header.height' > ${fromHeight} AND
         'derived.tick_state'.'related.block.header.height' <= ${toHeight}
       )

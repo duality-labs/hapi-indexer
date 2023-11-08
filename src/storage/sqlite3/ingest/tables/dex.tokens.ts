@@ -3,6 +3,7 @@ import sql from 'sql-template-tag';
 import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
+import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
 
 export default async function insertDexTokensRows(
   txEvent: DecodedTxEvent
@@ -25,17 +26,8 @@ export default async function insertDexTokensRows(
     await Promise.all(
       tokens.map(async (token) => {
         const { id } =
-          (await db.get<{ id: number }>(
-            ...prepare(sql`
-            SELECT
-              'dex.tokens'.'id'
-            FROM
-              'dex.tokens'
-            WHERE (
-              'dex.tokens'.'token' = ${token}
-            )
-            `)
-          )) || {};
+          (await db.get<{ id: number }>(...prepare(selectTokenID(token)))) ||
+          {};
         if (id) {
           return id;
         }
