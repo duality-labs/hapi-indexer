@@ -1,8 +1,8 @@
 import BigNumber from 'bignumber.js';
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
+import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
@@ -14,7 +14,8 @@ export default async function insertEventTickUpdate(
   timer = new Timer()
 ) {
   timer.start('processing:txs:event.TickUpdate:get:event.TickUpdate');
-  const previousTickUpdate = await db.get<{ Reserves: string }>(sql`
+  const previousTickUpdate = await db.get<{ Reserves: string }>(
+    ...prepare(sql`
     SELECT
       'event.TickUpdate'.'Reserves'
     FROM
@@ -28,7 +29,8 @@ export default async function insertEventTickUpdate(
     ORDER BY
       'event.TickUpdate'.'related.tx_result.events' DESC
     LIMIT 1
-  `);
+    `)
+  );
   timer.stop('processing:txs:event.TickUpdate:get:event.TickUpdate');
 
   const previousReserves = previousTickUpdate?.['Reserves'] || '0';
@@ -40,7 +42,8 @@ export default async function insertEventTickUpdate(
   }
 
   timer.start('processing:txs:event.TickUpdate:set:event.TickUpdate');
-  await db.run(sql`
+  await db.run(
+    ...prepare(sql`
     INSERT INTO 'event.TickUpdate' (
 
       'Token0',
@@ -124,6 +127,7 @@ export default async function insertEventTickUpdate(
         )
       )
     )
-  `);
+    `)
+  );
   timer.stop('processing:txs:event.TickUpdate:set:event.TickUpdate');
 }

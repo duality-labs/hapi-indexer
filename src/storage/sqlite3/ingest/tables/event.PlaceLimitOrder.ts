@@ -1,7 +1,7 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
+import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 
@@ -10,7 +10,8 @@ export default async function insertEventPlaceLimitOrder(
   txEvent: DecodedTxEvent,
   index: number
 ) {
-  return await db.run(sql`
+  return await db.run(
+    ...prepare(sql`
     INSERT INTO 'event.PlaceLimitOrder' (
 
       'Creator',
@@ -109,5 +110,6 @@ export default async function insertEventPlaceLimitOrder(
         )
       )
     )
-  `);
+    `)
+  );
 }

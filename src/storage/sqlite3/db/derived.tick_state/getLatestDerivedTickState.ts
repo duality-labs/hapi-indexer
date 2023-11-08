@@ -1,4 +1,4 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 
 export default function getLatestTickStateCTE(
   token0: string,
@@ -13,7 +13,6 @@ export default function getLatestTickStateCTE(
   }
 ) {
   return sql`
-    WITH 'latest.derived.tick_state' AS (
       SELECT *
       FROM 'derived.tick_state'
       WHERE (
@@ -41,6 +40,5 @@ export default function getLatestTickStateCTE(
       )
       GROUP BY 'derived.tick_state'.'TickIndex'
       HAVING max('derived.tick_state'.'related.block.header.height')
-    )
   `;
 }

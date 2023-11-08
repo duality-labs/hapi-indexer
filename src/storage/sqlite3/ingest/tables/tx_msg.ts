@@ -1,6 +1,6 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 
-import db from '../../db/db';
+import db, { prepare } from '../../db/db';
 import { DecodedTxEvent } from '../utils/decodeEvent';
 
 export default async function insertMsgRows(txEvent: DecodedTxEvent) {
@@ -15,7 +15,8 @@ export default async function insertMsgRows(txEvent: DecodedTxEvent) {
     actionPath.pop()?.startsWith('Msg')
   ) {
     // add a new Msg
-    return db.run(sql`
+    return db.run(
+      ...prepare(sql`
       INSERT OR IGNORE INTO 'tx_msg' (
         'related.tx_msg_type'
       ) values (
@@ -29,6 +30,7 @@ export default async function insertMsgRows(txEvent: DecodedTxEvent) {
           )
         )
       )
-    `);
+      `)
+    );
   }
 }

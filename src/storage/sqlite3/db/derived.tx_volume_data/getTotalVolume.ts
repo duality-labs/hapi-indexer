@@ -1,6 +1,6 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 
-import db from '../db';
+import db, { prepare } from '../db';
 import {
   PaginatedRequestQuery,
   getPaginationFromQuery,
@@ -36,7 +36,8 @@ export default async function getTotalVolume(
   const dataPromise: Promise<
     Array<{ time_unix: number; amount0: number; amount1: number }>
   > =
-    db.all(sql`
+    db.all(
+      ...prepare(sql`
     WITH windowed_table AS (
       SELECT
         unixepoch (
@@ -109,7 +110,8 @@ export default async function getTotalVolume(
       'windowed_table'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
-  `) ?? [];
+      `)
+    ) ?? [];
 
   const invertedOrderPromise = hasInvertedOrder(tokenA, tokenB);
   const [data, invertedOrder] = await Promise.all([

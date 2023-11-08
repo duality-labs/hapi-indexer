@@ -1,7 +1,7 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 
-import db from './storage/sqlite3/db/db';
+import db, { prepare } from './storage/sqlite3/db/db';
 import logger from './logger';
 
 import timeseriesPriceRoutes from './routes/timeseries/price';
@@ -24,7 +24,9 @@ const debugPath = {
     try {
       const tableNames = await db
         .all(
-          sql`SELECT name FROM 'sqlite_schema' WHERE type='table' ORDER BY name`
+          ...prepare(
+            sql`SELECT name FROM 'sqlite_schema' WHERE type='table' ORDER BY name`
+          )
         )
         .then((rows) => rows.map((row) => row.name));
       // return as rows keyed under the table name

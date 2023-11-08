@@ -1,6 +1,6 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 
-import db from '../db';
+import db, { prepare } from '../db';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
 import {
   PaginatedRequestQuery,
@@ -40,7 +40,8 @@ export default async function getPrice(
 
   // prepare statement at run time (after db has been initialized)
   const dataPromise: Promise<Array<{ [key: string]: number }>> =
-    db.all(sql`
+    db.all(
+      ...prepare(sql`
     WITH windowed_table AS (
       SELECT
         unixepoch (
@@ -116,7 +117,8 @@ export default async function getPrice(
       'windowed_table'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
-  `) ?? [];
+      `)
+    ) ?? [];
 
   const invertedOrderPromise = hasInvertedOrder(tokenA, tokenB);
   const [data, invertedOrder] = await Promise.all([

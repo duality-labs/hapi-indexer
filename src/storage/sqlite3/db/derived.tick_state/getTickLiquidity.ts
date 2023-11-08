@@ -1,7 +1,8 @@
+import sql from 'sql-template-tag';
 import BigNumber from 'bignumber.js';
 import { Policy, PolicyOptions } from '@hapi/catbox';
 
-import db from '../db';
+import db, { prepare } from '../db';
 import getLatestTickStateCTE from './getLatestDerivedTickState';
 
 import { getLastBlockHeight } from '../../../../sync';
@@ -45,9 +46,13 @@ export const tickLiquidityCache: PolicyOptions<TickLiquidity> = {
     const reverseDirection = token1 === tokenIn;
     return await db
       .all<TickStateTableRow[]>(
-        // append plain SQL (without sql substitution) for conditional sections
-        getLatestTickStateCTE(token0, token1, tokenIn, { fromHeight, toHeight })
-          .append(`--sql
+        ...prepare(sql`
+          WITH 'latest.derived.tick_state' AS (${getLatestTickStateCTE(
+            token0,
+            token1,
+            tokenIn,
+            { fromHeight, toHeight }
+          )})
             SELECT
               'latest.derived.tick_state'.'TickIndex' as 'tickIndex',
               'latest.derived.tick_state'.'Reserves' as 'reserves'
@@ -57,17 +62,17 @@ export const tickLiquidityCache: PolicyOptions<TickLiquidity> = {
               // add a filtering of zero values if querying from the beginning
               // as zero values won't be helpful to receive or use
               fromHeight === 0
-                ? `--sql
+                ? sql`
                     WHERE 'latest.derived.tick_state'.'Reserves' != '0'
                   `
-                : ''
+                : sql``
             }
             -- order by tick side
             -- order by most important (middle) ticks first
             ORDER BY 'latest.derived.tick_state'.'TickIndex' ${
-              reverseDirection ? 'ASC' : 'DESC'
+              reverseDirection ? sql`ASC` : sql`DESC`
             }
-          `)
+        `)
       )
       // transform data for the tickIndexes to be in terms of A/B.
       .then((data) => {

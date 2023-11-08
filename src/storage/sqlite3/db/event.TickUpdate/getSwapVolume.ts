@@ -1,6 +1,6 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 
-import db from '../db';
+import db, { prepare } from '../db';
 import {
   PaginatedRequestQuery,
   getPaginationFromQuery,
@@ -47,7 +47,8 @@ export default async function getSwapVolume(
       fee1: number;
     }>
   > =
-    db.all(sql`
+    db.all(
+      ...prepare(sql`
     WITH 'ungrouped_table' AS (
       SELECT
         unixepoch (
@@ -174,7 +175,8 @@ export default async function getSwapVolume(
       'ungrouped_table'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
-  `) ?? [];
+      `)
+    ) ?? [];
 
   const invertedOrderPromise = hasInvertedOrder(tokenA, tokenB);
   const [data, invertedOrder] = await Promise.all([
