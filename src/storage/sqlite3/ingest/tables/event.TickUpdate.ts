@@ -1,11 +1,13 @@
 import BigNumber from 'bignumber.js';
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
+import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
+import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
+import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
 export default async function insertEventTickUpdate(
   tx_result: TxResponse,
@@ -14,7 +16,8 @@ export default async function insertEventTickUpdate(
   timer = new Timer()
 ) {
   timer.start('processing:txs:event.TickUpdate:get:event.TickUpdate');
-  const previousTickUpdate = await db.get<{ Reserves: string }>(sql`
+  const previousTickUpdate = await db.get<{ Reserves: string }>(
+    ...prepare(sql`
     SELECT
       'event.TickUpdate'.'Reserves'
     FROM
@@ -28,7 +31,8 @@ export default async function insertEventTickUpdate(
     ORDER BY
       'event.TickUpdate'.'related.tx_result.events' DESC
     LIMIT 1
-  `);
+    `)
+  );
   timer.stop('processing:txs:event.TickUpdate:get:event.TickUpdate');
 
   const previousReserves = previousTickUpdate?.['Reserves'] || '0';
@@ -40,7 +44,8 @@ export default async function insertEventTickUpdate(
   }
 
   timer.start('processing:txs:event.TickUpdate:set:event.TickUpdate');
-  await db.run(sql`
+  await db.run(
+    ...prepare(sql`
     INSERT INTO 'event.TickUpdate' (
 
       'Token0',
@@ -104,26 +109,13 @@ export default async function insertEventTickUpdate(
           )
         )
       ),
-      (
-        SELECT
-          'dex.pairs'.'id'
-        FROM
-          'dex.pairs'
-        WHERE (
-          'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-          'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-        )
-      ),
-      (
-        SELECT
-          'dex.tokens'.'id'
-        FROM
-          'dex.tokens'
-        WHERE (
-          'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
-        )
-      )
+      (${selectSortedPairID(
+        txEvent.attributes['Token0'],
+        txEvent.attributes['Token1']
+      )}),
+      (${selectTokenID(txEvent.attributes['TokenIn'])})
     )
-  `);
+    `)
+  );
   timer.stop('processing:txs:event.TickUpdate:set:event.TickUpdate');
 }

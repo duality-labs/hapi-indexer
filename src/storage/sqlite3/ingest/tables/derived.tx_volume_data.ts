@@ -1,11 +1,12 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
-import getLatestTickStateCTE from '../../db/derived.tick_state/getLatestDerivedTickState';
+import db, { prepare } from '../../db/db';
+import selectLatestTickState from '../../db/derived.tick_state/selectLatestDerivedTickState';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
+import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
 export default async function upsertDerivedVolumeData(
   tx_result: TxResponse,
@@ -26,28 +27,24 @@ export default async function upsertDerivedVolumeData(
     const otherColumn = !isForward ? 'ReservesFloat1' : 'ReservesFloat0';
     // note that previousReserves may not exist yet
     timer.start('processing:txs:derived.tx_volume_data:get:tx_volume_data');
-    const previousData = await db.get(sql`
+    const previousData = await db.get(
+      ...prepare(sql`
       SELECT
         'derived.tx_volume_data'.'ReservesFloat0',
         'derived.tx_volume_data'.'ReservesFloat1'
       FROM
         'derived.tx_volume_data'
       WHERE (
-        'derived.tx_volume_data'.'related.dex.pair' = (
-          SELECT
-            'dex.pairs'.'id'
-          FROM
-            'dex.pairs'
-          WHERE (
-            'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-            'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-          )
-        )
+        'derived.tx_volume_data'.'related.dex.pair' = (${selectSortedPairID(
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1']
+        )})
       )
       ORDER BY
         'derived.tx_volume_data'.'related.tx_result.events' DESC
       LIMIT 1
-    `);
+      `)
+    );
     const previousReserves = previousData?.[queriedColumn];
     timer.stop('processing:txs:derived.tx_volume_data:get:tx_volume_data');
 
@@ -55,12 +52,13 @@ export default async function upsertDerivedVolumeData(
     // derive data from entire ticks state (useful for maybe some other calculations)
     const currentReserves = await db
       .get(
-        getLatestTickStateCTE(
-          txEvent.attributes['Token0'],
-          txEvent.attributes['Token1'],
-          txEvent.attributes['TokenIn'],
-          { fromHeight: 0, toHeight: Number(tx_result.height) }
-        ).append(sql`
+        ...prepare(sql`
+          WITH 'latest.derived.tick_state' AS (${selectLatestTickState(
+            txEvent.attributes['Token0'],
+            txEvent.attributes['Token1'],
+            txEvent.attributes['TokenIn'],
+            { fromHeight: 0, toHeight: Number(tx_result.height) }
+          )})
           SELECT
             -- get all token reserves of a token in a pair (as a float for ease)
             SUM( CAST('latest.derived.tick_state'.'Reserves' AS FLOAT) ) as 'ReservesFloat'
@@ -81,7 +79,8 @@ export default async function upsertDerivedVolumeData(
     if (previousReserves !== currentReserves) {
       const previousOtherSideReserves = previousData?.[otherColumn] ?? 0;
       timer.start('processing:txs:derived.tx_volume_data:set:tx_volume_data');
-      await db.run(sql`
+      await db.run(
+        ...prepare(sql`
         INSERT OR REPLACE INTO 'derived.tx_volume_data' (
           'ReservesFloat0',
           'ReservesFloat1',
@@ -120,18 +119,13 @@ export default async function upsertDerivedVolumeData(
               )
             )
           ),
-          (
-            SELECT
-              'dex.pairs'.'id'
-            FROM
-              'dex.pairs'
-            WHERE (
-              'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-              'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-            )
-          )
+          (${selectSortedPairID(
+            txEvent.attributes['Token0'],
+            txEvent.attributes['Token1']
+          )})
         )
-      `);
+        `)
+      );
       timer.stop('processing:txs:derived.tx_volume_data:set:tx_volume_data');
     }
   }

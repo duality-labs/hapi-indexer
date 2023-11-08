@@ -1,6 +1,6 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 
-import db from '../db';
+import db, { prepare } from '../db';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
 import {
   PaginatedRequestQuery,
@@ -13,6 +13,7 @@ import {
   getOffsetSeconds,
   resolutionTimeFormats,
 } from '../timeseriesUtils';
+import { selectPairID } from '../dex.pairs/selectPairID';
 
 type TickIndex = number | null;
 type PriceValues = [
@@ -40,7 +41,8 @@ export default async function getPrice(
 
   // prepare statement at run time (after db has been initialized)
   const dataPromise: Promise<Array<{ [key: string]: number }>> =
-    db.all(sql`
+    db.all(
+      ...prepare(sql`
     WITH windowed_table AS (
       SELECT
         unixepoch (
@@ -75,20 +77,10 @@ export default async function getPrice(
       WHERE
         'block'.'header.time_unix' <= ${pagination.before} AND
         'block'.'header.time_unix' >= ${pagination.after} AND
-        'derived.tx_price_data'.'related.dex.pair' = (
-          SELECT
-            'dex.pairs'.'id'
-          FROM
-            'dex.pairs'
-          WHERE (
-            'dex.pairs'.'token0' = ${tokenA} AND
-            'dex.pairs'.'token1' = ${tokenB}
-          )
-          OR (
-            'dex.pairs'.'token1' = ${tokenA} AND
-            'dex.pairs'.'token0' = ${tokenB}
-          )
-        )
+        'derived.tx_price_data'.'related.dex.pair' = (${selectPairID(
+          tokenA,
+          tokenB
+        )})
       WINDOW resolution_window AS (
         PARTITION BY strftime(
           ${partitionTimeFormat},
@@ -116,7 +108,8 @@ export default async function getPrice(
       'windowed_table'.'resolution_unix' DESC
     LIMIT ${pagination.limit + 1}
     OFFSET ${pagination.offset}
-  `) ?? [];
+      `)
+    ) ?? [];
 
   const invertedOrderPromise = hasInvertedOrder(tokenA, tokenB);
   const [data, invertedOrder] = await Promise.all([

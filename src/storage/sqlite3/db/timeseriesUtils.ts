@@ -1,6 +1,6 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 
-import db from './db';
+import db, { prepare } from './db';
 import { PaginatedResponse, PaginationInput } from './paginationUtils';
 
 // unix time constants
@@ -45,14 +45,16 @@ export type Resolution = keyof typeof resolutionTimeFormats;
 
 // calculate how far from the start of day we are in secods
 async function getStartOfDayOffset(pagination: PaginationInput) {
-  const { offset } = await db.get(sql`
+  const { offset } = await db.get(
+    ...prepare(sql`
     SELECT (
       ${pagination.before} - unixepoch(
         datetime(${pagination.before}, "unixepoch"),
         "start of day"
       )
     ) as 'offset'
-  `);
+    `)
+  );
   return offset;
 }
 

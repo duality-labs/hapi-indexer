@@ -1,11 +1,12 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
-import getLatestTickStateCTE from '../../db/derived.tick_state/getLatestDerivedTickState';
+import db, { prepare } from '../../db/db';
+import selectLatestTickState from '../../db/derived.tick_state/selectLatestDerivedTickState';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
+import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
 export default async function upsertDerivedPriceData(
   tx_result: TxResponse,
@@ -25,28 +26,24 @@ export default async function upsertDerivedPriceData(
     const tickSide = isForward ? 'LowestTick1' : 'HighestTick0';
     // note that previousTickIndex may not exist yet
     timer.start('processing:txs:derived.tx_price_data:get:tx_price_data');
-    const previousPriceData = await db.get(sql`
+    const previousPriceData = await db.get(
+      ...prepare(sql`
       SELECT
         'derived.tx_price_data'.'HighestTick0',
         'derived.tx_price_data'.'LowestTick1'
       FROM
         'derived.tx_price_data'
       WHERE (
-        'derived.tx_price_data'.'related.dex.pair' = (
-          SELECT
-            'dex.pairs'.'id'
-          FROM
-            'dex.pairs'
-          WHERE (
-            'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-            'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-          )
-        )
+        'derived.tx_price_data'.'related.dex.pair' = (${selectSortedPairID(
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1']
+        )})
       )
       ORDER BY
         'derived.tx_price_data'.'related.tx_result.events' DESC
       LIMIT 1
-    `);
+      `)
+    );
     const previousTickIndex = previousPriceData?.[tickSide];
     timer.stop('processing:txs:derived.tx_price_data:get:tx_price_data');
 
@@ -54,13 +51,13 @@ export default async function upsertDerivedPriceData(
     // derive data from entire ticks state (useful for maybe some other calculations)
     const currentTickIndex = await db
       .get(
-        // append plain SQL (without value substitution) to have conditional query
-        getLatestTickStateCTE(
-          txEvent.attributes['Token0'],
-          txEvent.attributes['Token1'],
-          txEvent.attributes['TokenIn'],
-          { fromHeight: 0, toHeight: Number(tx_result.height) }
-        ).append(`--sql
+        ...prepare(sql`
+          WITH 'latest.derived.tick_state' AS (${selectLatestTickState(
+            txEvent.attributes['Token0'],
+            txEvent.attributes['Token1'],
+            txEvent.attributes['TokenIn'],
+            { fromHeight: 0, toHeight: Number(tx_result.height) }
+          )})
           SELECT
             'latest.derived.tick_state'.'TickIndex'
           FROM
@@ -68,7 +65,7 @@ export default async function upsertDerivedPriceData(
           WHERE
             'latest.derived.tick_state'.'Reserves' != '0'
           ORDER BY 'latest.derived.tick_state'.'TickIndex' ${
-            isForward ? 'ASC' : 'DESC'
+            isForward ? sql`ASC` : sql`DESC`
           }
           LIMIT 1
         `)
@@ -83,7 +80,8 @@ export default async function upsertDerivedPriceData(
           ? previousPriceData?.['HighestTick0']
           : previousPriceData?.['LowestTick1']) ?? null;
       timer.start('processing:txs:derived.tx_price_data:set:tx_price_data');
-      await db.run(sql`
+      await db.run(
+        ...prepare(sql`
         INSERT OR REPLACE INTO 'derived.tx_price_data' (
 
           'HighestTick0',
@@ -126,18 +124,13 @@ export default async function upsertDerivedPriceData(
               )
             )
           ),
-          (
-            SELECT
-              'dex.pairs'.'id'
-            FROM
-              'dex.pairs'
-            WHERE (
-              'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-              'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-            )
-          )
+          (${selectSortedPairID(
+            txEvent.attributes['Token0'],
+            txEvent.attributes['Token1']
+          )})
         )
-      `);
+        `)
+      );
       timer.stop('processing:txs:derived.tx_price_data:set:tx_price_data');
     }
   }

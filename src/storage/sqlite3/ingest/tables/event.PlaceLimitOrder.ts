@@ -1,16 +1,19 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
+import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
+import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
+import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
 export default async function insertEventPlaceLimitOrder(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
   index: number
 ) {
-  return await db.run(sql`
+  return await db.run(
+    ...prepare(sql`
     INSERT INTO 'event.PlaceLimitOrder' (
 
       'Creator',
@@ -75,39 +78,19 @@ export default async function insertEventPlaceLimitOrder(
           )
         )
       ),
-      (
-        SELECT
-          'dex.pairs'.'id'
-        FROM
-          'dex.pairs'
-        WHERE (
-          'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-          'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-        )
-      ),
-      (
-        SELECT
-          'dex.tokens'.'id'
-        FROM
-          'dex.tokens'
-        WHERE (
-          'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
-        )
-      ),
-      (
-        SELECT
-          'dex.tokens'.'id'
-        FROM
-          'dex.tokens'
-        WHERE (
-          'dex.tokens'.'Token' = ${
-            // derive TokenOut
-            txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
-              ? txEvent.attributes['Token0']
-              : txEvent.attributes['Token1']
-          }
-        )
+      (${selectSortedPairID(
+        txEvent.attributes['Token0'],
+        txEvent.attributes['Token1']
+      )}),
+      (${selectTokenID(txEvent.attributes['TokenIn'])}),
+      (${selectTokenID(
+        // derive TokenOut
+        txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
+          ? txEvent.attributes['Token0']
+          : txEvent.attributes['Token1']
+      )}
       )
     )
-  `);
+    `)
+  );
 }

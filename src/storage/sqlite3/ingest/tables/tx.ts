@@ -1,13 +1,14 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
+import db, { prepare } from '../../db/db';
 
 export default async function insertTxRows(
   tx_result: TxResponse,
   index: number
 ) {
-  return await db.run(sql`
+  return await db.run(
+    ...prepare(sql`
     INSERT INTO 'tx' (
       'hash',
       'index',
@@ -40,5 +41,6 @@ export default async function insertTxRows(
         )
       )
     )
-  `);
+    `)
+  );
 }

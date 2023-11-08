@@ -1,8 +1,9 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 
-import db from '../../db/db';
+import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
+import getTokenID from '../../db/dex.tokens/getTokenID';
 
 export default async function insertDexTokensRows(
   txEvent: DecodedTxEvent
@@ -24,24 +25,18 @@ export default async function insertDexTokensRows(
   if (tokens.length > 0) {
     await Promise.all(
       tokens.map(async (token) => {
-        const { id } =
-          (await db.get<{ id: number }>(sql`
-            SELECT
-              'dex.tokens'.'id'
-            FROM
-              'dex.tokens'
-            WHERE (
-              'dex.tokens'.'token' = ${token}
-            )
-          `)) || {};
+        const id = await getTokenID(token);
+
         if (id) {
           return id;
         }
         // or insert new token
         const { lastID } =
-          (await db.run(sql`
+          (await db.run(
+            ...prepare(sql`
             INSERT INTO 'dex.tokens' ('token') values (${token})
-          `)) || {};
+            `)
+          )) || {};
         if (!lastID) {
           throw new Error('unable to insert dex.tokens id');
         }

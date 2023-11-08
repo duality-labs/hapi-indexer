@@ -1,14 +1,16 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
-import getLatestTickStateCTE from '../../db/derived.tick_state/getLatestDerivedTickState';
+import db, { prepare } from '../../db/db';
+import selectLatestTickState from '../../db/derived.tick_state/selectLatestDerivedTickState';
 
 import upsertDerivedPriceData from './derived.tx_price_data';
 import upsertDerivedVolumeData from './derived.tx_volume_data';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
+import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
+import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
 export async function upsertDerivedTickStateRows(
   tx_result: TxResponse,
@@ -25,16 +27,19 @@ export async function upsertDerivedTickStateRows(
     // get previous state to compare against
     timer.start('processing:txs:derived.tick_state:get:tick_state');
     const previousStateData = await db.get(
-      getLatestTickStateCTE(
-        txEvent.attributes['Token0'],
-        txEvent.attributes['Token1'],
-        txEvent.attributes['TokenIn'],
-        { fromHeight: 0, toHeight: Number(tx_result.height) }
-      ).append(sql`
+      ...prepare(sql`
+        WITH 'latest.derived.tick_state' AS (${selectLatestTickState(
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1'],
+          txEvent.attributes['TokenIn'],
+          { fromHeight: 0, toHeight: Number(tx_result.height) }
+        )})
         SELECT 'latest.derived.tick_state'.'Reserves'
         FROM 'latest.derived.tick_state'
         WHERE (
-          'latest.derived.tick_state'.'TickIndex' = ${txEvent.attributes['TickIndex']}
+          'latest.derived.tick_state'.'TickIndex' = ${
+            txEvent.attributes['TickIndex']
+          }
         )
         ORDER BY 'latest.derived.tick_state'.'related.block.header.height' DESC
         LIMIT 1
@@ -51,7 +56,8 @@ export async function upsertDerivedTickStateRows(
     timer.stop('processing:txs:derived.tick_state:get:tick_state');
 
     timer.start('processing:txs:derived.tick_state:set:tick_state');
-    const { lastID } = await db.run(sql`
+    const { lastID } = await db.run(
+      ...prepare(sql`
       INSERT OR REPLACE INTO 'derived.tick_state' (
         'TickIndex',
         'Reserves',
@@ -64,28 +70,15 @@ export async function upsertDerivedTickStateRows(
         ${txEvent.attributes['TickIndex']},
         ${txEvent.attributes['Reserves']},
 
-        (
-          SELECT
-            'dex.pairs'.'id'
-          FROM
-            'dex.pairs'
-          WHERE (
-            'dex.pairs'.'Token0' = ${txEvent.attributes['Token0']} AND
-            'dex.pairs'.'Token1' = ${txEvent.attributes['Token1']}
-          )
-        ),
-        (
-          SELECT
-            'dex.tokens'.'id'
-          FROM
-            'dex.tokens'
-          WHERE (
-            'dex.tokens'.'Token' = ${txEvent.attributes['TokenIn']}
-          )
-        ),
+        (${selectSortedPairID(
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1']
+        )}),
+        (${selectTokenID(txEvent.attributes['TokenIn'])}),
         ${tx_result.height}
       )
-    `);
+      `)
+    );
     timer.stop('processing:txs:derived.tick_state:set:tick_state');
 
     // continue logic for several dependent states

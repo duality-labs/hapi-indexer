@@ -1,7 +1,7 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
+import db, { prepare } from '../../db/db';
 
 import insertDexPairsRows from './dex.pairs';
 
@@ -22,7 +22,8 @@ export default async function insertTxEventRows(
       ? await insertDexPairsRows(txEvent)
       : undefined;
 
-  const { lastID } = await db.run(sql`
+  const { lastID } = await db.run(
+    ...prepare(sql`
     INSERT INTO 'tx_result.events' (
       'index',
       'type',
@@ -65,6 +66,7 @@ export default async function insertTxEventRows(
       ${isDexMessage && txEvent.attributes.action === 'Deposit' && dexPairId},
       ${isDexMessage && txEvent.attributes.action === 'Withdraw' && dexPairId},
       ${lastMsgID || null}
-    )`);
+    )`)
+  );
   return lastID;
 }

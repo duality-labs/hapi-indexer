@@ -1,5 +1,5 @@
-import sql from 'sql-template-strings';
-import db from '../db';
+import sql from 'sql-template-tag';
+import db, { prepare } from '../db';
 
 // get pair ID without know which is token0 or token1
 export default async function hasInvertedOrder(
@@ -9,7 +9,7 @@ export default async function hasInvertedOrder(
   // wrap response in a promise
   return await db
     .get<{ token0: string }>(
-      sql`
+      ...prepare(sql`
         SELECT
           'dex.pairs'.'token0'
         FROM
@@ -21,7 +21,7 @@ export default async function hasInvertedOrder(
           'dex.pairs'.'token1' = ${tokenA} AND
           'dex.pairs'.'token0' = ${tokenB}
         )
-      `
+      `)
     )
     .then((result) => {
       // does tokenA/B match token 0/1?

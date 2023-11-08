@@ -1,7 +1,7 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
-import db from '../../db/db';
+import db, { prepare } from '../../db/db';
 
 export function getBlockTimeFromTxResult(tx_result: TxResponse): number {
   // extract out unix time integer from ISO datetime field of the tx response
@@ -9,7 +9,8 @@ export function getBlockTimeFromTxResult(tx_result: TxResponse): number {
 }
 
 async function get(tx_result: TxResponse) {
-  return db.get<{ lastID: number }>(sql`
+  return db.get<{ lastID: number }>(
+    ...prepare(sql`
     SELECT
       'block'.'id' as 'lastID'
     FROM
@@ -17,11 +18,13 @@ async function get(tx_result: TxResponse) {
     WHERE (
       'header.height' = ${tx_result.height}
     )
-  `);
+    `)
+  );
 }
 
 async function set(tx_result: TxResponse) {
-  return db.run(sql`
+  return db.run(
+    ...prepare(sql`
     INSERT OR IGNORE INTO 'block' (
       'header.height',
       'header.time',
@@ -31,7 +34,8 @@ async function set(tx_result: TxResponse) {
       ${tx_result.timestamp},
       ${getBlockTimeFromTxResult(tx_result)}
     )
-  `);
+    `)
+  );
 }
 
 export default async function insertBlockRows(tx_result: TxResponse) {
