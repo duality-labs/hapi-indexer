@@ -7,7 +7,7 @@
     "prepare": "husky install",
     "docker": "docker compose up --build --abort-on-container-exit || true && docker compose down",
     "build": "tsc",
-    "esbuild": "esbuild src/server.ts --bundle --platform=node --packages=external --loader:.sql=text --outdir=dist",
+    "esbuild": "esbuild src/server.ts --bundle --external:sqlite3 --platform=node --loader:.sql=text --outdir=dist",
     "dev:build": "npm run esbuild -- --watch",
     "dev:start": "nodemon dist/server.js",
     "dev": "concurrently npm:dev:*",
