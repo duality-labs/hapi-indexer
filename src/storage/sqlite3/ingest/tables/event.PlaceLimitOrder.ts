@@ -5,6 +5,7 @@ import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
+import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
 export default async function insertEventPlaceLimitOrder(
   tx_result: TxResponse,
@@ -77,16 +78,10 @@ export default async function insertEventPlaceLimitOrder(
           )
         )
       ),
-      (
-        SELECT
-          'dex.pairs'.'id'
-        FROM
-          'dex.pairs'
-        WHERE (
-          'dex.pairs'.'token0' = ${txEvent.attributes['Token0']} AND
-          'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
-        )
-      ),
+      (${selectSortedPairID(
+        txEvent.attributes['Token0'],
+        txEvent.attributes['Token1']
+      )}),
       (${selectTokenID(txEvent.attributes['TokenIn'])}),
       (${selectTokenID(
         // derive TokenOut

@@ -4,6 +4,7 @@ import { TxResponse } from '../../../../@types/tx';
 import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
+import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
 export default async function insertEventDeposit(
   tx_result: TxResponse,
@@ -64,16 +65,10 @@ export default async function insertEventDeposit(
           )
         )
       ),
-      (
-        SELECT
-          'dex.pairs'.'id'
-        FROM
-          'dex.pairs'
-        WHERE (
-          'dex.pairs'.'token0' = ${txEvent.attributes['Token0']} AND
-          'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
-        )
-      )
+      (${selectSortedPairID(
+        txEvent.attributes['Token0'],
+        txEvent.attributes['Token1']
+      )})
     )
     `)
   );

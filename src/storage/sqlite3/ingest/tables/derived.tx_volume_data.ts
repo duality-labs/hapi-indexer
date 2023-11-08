@@ -6,6 +6,7 @@ import getLatestTickStateCTE from '../../db/derived.tick_state/getLatestDerivedT
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
+import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
 export default async function upsertDerivedVolumeData(
   tx_result: TxResponse,
@@ -34,16 +35,10 @@ export default async function upsertDerivedVolumeData(
       FROM
         'derived.tx_volume_data'
       WHERE (
-        'derived.tx_volume_data'.'related.dex.pair' = (
-          SELECT
-            'dex.pairs'.'id'
-          FROM
-            'dex.pairs'
-          WHERE (
-            'dex.pairs'.'token0' = ${txEvent.attributes['Token0']} AND
-            'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
-          )
-        )
+        'derived.tx_volume_data'.'related.dex.pair' = (${selectSortedPairID(
+          txEvent.attributes['Token0'],
+          txEvent.attributes['Token1']
+        )})
       )
       ORDER BY
         'derived.tx_volume_data'.'related.tx_result.events' DESC
@@ -124,16 +119,10 @@ export default async function upsertDerivedVolumeData(
               )
             )
           ),
-          (
-            SELECT
-              'dex.pairs'.'id'
-            FROM
-              'dex.pairs'
-            WHERE (
-              'dex.pairs'.'token0' = ${txEvent.attributes['Token0']} AND
-              'dex.pairs'.'token1' = ${txEvent.attributes['Token1']}
-            )
-          )
+          (${selectSortedPairID(
+            txEvent.attributes['Token0'],
+            txEvent.attributes['Token1']
+          )})
         )
         `)
       );

@@ -3,6 +3,7 @@ import sql from 'sql-template-tag';
 import db, { prepare } from '../../db/db';
 
 import { DecodedTxEvent } from '../utils/decodeEvent';
+import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
 export default async function insertDexPairsRows(
   txEvent: DecodedTxEvent
@@ -11,16 +12,12 @@ export default async function insertDexPairsRows(
   if (txEvent.attributes.Token0 && txEvent.attributes.Token1) {
     const { id } =
       (await db.get<{ id: number }>(
-        ...prepare(sql`
-        SELECT
-          'dex.pairs'.'id'
-        FROM
-          'dex.pairs'
-        WHERE (
-          'dex.pairs'.'token0' = ${txEvent.attributes.Token0} AND
-          'dex.pairs'.'token1' = ${txEvent.attributes.Token1}
+        ...prepare(
+          selectSortedPairID(
+            txEvent.attributes['Token0'],
+            txEvent.attributes['Token1']
+          )
         )
-        `)
       )) || {};
 
     if (id) {

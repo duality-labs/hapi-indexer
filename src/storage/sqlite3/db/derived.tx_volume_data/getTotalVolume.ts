@@ -13,6 +13,7 @@ import {
   getOffsetSeconds,
   resolutionTimeFormats,
 } from '../timeseriesUtils';
+import { selectPairID } from '../dex.pairs/selectPairID';
 
 type AmountValues = [amountA: number, amountB: number];
 type DataRow = [timeUnix: number, amounts: AmountValues];
@@ -71,20 +72,10 @@ export default async function getTotalVolume(
       WHERE
         'block'.'header.time_unix' <= ${pagination.before} AND
         'block'.'header.time_unix' >= ${pagination.after} AND
-        'derived.tx_volume_data'.'related.dex.pair' = (
-          SELECT
-            'dex.pairs'.'id'
-          FROM
-            'dex.pairs'
-          WHERE (
-            'dex.pairs'.'token0' = ${tokenA} AND
-            'dex.pairs'.'token1' = ${tokenB}
-          )
-          OR (
-            'dex.pairs'.'token1' = ${tokenA} AND
-            'dex.pairs'.'token0' = ${tokenB}
-          )
-        )
+        'derived.tx_volume_data'.'related.dex.pair' = (${selectPairID(
+          tokenA,
+          tokenB
+        )})
       WINDOW resolution_window AS (
         PARTITION BY strftime(
           ${partitionTimeFormat},

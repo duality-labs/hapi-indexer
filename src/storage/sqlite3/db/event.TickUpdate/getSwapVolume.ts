@@ -13,6 +13,7 @@ import {
   getOffsetSeconds,
   resolutionTimeFormats,
 } from '../timeseriesUtils';
+import { selectPairID } from '../dex.pairs/selectPairID';
 
 type AmountValues = [
   amountA: number,
@@ -140,20 +141,10 @@ export default async function getSwapVolume(
         'block'.'header.time_unix' <= ${pagination.before} AND
         'block'.'header.time_unix' >= ${pagination.after} AND
         -- restrict to pair
-        'event.TickUpdate'.'related.dex.pair' = (
-          SELECT
-            'dex.pairs'.'id'
-          FROM
-            'dex.pairs'
-          WHERE (
-            'dex.pairs'.'token0' = ${tokenA} AND
-            'dex.pairs'.'token1' = ${tokenB}
-          )
-          OR (
-            'dex.pairs'.'token1' = ${tokenA} AND
-            'dex.pairs'.'token0' = ${tokenB}
-          )
-        ) AND
+        'event.TickUpdate'.'related.dex.pair' = (${selectPairID(
+          tokenA,
+          tokenB
+        )}) AND
         -- restrict to tx Msg type
         'tx_msg_type'.'action' = "dualitylabs.duality.dex.MsgPlaceLimitOrder"
     )
