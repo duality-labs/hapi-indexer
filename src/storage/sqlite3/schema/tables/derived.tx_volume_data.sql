@@ -10,12 +10,16 @@ CREATE TABLE 'derived.tx_volume_data' (
 
   'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,
+  'related.block.header.height' INTEGER NOT NULL,
 
   FOREIGN KEY ('related.tx_result.events')
     REFERENCES 'tx_result.events'('id'),
 
   FOREIGN KEY ('related.dex.pair')
-    REFERENCES 'dex.pairs'('id')
+    REFERENCES 'dex.pairs'('id'),
+
+  FOREIGN KEY ('related.block.header.height')
+    REFERENCES 'block'('header.height')
 );
 
 /* add unique index constraint */
@@ -33,4 +37,12 @@ ON
   'derived.tx_volume_data' (
     'related.dex.pair',
     'related.tx_result.events'
+  );
+
+/* add index for quicker lookups filtering to block height */
+CREATE INDEX
+  'derived.tx_volume_data--related.block.header.height'
+ON
+  'derived.tx_volume_data' (
+    'related.block.header.height'
   );
