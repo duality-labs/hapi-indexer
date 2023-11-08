@@ -1,4 +1,4 @@
-import sql from 'sql-template-strings';
+import sql from 'sql-template-tag';
 import { Policy, PolicyOptions } from '@hapi/catbox';
 
 import db, { prepare } from '../db';
