@@ -130,7 +130,7 @@ export async function getHeightedTokenPairsLiquidity(
       return 0;
     };
     const sortedtokenPairsLiquidity = tokenPairsLiquidity
-      // add value data to rows
+      // add value column to rows for sorting
       .map<TokensValueTableRow>(([token0, token1, reserves0, reserves1]) => ({
         token0,
         token1,
@@ -141,8 +141,13 @@ export async function getHeightedTokenPairsLiquidity(
           reserves1 * getChainDenomPrice(token1),
       }))
       // sort by value data
+      // note: sorting doesn't need to be exact (eg. exact price this second)
+      //       its more of a guide for clients to follow
+      //       the client can then fetch more accurate price information to sort
       .sort((a, b) => b.value - a.value)
-      // remove data rows
+      // remove value column from output
+      // note: exposing the price values directly or derivably may lead to abuse
+      //       of this endpoint as a way to get Pro API asset stats for free
       .map<DataRow>((row) => {
         return [row.token0, row.token1, row.reserves0, row.reserves1];
       });
