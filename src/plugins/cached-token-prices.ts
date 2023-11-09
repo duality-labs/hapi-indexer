@@ -3,8 +3,9 @@ import { Policy, PolicyOptions } from '@hapi/catbox';
 import { Plugin, ServerRegisterOptions } from '@hapi/hapi';
 
 import db, { prepare } from '../storage/sqlite3/db/db';
-import { getAsset } from '../storage/sqlite3/db/assetUtils';
 import { inMs, minutes, seconds } from '../storage/sqlite3/db/timeseriesUtils';
+import { GlobalPlugins } from '.';
+
 import logger from '../logger';
 
 const { COIN_GECKO_PRO_API_KEY, COIN_GECKO_DEMO_API_KEY } = process.env;
@@ -54,10 +55,19 @@ export const plugin: Plugin<ServerRegisterOptions> = {
           `)
         );
         // get CoinGecko IDs from chain denom "token" strings
-        const coingeckoIDs = rows
-          .map((row) => getAsset(row.token))
-          .map((asset) => asset?.coingecko_id)
-          .filter((id): id is string => !!id);
+        const coingeckoIDs = await Promise.all(
+          rows.map(async (row) => {
+            const plugins = server.plugins as GlobalPlugins;
+            // or dynamic asset but fallback to static asset if not available
+            return await plugins.cachedAssets.getAsset(row.token, {
+              defaultToStaticAsset: true,
+            });
+          })
+        ).then((assets) =>
+          assets
+            .map((asset) => asset?.coingecko_id)
+            .filter((id): id is string => !!id)
+        );
         if (coingeckoIDs.length > 0) {
           // construct CoinGecko query from IDs
           // docs: https://www.coingecko.com/api/documentation
