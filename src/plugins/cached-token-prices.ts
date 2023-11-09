@@ -5,6 +5,7 @@ import { Plugin, ServerRegisterOptions } from '@hapi/hapi';
 import db, { prepare } from '../storage/sqlite3/db/db';
 import { getAsset } from '../storage/sqlite3/db/assetUtils';
 import { inMs, minutes, seconds } from '../storage/sqlite3/db/timeseriesUtils';
+import logger from '../logger';
 
 const { COIN_GECKO_PRO_API_KEY, COIN_GECKO_DEMO_API_KEY } = process.env;
 
@@ -78,16 +79,29 @@ export const plugin: Plugin<ServerRegisterOptions> = {
           };
 
           // fetch Coin Gecko prices
+          const ids = coingeckoIDs.join(', ');
+          const idsCount = coingeckoIDs.length;
+          const logID = `${idsCount} prices: ${ids}`;
           try {
+            logger.info(`CoinGecko: fetching ${logID}`);
             const response = await fetch(url, { headers });
             if (response.status === 200) {
               lastCoinPriceCacheResult = (await response.json()) as TokenPrices;
+            } else {
+              // note: 502 seem fairly common at least with a demo API key
+              //       this might be the rate limiting
+              throw new Error(`Unexpected responsed code: ${response.status}`);
             }
+            logger.info(`CoinGecko:  fetched ${logID}`);
           } catch (e) {
             // log the error
             // but simply continue to provide last known value as a fallback
-            // eslint-disable-next-line no-console
-            console.error(`Could not fetch CoinGecko prices for ${url}`, e);
+            logger.error(
+              `CoinGecko: Could not fetch ${logID} (${
+                // add request details, but don't expose keys
+                `at ${url}, headers: ${Object.keys(headers).join(', ')}`
+              }): ${(e as Error)?.message}`
+            );
           }
         }
         return lastCoinPriceCacheResult;
