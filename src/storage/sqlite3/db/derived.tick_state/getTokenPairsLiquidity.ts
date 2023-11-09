@@ -5,12 +5,8 @@ import db, { prepare } from '../db';
 import { getLastBlockHeight } from '../../../../sync';
 import { RequestQuery } from '@hapi/hapi';
 import { getBlockRange } from '../blockRangeUtils';
+import { getDenomExponent, getDisplayDenomExponent } from '../assetUtils';
 import { Plugins } from '../../../../routes/liquidity';
-import {
-  getAsset,
-  getDenomExponent,
-  getDisplayDenomExponent,
-} from '../assetUtils';
 
 export type DataRow = [
   token0: string,
@@ -120,10 +116,10 @@ export async function getHeightedTokenPairsLiquidity(
   // return the response data
   if (tokenPairsLiquidity !== null) {
     const getChainDenomPrice = async (chainDenom: string) => {
-      // get static asset
-      const staticAsset = getAsset(chainDenom);
-      // or get dynamic asset if static asset is not available
-      const asset = staticAsset || (await cachedAssets.getAsset(chainDenom));
+      // or dynamic asset but fallback to static asset if not available
+      const asset = await cachedAssets.getAsset(chainDenom, {
+        defaultToStaticAsset: true,
+      });
       if (asset) {
         const price = tokenPrices[asset.coingecko_id ?? '']?.usd || 0;
         const denomExponent = getDenomExponent(asset, chainDenom) || 0;

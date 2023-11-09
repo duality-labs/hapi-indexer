@@ -3,7 +3,6 @@ import { Policy, PolicyOptions } from '@hapi/catbox';
 import { Plugin, ServerRegisterOptions } from '@hapi/hapi';
 
 import db, { prepare } from '../storage/sqlite3/db/db';
-import { getAsset } from '../storage/sqlite3/db/assetUtils';
 import { inMs, minutes, seconds } from '../storage/sqlite3/db/timeseriesUtils';
 import { GlobalPlugins } from '.';
 
@@ -58,10 +57,11 @@ export const plugin: Plugin<ServerRegisterOptions> = {
         // get CoinGecko IDs from chain denom "token" strings
         const coingeckoIDs = await Promise.all(
           rows.map(async (row) => {
-            const staticAsset = getAsset(row.token);
             const plugins = server.plugins as GlobalPlugins;
-            // use static or dynamically fetched assets
-            return staticAsset || plugins.cachedAssets.getAsset(row.token);
+            // or dynamic asset but fallback to static asset if not available
+            return await plugins.cachedAssets.getAsset(row.token, {
+              defaultToStaticAsset: true,
+            });
           })
         ).then((assets) =>
           assets
