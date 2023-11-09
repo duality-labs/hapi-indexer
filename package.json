@@ -14,8 +14,10 @@
     "start": "npm run esbuild && node dist/server.js"
   },
   "dependencies": {
+    "@chain-registry/client": "^1.15.0",
     "@hapi/hapi": "^21.3.1",
     "bignumber.js": "^9.1.1",
+    "chain-registry": "^1.20.0",
     "esbuild": "^0.17.18",
     "sql-template-tag": "^5.1.0",
     "sqlite": "^4.2.0",
@@ -23,6 +25,7 @@
     "winston": "^3.8.2"
   },
   "devDependencies": {
+    "@chain-registry/types": "^0.17.0",
     "@types/hapi": "^18.0.8",
     "@types/node": "^18.16.3",
     "@typescript-eslint/eslint-plugin": "^5.59.2",

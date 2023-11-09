@@ -5,6 +5,12 @@ import db, { prepare } from '../db';
 import { getLastBlockHeight } from '../../../../sync';
 import { RequestQuery } from '@hapi/hapi';
 import { getBlockRange } from '../blockRangeUtils';
+import { Plugins } from '../../../../routes/liquidity';
+import {
+  getAsset,
+  getDenomExponent,
+  getDisplayDenomExponent,
+} from '../assetUtils';
 
 export type DataRow = [
   token0: string,
@@ -23,6 +29,9 @@ interface TokensVolumeTableRow {
   token1: string;
   reserves0: number;
   reserves1: number;
+}
+interface TokensValueTableRow extends TokensVolumeTableRow {
+  value: number;
 }
 
 export const tokenPairsLiquidityCache: PolicyOptions<TokenPairsLiquidity> = {
@@ -93,9 +102,10 @@ export type HeightedTokenPairsLiquidity = [
 ];
 
 export async function getHeightedTokenPairsLiquidity(
-  liquidityCache: LiquidityCache,
-  query: RequestQuery
+  query: RequestQuery,
+  context: Plugins
 ): Promise<HeightedTokenPairsLiquidity | null> {
+  const { tokenPairsLiquidityCache, cachedTokenPrices } = context;
   const {
     from_height: fromHeight = 0,
     to_height: toHeight = getLastBlockHeight(),
@@ -103,10 +113,45 @@ export async function getHeightedTokenPairsLiquidity(
 
   // get liquidity state through cache
   const cacheID = [fromHeight, toHeight].join('|');
-  const tokenPairsLiquidity = await liquidityCache.get(cacheID);
+  const [tokenPairsLiquidity, tokenPrices] = await Promise.all([
+    tokenPairsLiquidityCache.get(cacheID),
+    cachedTokenPrices?.get(),
+  ]);
   // return the response data
   if (tokenPairsLiquidity !== null) {
-    return [toHeight, tokenPairsLiquidity];
+    const getChainDenomPrice = (chainDenom: string) => {
+      const asset = getAsset(chainDenom);
+      if (asset) {
+        const price = tokenPrices[asset.coingecko_id ?? '']?.usd || 0;
+        const denomExponent = getDenomExponent(asset, chainDenom) || 0;
+        const displayExponent = getDisplayDenomExponent(asset) || 0;
+        return Math.pow(10, denomExponent - displayExponent) * price;
+      }
+      return 0;
+    };
+    const sortedtokenPairsLiquidity = tokenPairsLiquidity
+      // add value column to rows for sorting
+      .map<TokensValueTableRow>(([token0, token1, reserves0, reserves1]) => ({
+        token0,
+        token1,
+        reserves0,
+        reserves1,
+        value:
+          reserves0 * getChainDenomPrice(token0) +
+          reserves1 * getChainDenomPrice(token1),
+      }))
+      // sort by value data
+      // note: sorting doesn't need to be exact (eg. exact price this second)
+      //       its more of a guide for clients to follow
+      //       the client can then fetch more accurate price information to sort
+      .sort((a, b) => b.value - a.value)
+      // remove value column from output
+      // note: exposing the price values directly or derivably may lead to abuse
+      //       of this endpoint as a way to get Pro API asset stats for free
+      .map<DataRow>((row) => {
+        return [row.token0, row.token1, row.reserves0, row.reserves1];
+      });
+    return [toHeight, sortedtokenPairsLiquidity];
   } else {
     return null;
   }

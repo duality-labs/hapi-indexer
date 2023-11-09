@@ -1,5 +1,5 @@
 import { Request } from '@hapi/hapi';
-import { CompressResponsePluginContext } from '../plugins/response-compression';
+import { PluginContext as CompressResponsePluginContext } from '../plugins/response-compression';
 import {
   PaginatedRequestQuery,
   PaginatedResponse,
