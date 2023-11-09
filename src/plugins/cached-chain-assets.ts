@@ -4,7 +4,7 @@ import { Asset, AssetList } from '@chain-registry/types';
 import { Policy, PolicyOptions } from '@hapi/catbox';
 import { Plugin, ServerRegisterOptions } from '@hapi/hapi';
 
-import { devDenomMap } from '../storage/sqlite3/db/assetUtils';
+import { devDenomMap, getAsset } from '../storage/sqlite3/db/assetUtils';
 import { hours, inMs, seconds } from '../storage/sqlite3/db/timeseriesUtils';
 import defaultLogger from '../logger';
 
@@ -199,6 +199,14 @@ export const plugin: Plugin<ServerRegisterOptions> = {
                 (e as Error)?.message
               }`
             );
+          }
+        }
+        // for a non-IBC denom: attempt to look through main chain's dynamic info
+        else {
+          const mainChainAssetLists = await assetListsCache.get('');
+          // use found dynamic list for looking up main chain tokens
+          if (mainChainAssetLists) {
+            return getAsset(maybeDevDenom, mainChainAssetLists);
           }
         }
       },
