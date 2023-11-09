@@ -120,12 +120,9 @@ export const plugin: Plugin<ServerRegisterOptions> = {
         const ibcHash = chainDenom.match(ibcDenomRegex)?.[1];
         const ibcTrace = ibcHash && (await getIbcTraceInfo(chainDenom));
         if (!ibcHash || !ibcTrace) {
-          throw new Error(
-            `no IBC trace denom information was found for: ${id}`,
-            {
-              cause: 404,
-            }
-          );
+          throw new Error('no IBC trace denom information was found', {
+            cause: 404,
+          });
         }
 
         // search chain for IBC asset data
@@ -139,7 +136,7 @@ export const plugin: Plugin<ServerRegisterOptions> = {
 
         // look up chain ID in Chain Registry
         if (!chain) {
-          throw new Error(`no registered Chain was found for IBC denom ${id}`, {
+          throw new Error('no registered Chain was found for IBC denom', {
             cause: 404,
           });
         }
@@ -148,7 +145,7 @@ export const plugin: Plugin<ServerRegisterOptions> = {
         const assetsLists = await assetListsCache.get(chainName);
         if (!assetsLists) {
           throw new Error(
-            `no asset lists were found for denom ${id} and chain ${chainName}`,
+            `no asset lists were found for denom chain ${chainName}`,
             { cause: 404 }
           );
         }
@@ -174,10 +171,9 @@ export const plugin: Plugin<ServerRegisterOptions> = {
           });
 
         if (!asset) {
-          throw new Error(
-            `no asset lists were found for denom ${id} and chain ${chainName}`,
-            { cause: 404 }
-          );
+          throw new Error(`no asset was found for denom chain ${chainName}`, {
+            cause: 404,
+          });
         }
 
         return asset;
