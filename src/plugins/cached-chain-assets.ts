@@ -4,9 +4,9 @@ import { Asset, AssetList } from '@chain-registry/types';
 import { Policy, PolicyOptions } from '@hapi/catbox';
 import { Plugin, ServerRegisterOptions } from '@hapi/hapi';
 
+import { devDenomMap } from '../storage/sqlite3/db/assetUtils';
 import { hours, inMs, seconds } from '../storage/sqlite3/db/timeseriesUtils';
 import defaultLogger from '../logger';
-import { devDenomMap } from '../storage/sqlite3/db/assetUtils';
 
 const { REST_API = '', CHAIN_REGISTRY_CHAIN_NAME = '' } = process.env;
 
@@ -109,7 +109,7 @@ export const plugin: Plugin<ServerRegisterOptions> = {
       expiresIn: Number.MAX_SAFE_INTEGER,
       // generate a main chain AssetList and IBC chain AssetList if passed as ID
       generateFunc: async (id): Promise<Asset> => {
-        const chainDenom = devDenomMap?.[`${id}`] || `${id}`;
+        const chainDenom = `${id}`;
         const ibcHash = chainDenom.match(ibcDenomRegex)?.[1];
         const ibcTrace = ibcHash && (await getIbcTraceInfo(chainDenom));
         if (!ibcHash || !ibcTrace) {
@@ -180,7 +180,8 @@ export const plugin: Plugin<ServerRegisterOptions> = {
 
     // add cache method into response context
     const pluginContext: PluginContext['cachedAssets'] = {
-      getAsset: async (chainDenom: string) => {
+      getAsset: async (maybeDevDenom: string) => {
+        const chainDenom = devDenomMap?.[maybeDevDenom] ?? maybeDevDenom;
         if (ibcDenomRegex.test(chainDenom)) {
           // lookup IBC denom information
           try {
