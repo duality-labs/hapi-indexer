@@ -14,10 +14,17 @@ type AssetListsCache = Policy<AssetList[], PolicyOptions<AssetList[]>>;
 type ChainIdQueryCache = Policy<string | null, PolicyOptions<string | null>>;
 type ChainQueryCache = Policy<Asset, PolicyOptions<Asset>>;
 
+interface GetAssetOptions {
+  defaultToStaticAsset?: boolean;
+}
+
 const name = 'cachedAssets' as const;
 export interface PluginContext {
   [name]: {
-    getAsset: (chainDenom: string) => Promise<Asset | undefined>;
+    getAsset: (
+      chainDenom: string,
+      opts?: GetAssetOptions
+    ) => Promise<Asset | undefined>;
     getAssetLists: (chainName: string) => Promise<AssetList[]>;
   };
 }
@@ -180,7 +187,7 @@ export const plugin: Plugin<ServerRegisterOptions> = {
 
     // add cache method into response context
     const pluginContext: PluginContext['cachedAssets'] = {
-      getAsset: async (maybeDevDenom: string) => {
+      getAsset: async (maybeDevDenom: string, opts?: GetAssetOptions) => {
         const chainDenom = devDenomMap?.[maybeDevDenom] ?? maybeDevDenom;
         if (ibcDenomRegex.test(chainDenom)) {
           // lookup IBC denom information
@@ -207,6 +214,16 @@ export const plugin: Plugin<ServerRegisterOptions> = {
           // use found dynamic list for looking up main chain tokens
           if (mainChainAssetLists) {
             return getAsset(maybeDevDenom, mainChainAssetLists);
+          }
+        }
+        // if a dynamic asset was not found, perhaps a static asset is ok
+        if (opts?.defaultToStaticAsset) {
+          const staticAsset = getAsset(maybeDevDenom);
+          if (staticAsset) {
+            defaultLogger.info(
+              `Get cachedAssets using found static asset for ${chainDenom}`
+            );
+            return staticAsset;
           }
         }
       },
