@@ -44,8 +44,9 @@ RUN npm i --no-save sqlite3
 # Copy over build files from build-env
 COPY --from=build-env /usr/workspace/dist /usr/workspace/dist
 
-# Copy root-level SSL certs if defined
-COPY --from=build-env /usr/workspace/*.pem /usr/workspace
+# Copy SSL certs if defined from given SSL_FILES_DIRECTORY, or defaulting to CWD
+ARG SSL_FILES_DIRECTORY=/
+COPY --from=build-env /usr/workspace$SSL_FILES_DIRECTORY*.pem /usr/workspace$SSL_FILES_DIRECTORY
 
 # start node
 CMD node dist/server.js
