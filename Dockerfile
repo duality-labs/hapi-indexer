@@ -1,6 +1,6 @@
 # install node
 # https://hub.docker.com/_/node/
-FROM node:18-alpine
+FROM node:18-alpine as build-env
 
 WORKDIR /usr/workspace
 
@@ -26,4 +26,26 @@ COPY . .
 # expose container port
 EXPOSE 8000
 
+# build bundled code
+RUN npm run esbuild
+
+# start process in build-env if desired
 CMD npm start
+
+
+# return slimmer build
+FROM node:18-alpine
+
+WORKDIR /usr/workspace
+
+# add dependencies not covered by esbuild process
+RUN npm i --no-save sqlite3
+
+# Copy over build files from build-env
+COPY --from=build-env /usr/workspace/dist /usr/workspace/dist
+
+# Copy root-level SSL certs if defined
+COPY --from=build-env /usr/workspace/*.pem /usr/workspace
+
+# start node
+CMD node dist/server.js
