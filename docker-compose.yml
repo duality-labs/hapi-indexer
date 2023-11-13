@@ -5,6 +5,7 @@ services:
   indexer:
     build:
       context: .
+      target: build-env
       args:
         - NODE_ENV=development
     command: 'npm run dev'
