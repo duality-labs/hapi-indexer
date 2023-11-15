@@ -14,7 +14,7 @@ export type ServerPluginContext = Partial<CompressResponsePluginContext>;
 type FlattenSingularItems<T> = T extends [infer U] ? U : T;
 
 export interface EndpointResponse<DataSets extends unknown[], Shape>
-  extends PaginatedResponse,
+  extends Partial<PaginatedResponse>,
     Partial<BlockRangeResponse> {
   shape?: Shape;
   data: FlattenSingularItems<DataSets>;

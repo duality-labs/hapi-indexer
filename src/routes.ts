@@ -6,7 +6,6 @@ import logger from './logger';
 
 import timeseriesVolumeRoutes from './routes/timeseries/volume';
 
-import statPriceroutes from './routes/stats/price';
 import statVolumeroutes from './routes/stats/volume';
 import statVolatilityRoutes from './routes/stats/volatility';
 
@@ -60,7 +59,6 @@ const routes = [
   ...timeseriesVolumeRoutes,
 
   // point in time stats
-  ...statPriceroutes,
   ...statVolumeroutes,
   ...statVolatilityRoutes,
 
