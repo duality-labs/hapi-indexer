@@ -117,7 +117,7 @@ export default async function serverSentEventRequest<
                 )
               : page?.length ?? 0;
           const nextOffset = offset + (pageSize ?? 0);
-          const total = response?.pagination?.total || 1;
+          const total = response?.pagination?.total ?? pageSize;
           res.write(
             // send event responses with or without data: "empty" updates are a
             // "heartbeat" signal
