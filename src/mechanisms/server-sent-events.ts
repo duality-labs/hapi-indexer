@@ -23,9 +23,15 @@ export default async function serverSentEventRequest<
 >(
   request: Request,
   h: ResponseToolkit,
-  shape: Shape,
-  getData: GetEndpointData<PluginContext, DataSets>,
-  getPaginatedResponse: GetEndpointResponse<DataSets, Shape>
+  {
+    shape,
+    getData,
+    getPaginatedResponse,
+  }: {
+    shape: Shape;
+    getData: GetEndpointData<PluginContext, DataSets>;
+    getPaginatedResponse: GetEndpointResponse<DataSets, Shape>;
+  }
 ): Promise<void> {
   const {
     from_height: fromHeight = 0,

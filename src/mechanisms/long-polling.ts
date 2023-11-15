@@ -25,9 +25,15 @@ export default async function longPollRequest<
 >(
   request: Request,
   h: ResponseToolkit,
-  shape: Shape,
-  getData: GetEndpointData<PluginContext, DataSets>,
-  getResponse: GetEndpointResponse<DataSets, Shape>
+  {
+    shape,
+    getData,
+    getPaginatedResponse,
+  }: {
+    shape: Shape;
+    getData: GetEndpointData<PluginContext, DataSets>;
+    getPaginatedResponse: GetEndpointResponse<DataSets, Shape>;
+  }
 ): Promise<ResponseObject> {
   try {
     const blockRange = getBlockRange(request.query);
@@ -62,7 +68,7 @@ export default async function longPollRequest<
     }
 
     const [height] = data;
-    const partialResponse = getResponse(data, request.query);
+    const partialResponse = getPaginatedResponse(data, request.query);
     // construct response in correct order with applied defaults
     const response: EndpointResponse<DataSets, Shape> = {
       shape: partialResponse?.shape ?? shape,
