@@ -10,6 +10,7 @@ import * as sync from './sync';
 
 import globalPlugins from './plugins';
 import { plugin as liquidityPlugin } from './routes/liquidity';
+import { plugin as timeseriesPlugin } from './routes/timeseries';
 import routes from './routes';
 import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
 
@@ -182,7 +183,7 @@ const init = async () => {
   serverTimes.indexed = new Date();
 
   // and indexer plugin routes
-  server.register(liquidityPlugin);
+  server.register([liquidityPlugin, timeseriesPlugin]);
 
   // add indexer routes
   routes.forEach((route) => {
