@@ -48,7 +48,7 @@ export default async function longPollRequest<
         : null;
 
     // await new data if the data does not meet the known height requirement
-    if (!toHeight) {
+    if (fromHeight && !toHeight) {
       const timeLeft = getMsLeft(timeoutMs);
       // wait until we get new non-empty data
       while (((data || []) as [][]).every((v) => !v?.length)) {
