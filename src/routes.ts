@@ -7,7 +7,6 @@ import logger from './logger';
 import timeseriesVolumeRoutes from './routes/timeseries/volume';
 
 import statVolumeroutes from './routes/stats/volume';
-import statVolatilityRoutes from './routes/stats/volatility';
 
 // add debug path
 const debugPath = {
@@ -60,7 +59,6 @@ const routes = [
 
   // point in time stats
   ...statVolumeroutes,
-  ...statVolatilityRoutes,
 
   // add development only paths
   ...(process.env.NODE_ENV === 'development' ? [debugPath] : []),

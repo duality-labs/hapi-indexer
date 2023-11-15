@@ -8,6 +8,7 @@ import {
 } from '../../storage/sqlite3/db/derived.tx_price_data/getPrice';
 
 import priceRoutes from './price';
+import volatilityRoutes from './volatility';
 
 export interface Plugins extends GlobalPlugins {
   pairPriceCache: PairPriceCache;
@@ -26,6 +27,6 @@ export const plugin: Plugin<ServerRegisterOptions> = {
       }),
     };
     server.bind(pluginContext);
-    server.route([...priceRoutes]);
+    server.route([...priceRoutes, ...volatilityRoutes]);
   },
 };
