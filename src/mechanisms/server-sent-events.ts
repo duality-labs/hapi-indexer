@@ -92,7 +92,11 @@ export default async function serverSentEventRequest<
         'block_range.from_height': lastHeight.toFixed(0),
         'block_range.to_height': loopToHeight.toFixed(0),
       };
-      const data = await getData(request.params, query, h.context);
+      // get the liquidity data (but if we *will* wait for new data then skip)
+      const data =
+        lastHeight !== loopToHeight
+          ? await getData(request.params, query, h.context)
+          : null;
       if (aborted) break;
       const [height = loopToHeight] = data || [];
       // only respond able to and response is within the requested range
