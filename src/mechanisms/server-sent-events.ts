@@ -81,6 +81,7 @@ export default async function serverSentEventRequest<
   while (!aborted) {
     // wait for next block
     try {
+      const loopToHeight = Math.min(toHeight, getLastBlockHeight());
       // get current data from last known height
       const query: PaginatedRequestQuery & BlockRangeRequestQuery = {
         // default to only a "first height page" of small chunks
@@ -89,14 +90,12 @@ export default async function serverSentEventRequest<
         'pagination.count_total': 'true',
         // add explicit block height range for caching (generating cache ID)
         'block_range.from_height': lastHeight.toFixed(0),
-        'block_range.to_height': Math.min(
-          toHeight,
-          getLastBlockHeight()
-        ).toFixed(0),
+        'block_range.to_height': loopToHeight.toFixed(0),
       };
       const data = await getData(request.params, query, h.context);
       if (aborted) break;
-      const [height = lastHeight] = data || [];
+      const [height = loopToHeight] = data || [];
+      // only respond able to and response is within the requested range
       if (res.writable && height <= toHeight) {
         do {
           const pageQuery = {
