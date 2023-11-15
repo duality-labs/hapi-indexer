@@ -98,6 +98,17 @@ export default async function serverSentEventRequest<
       // only respond able to and response is within the requested range
       if (res.writable && height <= toHeight) {
         do {
+          //  if no data is found, just send a heartbeat frame
+          if (!data) {
+            res.write(
+              // send event responses without data: as a "heartbeat" signal
+              formatChunk({
+                event: 'heartbeat',
+                id: height,
+              })
+            );
+            continue;
+          }
           const pageQuery = {
             ...query,
             'pagination.offset': offset.toFixed(0),
