@@ -27,10 +27,12 @@ export default async function serverSentEventRequest<
     shape,
     getData,
     getPaginatedResponse,
+    compressResponses,
   }: {
     shape: Shape;
     getData: GetEndpointData<PluginContext, DataSets>;
     getPaginatedResponse: GetEndpointResponse<DataSets, Shape>;
+    compressResponses?: boolean;
   }
 ): Promise<void> {
   const {
@@ -128,10 +130,12 @@ export default async function serverSentEventRequest<
                   : height,
               data:
                 // respond with possibly cached and compressed JSON string
-                (await cachedStringify?.(
-                  `${request.url.pathname}?${new URLSearchParams(pageQuery)}`,
-                  page
-                )) || JSON.stringify(page),
+                (compressResponses &&
+                  (await cachedStringify?.(
+                    `${request.url.pathname}?${new URLSearchParams(pageQuery)}`,
+                    page
+                  ))) ||
+                JSON.stringify(page),
             })
           );
 

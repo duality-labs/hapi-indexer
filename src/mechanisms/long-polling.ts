@@ -29,10 +29,12 @@ export default async function longPollRequest<
     shape,
     getData,
     getPaginatedResponse,
+    compressResponses,
   }: {
     shape: Shape;
     getData: GetEndpointData<PluginContext, DataSets>;
     getPaginatedResponse: GetEndpointResponse<DataSets, Shape>;
+    compressResponses?: boolean;
   }
 ): Promise<ResponseObject> {
   try {
@@ -82,9 +84,11 @@ export default async function longPollRequest<
     return h
       .response(
         request.generateResponse(response, {
-          marshal: (
-            request.server.plugins as ServerPluginContext
-          ).compressResponse?.withKey(request.url.toJSON()),
+          marshal: compressResponses
+            ? (
+                request.server.plugins as ServerPluginContext
+              ).compressResponse?.withKey(request.url.toJSON())
+            : undefined,
         })
       )
       .code(200);

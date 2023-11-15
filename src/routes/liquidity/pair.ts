@@ -28,6 +28,7 @@ const routes: ServerRoute[] = [
         shape,
         getData,
         getPaginatedResponse,
+        compressResponses: true,
       });
     },
   },

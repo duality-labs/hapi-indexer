@@ -14,6 +14,7 @@ export default function processRequest<
     getData: GetEndpointData<PluginContext, DataSets>;
     getPaginatedResponse: GetEndpointResponse<DataSets, Shape>;
     shape: Shape;
+    compressResponses?: boolean;
   }
 ) {
   const canUseSSE =
