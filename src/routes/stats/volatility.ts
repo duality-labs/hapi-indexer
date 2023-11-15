@@ -54,10 +54,16 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
     params['tokenB']
   );
 
-  const [[height, lastest22Days], invertedOrder] = await Promise.all([
+  const [data, invertedOrder] = await Promise.all([
     dataPromise.then((v) => (v === null ? [] : v)),
     invertedOrderPromise,
   ]);
+
+  // respond that the pair has no volatility data
+  if (!data) {
+    return null;
+  }
+  const [height, lastest22Days] = data;
 
   // round down to the passing of the most recent day for calculations
   const startOfToday = new Date(now);
@@ -123,9 +129,10 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
           [annualFactor * standardDeviation(priceChanges.slice(10, 20))],
         ]
       : null;
-  return last10Days
-    ? [height, last20Days ? [last10Days, last20Days] : [last10Days]]
-    : null;
+  return [
+    height,
+    last10Days ? (last20Days ? [last10Days, last20Days] : [last10Days]) : [],
+  ];
 };
 
 const getPaginatedResponse: GetEndpointResponse<DataSets, Shape> = (data) => {

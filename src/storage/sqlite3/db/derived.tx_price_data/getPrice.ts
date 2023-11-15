@@ -193,7 +193,7 @@ export async function getPairPriceTimeseries(
     toHeight,
   ].join('|');
   const data = await pairPriceCache.get(cacheKey);
-  return data?.length ? [toHeight, data] : null;
+  return data ? [toHeight, data] : null;
 }
 
 export async function getUnsortedPairPriceTimeseries(
