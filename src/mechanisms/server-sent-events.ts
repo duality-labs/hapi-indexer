@@ -185,6 +185,21 @@ export default async function serverSentEventRequest<
       break;
     }
   }
+  // send an event to signify that the data is complete
+  res.write(formatChunk({ event: 'end' }));
+  // if data needs to drain then wait for it to drain
+  if (res.writableNeedDrain) {
+    await new Promise<void>((resolve) => {
+      // wait for drain
+      res.once('drain', resolve);
+      // wait for timeout
+      setTimeout(() => {
+        logger.error('Was not able to drain SSE data within timeout');
+        resolve();
+      }, 1000);
+    });
+  }
+  // exit
   res.destroy();
 }
 
