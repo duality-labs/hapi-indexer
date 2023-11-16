@@ -51,8 +51,14 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
     if (fromHeight > lastBlockHeight || toHeight > lastBlockHeight) {
       throw new Error('Height is not bound to known data', { cause: 400 });
     }
-    if (toHeight <= fromHeight) {
+    if (toHeight < fromHeight) {
       throw new Error('Height query will produce no data', { cause: 400 });
+    }
+    // if heights are equal, return empty data without doing DB call
+    // note: easy to do if you're querying a time period earlier than the chain
+    //       where a request produces: { fromHeight: 0, toHeight: 0 }
+    if (fromHeight === toHeight) {
+      return [];
     }
 
     // return the result set
