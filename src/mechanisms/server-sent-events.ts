@@ -215,7 +215,7 @@ function formatChunk({
   return [
     event !== undefined && `event: ${event}`,
     id !== undefined && `id: ${id}`,
-    `data: ${data}`,
+    data !== undefined && `data: ${data}`,
     // add an extra newline for better viewing of concatenated stream
     '\n',
   ]
