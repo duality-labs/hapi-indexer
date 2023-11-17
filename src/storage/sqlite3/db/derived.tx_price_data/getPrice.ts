@@ -119,7 +119,21 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
                   'unixepoch'
                 )
               ) AND
-              'block'.'header.height' <= ${toHeight} AND
+              'block'.'header.time_unix' <= (
+                IFNULL(
+                  (
+                    SELECT
+                      'block'.'header.time_unix'
+                    FROM
+                      'block'
+                    WHERE
+                      'block'.'header.height' <= ${toHeight}
+                    ORDER BY 'block'.'header.height' DESC
+                    LIMIT 1
+                  ),
+                  0
+                )
+              ) AND
               'derived.tx_price_data'.'related.dex.pair' = (${selectSortedPairID(
                 token0,
                 token1
