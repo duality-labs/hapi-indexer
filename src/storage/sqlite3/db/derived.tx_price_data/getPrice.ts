@@ -114,7 +114,20 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
                       ORDER BY 'block'.'header.height' ASC
                       LIMIT 1
                     ),
-                    0
+                    ${
+                      fromHeight > 0
+                        ? // is fromHeight too high? return from after last block
+                          sql`(
+                          SELECT
+                            'block'.'header.time_unix'
+                          FROM
+                            'block'
+                          ORDER BY 'block'.'header.height' DESC
+                          LIMIT 1
+                        ) + 1`
+                        : // is fromHeight too low? return from first block
+                          sql`0`
+                    }
                   ),
                   'unixepoch'
                 )
