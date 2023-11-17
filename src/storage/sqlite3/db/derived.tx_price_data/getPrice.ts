@@ -98,7 +98,27 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
               'block'.'id' = 'tx'.'related.block'
             )
             WHERE
-              'block'.'header.height' > ${fromHeight} AND
+              -- ensure that the full time partition is included in calculation
+              -- by rounding down the start time to the start of the partition
+              'block'.'header.time_unix' >= unixepoch(
+                strftime(
+                  ${partitionTimeFormat},
+                  IFNULL(
+                    (
+                      SELECT
+                        'block'.'header.time_unix'
+                      FROM
+                        'block'
+                      WHERE
+                        'block'.'header.height' >= ${fromHeight}
+                      ORDER BY 'block'.'header.height' ASC
+                      LIMIT 1
+                    ),
+                    0
+                  ),
+                  'unixepoch'
+                )
+              ) AND
               'block'.'header.height' <= ${toHeight} AND
               'derived.tx_price_data'.'related.dex.pair' = (${selectSortedPairID(
                 token0,
