@@ -7,6 +7,7 @@ import {
   getBlockRange,
 } from '../storage/sqlite3/db/blockRangeUtils';
 import {
+  FlattenSingularItems,
   GetEndpointData,
   GetEndpointResponse,
   ServerPluginContext,
@@ -75,6 +76,7 @@ export default async function serverSentEventRequest<
   // and listen for new updates to send
   let { offset } = decodePagination(request.query);
   let lastHeight = fromHeight;
+  let lastPage: FlattenSingularItems<DataSets> | undefined = undefined;
   let aborted = false;
   req.once('close', () => (aborted = true));
   // wait until we get new data (newer than known height header)
@@ -102,8 +104,19 @@ export default async function serverSentEventRequest<
       // only respond able to and response is within the requested range
       if (res.writable && height <= toHeight) {
         do {
-          // if no data is found, just send a heartbeat frame
-          if (((data || []) as [][]).every((v) => !v?.length)) {
+          const pageQuery = {
+            ...query,
+            'pagination.offset': offset.toFixed(0),
+          };
+          const response = data && getPaginatedResponse(data, pageQuery);
+          const page = response?.data;
+          // determine if a "heartbeat" (no update) frame should be sent
+          if (
+            // if no data is found
+            ((page || []) as [][]).every((v) => !v?.length) ||
+            // if the same update as previously is found do not send duplicate
+            (lastPage && JSON.stringify(lastPage) === JSON.stringify(page))
+          ) {
             res.write(
               // send event responses without data: as a "heartbeat" signal
               formatChunk({
@@ -113,12 +126,6 @@ export default async function serverSentEventRequest<
             );
             continue;
           }
-          const pageQuery = {
-            ...query,
-            'pagination.offset': offset.toFixed(0),
-          };
-          const response = data && getPaginatedResponse(data, pageQuery);
-          const page = response?.data;
           const pageSize =
             // calculate page size depending on the pagination being
             // of one list or multiple lists
@@ -152,6 +159,8 @@ export default async function serverSentEventRequest<
                 JSON.stringify(page),
             })
           );
+          // set last page for next data frame comparison
+          lastPage = page;
 
           // calculate next offset or reset to 0
           offset =
