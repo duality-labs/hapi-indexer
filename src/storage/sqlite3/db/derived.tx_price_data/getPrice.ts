@@ -110,7 +110,7 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
                       FROM
                         'block'
                       WHERE
-                        'block'.'header.height' >= ${fromHeight}
+                        'block'.'header.height' > ${fromHeight}
                       ORDER BY 'block'.'header.height' ASC
                       LIMIT 1
                     ),
