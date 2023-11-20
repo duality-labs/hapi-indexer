@@ -206,6 +206,13 @@ export default async function serverSentEventRequest<
   }
   // send an event to signify that the data is complete
   res.write(formatChunk({ event: 'end' }));
+  // wait a tick to be sure that "end" in in the queue
+  await new Promise<void>((resolve) =>
+    setTimeout(() => {
+      !res.destroyed && res.destroy();
+      resolve();
+    }, 0)
+  );
   // if data needs to drain then wait for it to drain
   if (res.writableNeedDrain) {
     await new Promise<void>((resolve) => {
