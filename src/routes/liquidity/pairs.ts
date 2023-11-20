@@ -9,7 +9,7 @@ import processRequest from '../../mechanisms';
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 import { Plugins } from '.';
 
-const shape = ['token0', 'token1', 'reserves0', 'reserves1'] as const;
+const shape = ['rank', ['token0', 'token1', 'reserves0', 'reserves1']] as const;
 type Shape = typeof shape;
 type DataSets = [Array<DataRow>];
 
