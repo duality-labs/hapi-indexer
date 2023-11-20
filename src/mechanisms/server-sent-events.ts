@@ -2,6 +2,7 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../logger';
 import { getLastBlockHeight, waitForNextBlock } from '../sync';
+import { getHeightAtTime } from '../storage/sqlite3/db/block/getHeight';
 import {
   BlockRangeRequestQuery,
   getBlockRange,
@@ -38,7 +39,16 @@ export default async function serverSentEventRequest<
 ): Promise<void> {
   const {
     from_height: fromHeight = 0,
-    to_height: toHeight = Number.POSITIVE_INFINITY,
+    to_height: toHeight = request.query['pagination.before']
+      ? // note: this pagination limit translation of "before" -> "to_height"
+        //       will not resolve future timestamp blocks correctly (as they
+        //       do not exist yet), and will resolve the current block height
+        // todo: a better way to track "getData() time" than height would allow
+        //       a better condition check as to when to exit the response loop
+        //       and allow a 'pagination.before' future timestamp to behave
+        //       as expected and end when the time has passed (in block data)
+        await getHeightAtTime(request.query['pagination.before'])
+      : Number.POSITIVE_INFINITY,
   } = getBlockRange(request.query);
 
   const { req, res } = request.raw;
