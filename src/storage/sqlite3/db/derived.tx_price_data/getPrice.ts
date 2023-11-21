@@ -17,6 +17,10 @@ import { selectSortedPairID } from '../dex.pairs/selectPairID';
 import { getLastBlockHeight } from '../../../../sync';
 import { getHeightAtTime } from '../block/getHeight';
 import { getBlockRange } from '../blockRangeUtils';
+import {
+  selectTimeUnixAfterBlockHeight,
+  selectTimeUnixAtOrBeforeBlockHeight,
+} from '../block/selectTimeUnix';
 
 type TickIndex = number | null;
 type PriceValues = [
@@ -103,49 +107,12 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
               'block'.'header.time_unix' >= unixepoch(
                 strftime(
                   ${partitionTimeFormat},
-                  IFNULL(
-                    (
-                      SELECT
-                        'block'.'header.time_unix'
-                      FROM
-                        'block'
-                      WHERE
-                        'block'.'header.height' > ${fromHeight}
-                      ORDER BY 'block'.'header.height' ASC
-                      LIMIT 1
-                    ),
-                    ${
-                      fromHeight > 0
-                        ? // is fromHeight too high? return from after last block
-                          sql`(
-                          SELECT
-                            'block'.'header.time_unix'
-                          FROM
-                            'block'
-                          ORDER BY 'block'.'header.height' DESC
-                          LIMIT 1
-                        ) + 1`
-                        : // is fromHeight too low? return from first block
-                          sql`0`
-                    }
-                  ),
+                  ${selectTimeUnixAfterBlockHeight(fromHeight)},
                   'unixepoch'
                 )
               ) AND
               'block'.'header.time_unix' <= (
-                IFNULL(
-                  (
-                    SELECT
-                      'block'.'header.time_unix'
-                    FROM
-                      'block'
-                    WHERE
-                      'block'.'header.height' <= ${toHeight}
-                    ORDER BY 'block'.'header.height' DESC
-                    LIMIT 1
-                  ),
-                  0
-                )
+                ${selectTimeUnixAtOrBeforeBlockHeight(toHeight)}
               ) AND
               'derived.tx_price_data'.'related.dex.pair' = (${selectSortedPairID(
                 token0,
