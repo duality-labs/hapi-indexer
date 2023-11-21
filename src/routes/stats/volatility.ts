@@ -9,7 +9,7 @@ import { days } from '../../storage/sqlite3/db/timeseriesUtils';
 import hasInvertedOrder from '../../storage/sqlite3/db/dex.pairs/hasInvertedOrder';
 import { getLastBlockHeight } from '../../sync';
 
-const shape = ['time_unix', ['volatility']] as const;
+const shape = [['time_unix', ['volatility']]] as const;
 type Shape = typeof shape;
 type DataRow = [time_unix: number, volatility: [number]];
 type DataSets = [Array<DataRow>];

@@ -10,7 +10,7 @@ import {
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 import { Plugins } from '.';
 
-const shape = ['time_unix', ['open', 'high', 'low', 'close']] as const;
+const shape = [['time_unix', ['open', 'high', 'low', 'close']]] as const;
 type Shape = typeof shape;
 type DataSets = [PairPriceTimeseries];
 

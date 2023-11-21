@@ -11,7 +11,7 @@ import { Plugins } from '.';
 import { hours } from '../../storage/sqlite3/db/timeseriesUtils';
 import { getLastBlockHeight } from '../../sync';
 
-const shape = ['time_unix', ['open', 'high', 'low', 'close']] as const;
+const shape = [['time_unix', ['open', 'high', 'low', 'close']]] as const;
 type Shape = typeof shape;
 type DataSets = [PairPriceTimeseries];
 

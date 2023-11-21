@@ -19,12 +19,14 @@ const routes = [
     path: '/stats/volume/{tokenA}/{tokenB}/{resolution?}',
     handler: async (request: Request, h: ResponseToolkit) => {
       const shape = [
-        'time_unix',
         [
-          `amount ${request.params['tokenA']}`,
-          `amount ${request.params['tokenB']}`,
-          `fee ${request.params['tokenA']}`,
-          `fee ${request.params['tokenB']}`,
+          'time_unix',
+          [
+            `amount ${request.params['tokenA']}`,
+            `amount ${request.params['tokenB']}`,
+            `fee ${request.params['tokenA']}`,
+            `fee ${request.params['tokenB']}`,
+          ],
         ],
       ] as const;
       return processRequest<Plugins, [SwapVolumeTimeseries], typeof shape>(
