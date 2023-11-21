@@ -7,6 +7,7 @@ import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 import { Plugins } from '.';
 import { days } from '../../storage/sqlite3/db/timeseriesUtils';
 import hasInvertedOrder from '../../storage/sqlite3/db/dex.pairs/hasInvertedOrder';
+import { getLastBlockHeight } from '../../sync';
 
 const shape = ['time_unix', ['volatility']] as const;
 type Shape = typeof shape;
@@ -34,6 +35,8 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
   query,
   context
 ) => {
+  const currentHeight = getLastBlockHeight();
+
   // round down to the passing of the most recent minute for "now"
   const now = new Date().setSeconds(0, 0).valueOf();
   const nowUnix = now / 1000;
@@ -63,7 +66,7 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
   if (!data) {
     return null;
   }
-  const [height, lastest22Days] = data;
+  const [, lastest22Days] = data;
 
   // round down to the passing of the most recent day for calculations
   const startOfToday = new Date(now);
@@ -130,7 +133,9 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
         ]
       : null;
   return [
-    height,
+    // replace the height ID of the response (which may be rounded down
+    // to the nearest minute), which is confusing for this stat
+    currentHeight,
     last10Days ? (last20Days ? [last10Days, last20Days] : [last10Days]) : [],
   ];
 };

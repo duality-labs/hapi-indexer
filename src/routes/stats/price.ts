@@ -9,6 +9,7 @@ import {
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 import { Plugins } from '.';
 import { hours } from '../../storage/sqlite3/db/timeseriesUtils';
+import { getLastBlockHeight } from '../../sync';
 
 const shape = ['time_unix', ['open', 'high', 'low', 'close']] as const;
 type Shape = typeof shape;
@@ -35,9 +36,11 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
   query,
   context
 ) => {
+  const currentHeight = getLastBlockHeight();
+
   // round down to the passing of the most recent minute
   const mostRecentMinuteUnix = new Date().setSeconds(0, 0) / 1000;
-  return getUnsortedPairPriceTimeseries(
+  const response = await getUnsortedPairPriceTimeseries(
     context.pairPriceCache,
     params['tokenA'],
     params['tokenB'],
@@ -48,6 +51,12 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
     },
     'last24Hours'
   );
+  // replace the height ID of the response (which may be rounded down
+  // to the nearest minute), which is confusing for this stat
+  if (response) {
+    response[0] = currentHeight;
+  }
+  return response;
 };
 
 const getPaginatedResponse: GetEndpointResponse<DataSets, Shape> = (data) => {
