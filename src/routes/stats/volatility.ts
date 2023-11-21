@@ -34,9 +34,9 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
   query,
   context
 ) => {
-  // round down to the passing of the most recent second for "now"
-  const now = Date.now();
-  const nowUnix = new Date(now).setMilliseconds(0) / 1000;
+  // round down to the passing of the most recent minute for "now"
+  const now = new Date().setSeconds(0, 0).valueOf();
+  const nowUnix = now / 1000;
 
   const dataPromise = getUnsortedPairPriceTimeseries(
     context.pairPriceCache,
