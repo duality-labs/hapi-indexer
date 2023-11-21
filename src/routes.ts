@@ -4,10 +4,6 @@ import sql from 'sql-template-tag';
 import db, { prepare } from './storage/sqlite3/db/db';
 import logger from './logger';
 
-import timeseriesVolumeRoutes from './routes/timeseries/volume';
-
-import statVolumeroutes from './routes/stats/volume';
-
 // add debug path
 const debugPath = {
   method: 'GET',
@@ -54,12 +50,6 @@ const debugPath = {
 };
 
 const routes = [
-  // timeseries routes
-  ...timeseriesVolumeRoutes,
-
-  // point in time stats
-  ...statVolumeroutes,
-
   // add development only paths
   ...(process.env.NODE_ENV === 'development' ? [debugPath] : []),
 ];
