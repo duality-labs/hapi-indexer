@@ -9,6 +9,8 @@ import { days } from '../../storage/sqlite3/db/timeseriesUtils';
 import hasInvertedOrder from '../../storage/sqlite3/db/dex.pairs/hasInvertedOrder';
 import { getLastBlockHeight } from '../../sync';
 
+// todo: remove seemingly useless array around volatility data
+//       when the front end has this refactored the previous logic of timeseries
 const shape = [['time_unix', ['volatility']]] as const;
 type Shape = typeof shape;
 type DataRow = [time_unix: number, volatility: [number]];
