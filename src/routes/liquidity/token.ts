@@ -7,7 +7,7 @@ import {
 import { paginateData } from '../../storage/sqlite3/db/paginationUtils';
 import processRequest from '../../mechanisms';
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
-import { Plugins } from '.';
+import { Plugins } from './plugin';
 
 const shape = [['tick_index', 'reserves']] as const;
 type Shape = typeof shape;

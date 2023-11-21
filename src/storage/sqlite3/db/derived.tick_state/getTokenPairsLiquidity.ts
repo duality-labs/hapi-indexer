@@ -6,7 +6,7 @@ import { getLastBlockHeight } from '../../../../sync';
 import { RequestQuery } from '@hapi/hapi';
 import { getBlockRange } from '../blockRangeUtils';
 import { getDenomExponent, getDisplayDenomExponent } from '../assetUtils';
-import { Plugins } from '../../../../routes/liquidity';
+import { Plugins } from '../../../../routes/liquidity/plugin';
 
 export type DataRow = [
   rank: number,

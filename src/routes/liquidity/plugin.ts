@@ -21,7 +21,7 @@ export interface Plugins extends GlobalPlugins {
 }
 
 export const plugin: Plugin<ServerRegisterOptions> = {
-  name: 'liquidity',
+  name: 'liquidity-routes',
   register: async function (server) {
     const pluginContext: Plugins = {
       // copy all global server plugins into context

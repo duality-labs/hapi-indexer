@@ -4,7 +4,7 @@ import processRequest from '../../mechanisms';
 import { getUnsortedPairPriceTimeseries } from '../../storage/sqlite3/db/derived.tx_price_data/getPrice';
 
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
-import { Plugins } from '.';
+import { Plugins } from '../stats';
 import { days } from '../../storage/sqlite3/db/timeseriesUtils';
 import hasInvertedOrder from '../../storage/sqlite3/db/dex.pairs/hasInvertedOrder';
 import { getLastBlockHeight } from '../../sync';

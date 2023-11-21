@@ -9,9 +9,9 @@ import initDbSchema from './storage/sqlite3/schema/schema';
 import * as sync from './sync';
 
 import globalPlugins from './plugins';
-import { plugin as liquidityPlugin } from './routes/liquidity';
-import { plugin as timeseriesPlugin } from './routes/timeseries';
-import { plugin as statsPlugin } from './routes/stats';
+import { plugin as liquidityRoutesPlugin } from './routes/liquidity/plugin';
+import { plugin as priceRoutesPlugin } from './routes/price/plugin';
+import { plugin as volumeRoutesPlugin } from './routes/volume/plugin';
 import { onStartRoutes, onSyncRoutes } from './routes';
 import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
 
@@ -187,7 +187,11 @@ const init = async () => {
   serverTimes.indexed = new Date();
 
   // and indexer plugin routes
-  server.register([liquidityPlugin, timeseriesPlugin, statsPlugin]);
+  server.register([
+    liquidityRoutesPlugin,
+    priceRoutesPlugin,
+    volumeRoutesPlugin,
+  ]);
 
   // add "on synced" routes
   server.route(onSyncRoutes);
