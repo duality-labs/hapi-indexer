@@ -12,7 +12,7 @@ import globalPlugins from './plugins';
 import { plugin as liquidityPlugin } from './routes/liquidity';
 import { plugin as timeseriesPlugin } from './routes/timeseries';
 import { plugin as statsPlugin } from './routes/stats';
-import routes from './routes';
+import { onStartRoutes, onSyncRoutes } from './routes';
 import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
 
 function safeReadFileText(filename: string) {
@@ -168,6 +168,9 @@ const init = async () => {
     },
   });
 
+  // add "on start" routes
+  server.route(onStartRoutes);
+
   serverTimes.starting = new Date();
   await server.start();
   logger.info(`Server running on ${server.info.uri}`);
@@ -186,10 +189,8 @@ const init = async () => {
   // and indexer plugin routes
   server.register([liquidityPlugin, timeseriesPlugin, statsPlugin]);
 
-  // add indexer routes
-  routes.forEach((route) => {
-    server.route(route);
-  });
+  // add "on synced" routes
+  server.route(onSyncRoutes);
 
   await sync.keepUp();
 };

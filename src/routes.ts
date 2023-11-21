@@ -4,8 +4,8 @@ import sql from 'sql-template-tag';
 import db, { prepare } from './storage/sqlite3/db/db';
 import logger from './logger';
 
-// add debug path
-const debugPath = {
+// add debug route
+const debugRoute = {
   method: 'GET',
   path: '/debug/{limitOrAll?}',
   handler: async (request: Request, h: ResponseToolkit) => {
@@ -49,9 +49,11 @@ const debugPath = {
   },
 };
 
-const routes = [
+export const onStartRoutes = [
   // add development only paths
-  ...(process.env.NODE_ENV === 'development' ? [debugPath] : []),
+  ...(process.env.NODE_ENV === 'development' ? [debugRoute] : []),
 ];
 
-export default routes;
+// note: most "on sync" data endpoints are provided through plugins
+//       in src/routes/*/index.ts files now (which simplifies caching a little)
+export const onSyncRoutes = [];
