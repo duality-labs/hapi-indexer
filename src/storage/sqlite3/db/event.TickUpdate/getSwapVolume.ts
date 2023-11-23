@@ -15,7 +15,7 @@ import {
 } from '../timeseriesUtils';
 import { selectSortedPairID } from '../dex.pairs/selectPairID';
 import { getLastBlockHeight } from '../../../../sync';
-import { getHeightAtTime } from '../block/getHeight';
+import { getCompletedHeightAtTime } from '../block/getHeight';
 import { getBlockRange } from '../blockRangeUtils';
 import {
   selectTimeUnixAfterBlockHeight,
@@ -249,8 +249,8 @@ export async function getSwapVolumeTimeseries(
   const currentHeight = getLastBlockHeight();
   const [fromHeight = 0, toHeight = currentHeight] = await Promise.all([
     // prioritize block_range over pagination query params
-    blockRange.from_height ?? getHeightAtTime(pagination.after),
-    blockRange.to_height ?? getHeightAtTime(pagination.before),
+    blockRange.from_height ?? getCompletedHeightAtTime(pagination.after),
+    blockRange.to_height ?? getCompletedHeightAtTime(pagination.before),
   ])
     // restrict heights to the maximum of the last processed block
     // (ie. don't include data from partially ingested blocks)
