@@ -93,6 +93,7 @@ export default async function serverSentEventRequest<
   while (!aborted) {
     // wait for next block
     try {
+      const loopFromHeight = lastHeight;
       const loopToHeight = Math.min(toHeight, getLastBlockHeight());
       // get current data from last known height
       const query: PaginatedRequestQuery & BlockRangeRequestQuery = {
@@ -101,7 +102,7 @@ export default async function serverSentEventRequest<
         ...request.query,
         'pagination.count_total': 'true',
         // add explicit block height range for caching (generating cache ID)
-        'block_range.from_height': lastHeight.toFixed(0),
+        'block_range.from_height': loopFromHeight.toFixed(0),
         'block_range.to_height': loopToHeight.toFixed(0),
       };
       // get the liquidity data (but if we *will* wait for new data then skip)
@@ -179,7 +180,7 @@ export default async function serverSentEventRequest<
       }
       // if we were asked to stop at a certain height: stop
       // but I don't know why someone would request that
-      if (height >= toHeight) {
+      if (loopToHeight >= toHeight) {
         break;
       }
       // set new height only if greater than last height
