@@ -14,3 +14,10 @@ ON
   'block' (
     'header.time_unix'
   );
+
+CREATE INDEX
+  'block--header.height'
+ON
+  'block' (
+    'header.height'
+  );

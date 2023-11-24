@@ -45,6 +45,7 @@ export async function upsertDerivedTickStateRows(
         LIMIT 1
       `)
     );
+    timer.stop('processing:txs:derived.tick_state:get:tick_state');
 
     // check if this data is not an update and exit early
     if (
@@ -53,7 +54,6 @@ export async function upsertDerivedTickStateRows(
     ) {
       return;
     }
-    timer.stop('processing:txs:derived.tick_state:get:tick_state');
 
     timer.start('processing:txs:derived.tick_state:set:tick_state');
     const { lastID } = await db.run(

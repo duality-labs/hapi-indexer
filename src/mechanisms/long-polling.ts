@@ -25,9 +25,17 @@ export default async function longPollRequest<
 >(
   request: Request,
   h: ResponseToolkit,
-  shape: Shape,
-  getData: GetEndpointData<PluginContext, DataSets>,
-  getResponse: GetEndpointResponse<DataSets, Shape>
+  {
+    shape,
+    getData,
+    getPaginatedResponse,
+    compressResponses,
+  }: {
+    shape: Shape;
+    getData: GetEndpointData<PluginContext, DataSets>;
+    getPaginatedResponse: GetEndpointResponse<DataSets, Shape>;
+    compressResponses?: boolean;
+  }
 ): Promise<ResponseObject> {
   try {
     const blockRange = getBlockRange(request.query);
@@ -40,7 +48,7 @@ export default async function longPollRequest<
         : null;
 
     // await new data if the data does not meet the known height requirement
-    if (!toHeight) {
+    if (fromHeight && !toHeight) {
       const timeLeft = getMsLeft(timeoutMs);
       // wait until we get new non-empty data
       while (((data || []) as [][]).every((v) => !v?.length)) {
@@ -62,7 +70,7 @@ export default async function longPollRequest<
     }
 
     const [height] = data;
-    const partialResponse = getResponse(data, request.query);
+    const partialResponse = getPaginatedResponse(data, request.query);
     // construct response in correct order with applied defaults
     const response: EndpointResponse<DataSets, Shape> = {
       shape: partialResponse?.shape ?? shape,
@@ -76,9 +84,11 @@ export default async function longPollRequest<
     return h
       .response(
         request.generateResponse(response, {
-          marshal: (
-            request.server.plugins as ServerPluginContext
-          ).compressResponse?.withKey(request.url.toJSON()),
+          marshal: compressResponses
+            ? (
+                request.server.plugins as ServerPluginContext
+              ).compressResponse?.withKey(request.url.toJSON())
+            : undefined,
         })
       )
       .code(200);

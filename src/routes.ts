@@ -4,15 +4,8 @@ import sql from 'sql-template-tag';
 import db, { prepare } from './storage/sqlite3/db/db';
 import logger from './logger';
 
-import timeseriesPriceRoutes from './routes/timeseries/price';
-import timeseriesVolumeRoutes from './routes/timeseries/volume';
-
-import statPriceroutes from './routes/stats/price';
-import statVolumeroutes from './routes/stats/volume';
-import statVolatilityRoutes from './routes/stats/volatility';
-
-// add debug path
-const debugPath = {
+// add debug route
+const debugRoute = {
   method: 'GET',
   path: '/debug/{limitOrAll?}',
   handler: async (request: Request, h: ResponseToolkit) => {
@@ -56,18 +49,11 @@ const debugPath = {
   },
 };
 
-const routes = [
-  // timeseries routes
-  ...timeseriesPriceRoutes,
-  ...timeseriesVolumeRoutes,
-
-  // point in time stats
-  ...statPriceroutes,
-  ...statVolumeroutes,
-  ...statVolatilityRoutes,
-
+export const onStartRoutes = [
   // add development only paths
-  ...(process.env.NODE_ENV === 'development' ? [debugPath] : []),
+  ...(process.env.NODE_ENV === 'development' ? [debugRoute] : []),
 ];
 
-export default routes;
+// note: most "on sync" data endpoints are provided through plugins
+//       in src/routes/*/index.ts files now (which simplifies caching a little)
+export const onSyncRoutes = [];

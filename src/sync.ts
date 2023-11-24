@@ -450,7 +450,13 @@ export function waitForNextBlock(maxMs = 1 * minutes * inMs): Promise<number> {
 }
 
 interface RpcAbciResponse {
-  result: { last_block_height: string };
+  result: {
+    response: {
+      data: string; // chain ID
+      last_block_app_hash: string;
+      last_block_height: string;
+    };
+  };
 }
 export async function keepUp() {
   defaultLogger.info(
@@ -472,7 +478,7 @@ export async function keepUp() {
           ? await fetch(`${RPC_API}/abci_info`)
               .then((response) => response.json() as Promise<RpcAbciResponse>)
               .then(({ result }) => {
-                return Number(result.last_block_height) || 0;
+                return Number(result?.response?.last_block_height) || 0;
               })
           : 0;
 

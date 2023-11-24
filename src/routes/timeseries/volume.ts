@@ -1,30 +1,66 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
 
-import logger from '../../logger';
-import getSwapVolume from '../../storage/sqlite3/db/event.TickUpdate/getSwapVolume';
-import getTotalVolume from '../../storage/sqlite3/db/derived.tx_volume_data/getTotalVolume';
+import processRequest from '../../mechanisms';
+import { paginateData } from '../../storage/sqlite3/db/paginationUtils';
+import {
+  getUnsortedSwapVolumeTimeseries,
+  SwapVolumeTimeseries,
+} from '../../storage/sqlite3/db/event.TickUpdate/getSwapVolume';
+import {
+  getUnsortedTotalVolumeTimeseries,
+  TotalVolumeTimeseries,
+} from '../../storage/sqlite3/db/derived.tx_volume_data/getTotalVolume';
+
+import { Plugins } from '.';
+
+const defaultPaginationLimit = 100;
 
 const routes = [
   {
     method: 'GET',
     path: '/timeseries/volume/{tokenA}/{tokenB}/{resolution?}',
     handler: async (request: Request, h: ResponseToolkit) => {
-      try {
-        return getSwapVolume(
-          request.params['tokenA'],
-          request.params['tokenB'],
-          request.params['resolution'],
-          request.query // the time extents and frequency and such
-        );
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          logger.error(err);
-          return h
-            .response(err.message || 'An unknown error occurred')
-            .code(Number(err.cause) || 500);
+      const shape = [
+        [
+          'time_unix',
+          [
+            `amount ${request.params['tokenA']}`,
+            `amount ${request.params['tokenB']}`,
+            `fee ${request.params['tokenA']}`,
+            `fee ${request.params['tokenB']}`,
+          ],
+        ],
+      ] as const;
+      return processRequest<Plugins, [SwapVolumeTimeseries], typeof shape>(
+        request,
+        h,
+        {
+          shape,
+          getData: async (params, query, context) => {
+            const result = await getUnsortedSwapVolumeTimeseries(
+              context.swapVolumeCache,
+              params['tokenA'],
+              params['tokenB'],
+              params['resolution'],
+              query // the time extents and frequency and such
+            );
+            return result;
+          },
+          getPaginatedResponse: (data, query) => {
+            const [, datasets = []] = data || [];
+            // paginate the data
+            const [page, pagination] = paginateData(
+              datasets,
+              query, // the time extents and frequency and such
+              defaultPaginationLimit
+            );
+            return {
+              data: page,
+              pagination: pagination,
+            };
+          },
         }
-        return h.response('An unknown error occurred').code(500);
-      }
+      );
     },
   },
 
@@ -32,22 +68,43 @@ const routes = [
     method: 'GET',
     path: '/timeseries/tvl/{tokenA}/{tokenB}/{resolution?}',
     handler: async (request: Request, h: ResponseToolkit) => {
-      try {
-        return await getTotalVolume(
-          request.params['tokenA'],
-          request.params['tokenB'],
-          request.params['resolution'],
-          request.query // the time extents and frequency and such
-        );
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          logger.error(err);
-          return h
-            .response(err.message || 'An unknown error occurred')
-            .code(Number(err.cause) || 500);
+      const shape = [
+        'time_unix',
+        [
+          `amount ${request.params['tokenA']}`,
+          `amount ${request.params['tokenB']}`,
+        ],
+      ] as const;
+      return processRequest<Plugins, [TotalVolumeTimeseries], typeof shape>(
+        request,
+        h,
+        {
+          shape,
+          getData: async (params, query, context) => {
+            const result = await getUnsortedTotalVolumeTimeseries(
+              context.totalVolumeCache,
+              params['tokenA'],
+              params['tokenB'],
+              params['resolution'],
+              query // the time extents and frequency and such
+            );
+            return result;
+          },
+          getPaginatedResponse: (data, query) => {
+            const [, datasets = []] = data || [];
+            // paginate the data
+            const [page, pagination] = paginateData(
+              datasets,
+              query, // the time extents and frequency and such
+              defaultPaginationLimit
+            );
+            return {
+              data: page,
+              pagination: pagination,
+            };
+          },
         }
-        return h.response('An unknown error occurred').code(500);
-      }
+      );
     },
   },
 ];
