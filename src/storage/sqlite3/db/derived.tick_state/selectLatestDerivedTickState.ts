@@ -26,7 +26,7 @@ export default function selectLatestTickState(
         'derived.tick_state'.'related.block.header.height' > ${fromHeight} AND
         'derived.tick_state'.'related.block.header.height' <= ${toHeight}
       )
-      GROUP BY 'derived.tick_state'.'TickIndex'
+      GROUP BY 'derived.tick_state'.'TickIndex', 'derived.tick_state'.'Fee'
       HAVING max('derived.tick_state'.'related.block.header.height')
   `;
 }

@@ -6,6 +6,7 @@
 CREATE TABLE 'derived.tick_state' (
 
   'TickIndex' INTEGER NOT NULL,
+  'Fee' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
 
   'related.dex.pair' INTEGER NOT NULL,
@@ -24,12 +25,13 @@ CREATE TABLE 'derived.tick_state' (
 
 /* add unique index for tick state to ensure no duplicate tick state */
 CREATE UNIQUE INDEX
-  'derived.tick_state--related.dex.pair,related.dex.token,TickIndex,related.block.header.height'
+  'derived.tick_state--related.dex.pair,related.dex.token,TickIndex,Fee,related.block.header.height'
 ON
   'derived.tick_state' (
     'related.dex.pair',
     'related.dex.token',
     'TickIndex',
+    'Fee',
     'related.block.header.height'
   );
 

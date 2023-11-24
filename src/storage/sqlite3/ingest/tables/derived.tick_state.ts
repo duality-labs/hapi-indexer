@@ -40,6 +40,8 @@ export async function upsertDerivedTickStateRows(
           'latest.derived.tick_state'.'TickIndex' = ${
             txEvent.attributes['TickIndex']
           }
+        ) AND (
+          'latest.derived.tick_state'.'Fee' = ${txEvent.attributes['Fee']}
         )
         ORDER BY 'latest.derived.tick_state'.'related.block.header.height' DESC
         LIMIT 1
@@ -60,6 +62,7 @@ export async function upsertDerivedTickStateRows(
       ...prepare(sql`
       INSERT OR REPLACE INTO 'derived.tick_state' (
         'TickIndex',
+        'Fee',
         'Reserves',
 
         'related.dex.pair',
@@ -68,6 +71,7 @@ export async function upsertDerivedTickStateRows(
       ) values (
 
         ${txEvent.attributes['TickIndex']},
+        ${txEvent.attributes['Fee']},
         ${txEvent.attributes['Reserves']},
 
         (${selectSortedPairID(
