@@ -10,7 +10,7 @@ import { getDenomExponent, getDisplayDenomExponent } from '../assetUtils';
 import { Plugins } from '../../../../routes/liquidity';
 
 export type DataRow = [
-  rank: number,
+  pairID: string,
   [token0: string, token1: string, reserves0: number, reserves1: number]
 ];
 export type TokenPairsLiquidity = DataRow[];
@@ -84,7 +84,10 @@ export const tokenPairsLiquidityCache: PolicyOptions<TokenPairsLiquidity> = {
       // transform data for the tickIndexes to be in terms of A/B.
       .then((data: TokensVolumeTableRow[]) => {
         return data.map<DataRow>((row) => {
-          return [0, [row.token0, row.token1, row.reserves0, row.reserves1]];
+          return [
+            getPairID(row),
+            [row.token0, row.token1, row.reserves0, row.reserves1],
+          ];
         });
       });
   },
@@ -151,9 +154,9 @@ export async function getHeightedTokenPairsLiquidity(
       // remove value column from output
       // note: exposing the price values directly or derivably may lead to abuse
       //       of this endpoint as a way to get Pro API asset stats for free
-      .map<DataRow>((row, i) => {
+      .map<DataRow>((row) => {
         return [
-          i + 1,
+          getPairID(row),
           [
             row.token0,
             row.token1,
@@ -166,4 +169,8 @@ export async function getHeightedTokenPairsLiquidity(
   } else {
     return null;
   }
+}
+
+function getPairID(row: TokensVolumeTableRow) {
+  return `${row.token0}<>${row.token1}`;
 }

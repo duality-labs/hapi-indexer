@@ -10,7 +10,7 @@ import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 import { Plugins } from '.';
 
 const shape = [
-  ['rank', ['token0', 'token1', 'reserves0', 'reserves1']],
+  ['pairID', ['token0', 'token1', 'reserves0', 'reserves1']],
 ] as const;
 type Shape = typeof shape;
 type DataSets = [Array<DataRow>];
