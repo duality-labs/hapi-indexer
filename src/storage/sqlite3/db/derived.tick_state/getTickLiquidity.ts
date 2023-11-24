@@ -55,7 +55,8 @@ export const tickLiquidityCache: PolicyOptions<TickLiquidity> = {
           )})
             SELECT
               'latest.derived.tick_state'.'TickIndex' as 'tickIndex',
-              'latest.derived.tick_state'.'Reserves' as 'reserves'
+              -- sum reserves for all found unique Fee rows of each TickIndex
+              SUM( CAST('latest.derived.tick_state'.'Reserves') AS FLOAT ) as 'reserves'
             FROM
               'latest.derived.tick_state'
             ${
