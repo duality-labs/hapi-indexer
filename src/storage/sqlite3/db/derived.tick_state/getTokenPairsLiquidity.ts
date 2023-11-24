@@ -1,4 +1,5 @@
 import sql from 'sql-template-tag';
+import BigNumber from 'bignumber.js';
 import { Policy, PolicyOptions } from '@hapi/catbox';
 
 import db, { prepare } from '../db';
@@ -151,7 +152,15 @@ export async function getHeightedTokenPairsLiquidity(
       // note: exposing the price values directly or derivably may lead to abuse
       //       of this endpoint as a way to get Pro API asset stats for free
       .map<DataRow>((row, i) => {
-        return [i + 1, [row.token0, row.token1, row.reserves0, row.reserves1]];
+        return [
+          i + 1,
+          [
+            row.token0,
+            row.token1,
+            Number(new BigNumber(row.reserves0).toPrecision(4)),
+            Number(new BigNumber(row.reserves1).toPrecision(4)),
+          ],
+        ];
       });
     return [toHeight, sortedtokenPairsLiquidity];
   } else {
