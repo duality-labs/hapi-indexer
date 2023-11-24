@@ -39,6 +39,38 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
   query,
   context
 ) => {
+  // check is this is an update request
+  if (Number(query['block_range.from_height'])) {
+    const [prevData, currData] = await Promise.all([
+      // request all data up to point before update
+      getHeightedTokenPairsLiquidity(
+        {
+          ...query,
+          'block_range.from_height': '0',
+          'block_range.to_height': query['block_range.from_height'],
+        },
+        context
+      ),
+      // request all data up to this point
+      getHeightedTokenPairsLiquidity(
+        { ...query, 'block_range.from_height': '0' },
+        context
+      ),
+    ]);
+    // send a diff of the data
+    // this will allow accurate rank number as we have the full current context
+    if (prevData && currData) {
+      const [height, tokenPairsLiquidity] = currData;
+      const knownRowStrings = prevData[1].map((row) => JSON.stringify(row));
+      return [
+        height,
+        tokenPairsLiquidity.filter((row) => {
+          return !knownRowStrings.includes(JSON.stringify(row));
+        }),
+      ];
+    }
+    return null;
+  }
   const data = await getHeightedTokenPairsLiquidity(query, context);
   if (data) {
     const [height, tokenPairsLiquidity] = data;
