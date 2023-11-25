@@ -68,6 +68,8 @@ export const tickLiquidityCache: PolicyOptions<TickLiquidity> = {
                   `
                 : sql``
             }
+            -- sum reserves across tick indexes
+            GROUP BY 'latest.derived.tick_state'.'TickIndex'
             -- order by tick side
             -- order by most important (middle) ticks first
             ORDER BY 'latest.derived.tick_state'.'TickIndex' ${
