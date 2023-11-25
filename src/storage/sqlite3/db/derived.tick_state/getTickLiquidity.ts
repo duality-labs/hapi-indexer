@@ -3,7 +3,9 @@ import BigNumber from 'bignumber.js';
 import { Policy, PolicyOptions } from '@hapi/catbox';
 
 import db, { prepare } from '../db';
-import selectLatestTickState from './selectLatestDerivedTickState';
+import selectLatestTickState, {
+  selectTickIndexesOfTickState,
+} from './selectLatestDerivedTickState';
 
 import { getLastBlockHeight } from '../../../../sync';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
@@ -51,7 +53,7 @@ export const tickLiquidityCache: PolicyOptions<TickLiquidity> = {
             token0,
             token1,
             tokenIn,
-            { fromHeight, toHeight }
+            { fromHeight: 0, toHeight }
           )})
             SELECT
               'latest.derived.tick_state'.'TickIndex' as 'tickIndex',
@@ -60,13 +62,23 @@ export const tickLiquidityCache: PolicyOptions<TickLiquidity> = {
             FROM
               'latest.derived.tick_state'
             ${
-              // add a filtering of zero values if querying from the beginning
-              // as zero values won't be helpful to receive or use
+              // add where clause dependent on full state or update request
               fromHeight === 0
-                ? sql`
+                ? // filter zero values if querying from the start of chain
+                  // as zero values won't be helpful to receive or use
+                  sql`
                     WHERE 'latest.derived.tick_state'.'Reserves' != '0'
                   `
-                : sql``
+                : // when querying an update we find the tick indexes that have
+                  // change at this update height, and filter to those
+                  sql`
+                    WHERE 'latest.derived.tick_state'.'TickIndex' in (${selectTickIndexesOfTickState(
+                      token0,
+                      token1,
+                      tokenIn,
+                      { fromHeight, toHeight }
+                    )})
+                  `
             }
             -- sum reserves across tick indexes
             GROUP BY 'latest.derived.tick_state'.'TickIndex'
