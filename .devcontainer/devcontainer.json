@@ -51,6 +51,6 @@
     // "rust": "1.61.0"
   },
 
-  "postCreateCommand": "npm ci",
+  "postCreateCommand": "sh ./.devcontainer/create-certs.sh && npm ci",
   "postStartCommand": "npm run dev"
 }
