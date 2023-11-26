@@ -36,7 +36,7 @@ export async function getHeightedTokenPairLiquidity(
   // return the response data in the correct order
   const height = Number(toHeight);
   if (height > 0 && tickStateA !== null && tickStateB !== null) {
-    return [height, tickStateB, tickStateA];
+    return [height, tickStateA, tickStateB];
   } else {
     return null;
   }
