@@ -2,7 +2,17 @@
 # https://hub.docker.com/_/node/
 FROM node:18-alpine as build-env
 
+RUN apk add openssl
+
 WORKDIR /usr/workspace
+
+COPY scripts scripts
+RUN sh ./scripts/create-certs.sh
+ARG SSL_FILES_DIRECTORY=
+RUN if [ "$SSL_FILES_DIRECTORY" != "" ]; \
+    then \
+        cp -n *.pem /usr/workspace$SSL_FILES_DIRECTORY ;\
+    fi
 
 # install app dependencies
 # this is done before the following COPY command to take advantage of layer caching
