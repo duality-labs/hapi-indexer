@@ -23,14 +23,16 @@ export default async function upsertDerivedPriceData(
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
-    const tickSide = isForward ? 'LowestTick1' : 'HighestTick0';
+    const tickSide = isForward
+      ? 'LowestNormalizedTickIndex1'
+      : 'HighestNormalizedTickIndex0';
     // note that previousTickIndex may not exist yet
     timer.start('processing:txs:derived.tx_price_data:get:tx_price_data');
     const previousPriceData = await db.get(
       ...prepare(sql`
       SELECT
-        'derived.tx_price_data'.'HighestTick0',
-        'derived.tx_price_data'.'LowestTick1'
+        'derived.tx_price_data'.'HighestNormalizedTickIndex0',
+        'derived.tx_price_data'.'LowestNormalizedTickIndex1'
       FROM
         'derived.tx_price_data'
       WHERE (
@@ -49,7 +51,7 @@ export default async function upsertDerivedPriceData(
 
     timer.start('processing:txs:derived.tx_price_data:get:tick_state');
     // derive data from entire ticks state (useful for maybe some other calculations)
-    const currentTickIndex = await db
+    const currentTickIndex: number | null = await db
       .get(
         ...prepare(sql`
           WITH 'latest.derived.tick_state' AS (${selectLatestTickState(
@@ -64,29 +66,28 @@ export default async function upsertDerivedPriceData(
             'latest.derived.tick_state'
           WHERE
             'latest.derived.tick_state'.'Reserves' != '0'
-          ORDER BY 'latest.derived.tick_state'.'TickIndex' ${
-            isForward ? sql`ASC` : sql`DESC`
-          }
+          ORDER BY 'latest.derived.tick_state'.'TickIndex' ASC
           LIMIT 1
         `)
       )
-      .then((row) => row?.['TickIndex'] ?? null);
+      .then((row) => row && (isForward ? row['TickIndex'] : -row['TickIndex']));
     timer.stop('processing:txs:derived.tx_price_data:get:tick_state');
 
     // if activity has changed current price then update data
     if (previousTickIndex !== currentTickIndex) {
       const previousOtherSideTickIndex =
         (isForward
-          ? previousPriceData?.['HighestTick0']
-          : previousPriceData?.['LowestTick1']) ?? null;
+          ? previousPriceData?.['HighestNormalizedTickIndex0']
+          : previousPriceData?.['LowestNormalizedTickIndex1']) ?? null;
       timer.start('processing:txs:derived.tx_price_data:set:tx_price_data');
       await db.run(
         ...prepare(sql`
         INSERT OR REPLACE INTO 'derived.tx_price_data' (
 
-          'HighestTick0',
-          'LowestTick1',
-          'LastTick',
+          'HighestNormalizedTickIndex0',
+          'LowestNormalizedTickIndex1',
+          -- NormalizedTickIndex is TickIndex1To0
+          'LastTickIndex1To0',
 
           'related.tx_result.events',
           'related.dex.pair'
@@ -95,7 +96,7 @@ export default async function upsertDerivedPriceData(
 
           ${isForward ? previousOtherSideTickIndex : currentTickIndex},
           ${isForward ? currentTickIndex : previousOtherSideTickIndex},
-          ${currentTickIndex || previousOtherSideTickIndex || null},
+          ${currentTickIndex ?? previousOtherSideTickIndex ?? null},
 
           (
             SELECT

@@ -79,11 +79,11 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
                   'unixepoch'
                 )
               ) + ${offsetSeconds} as 'resolution_unix',
-              first_value('derived.tx_price_data'.'LastTick')
+              first_value('derived.tx_price_data'.'LastTickIndex1To0')
                 OVER resolution_window as 'first_price',
-              last_value('derived.tx_price_data'.'LastTick')
+              last_value('derived.tx_price_data'.'LastTickIndex1To0')
                 OVER resolution_window as 'last_price',
-              'derived.tx_price_data'.'LastTick' as 'price'
+              'derived.tx_price_data'.'LastTickIndex1To0' as 'price'
             FROM
               'derived.tx_price_data'
             INNER JOIN
@@ -118,7 +118,7 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
                 token0,
                 token1
               )}) AND
-              'derived.tx_price_data'.'LastTick' IS NOT NULL
+              'derived.tx_price_data'.'LastTickIndex1To0' IS NOT NULL
             WINDOW resolution_window AS (
               PARTITION BY strftime(
                 ${partitionTimeFormat},
@@ -134,6 +134,7 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
           )
           SELECT
             'windowed_table'.'resolution_unix' as 'time_unix',
+            -- tick indexes here are Normalized TickIndex1To0 values
             'windowed_table'.'first_price' as 'open',
             'windowed_table'.'last_price' as 'close',
             min('windowed_table'.'price') as 'low',
@@ -149,7 +150,7 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
       // transform data for the tickIndexes to be in terms of A/B.
       .then((data) => {
         return data.map(
-          // invert the indexes depending on which price ratio was asked for
+          // invert TickIndex1To0 depending on which price ratio was asked for
           !reverseDirection
             ? (row): DataRow => {
                 return [

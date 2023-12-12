@@ -5,6 +5,7 @@
  */
 CREATE TABLE 'derived.tick_state' (
 
+  -- TickIndex here is TickIndexTakerToMaker (ie. "in to out" or "out per in")
   'TickIndex' INTEGER NOT NULL,
   'Fee' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,

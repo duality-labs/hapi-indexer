@@ -9,6 +9,7 @@ CREATE TABLE 'event.TickUpdate' (
   'Token0' TEXT NOT NULL,
   'Token1' TEXT NOT NULL,
   'TokenIn' TEXT NOT NULL,
+  -- TickIndex here is TickIndexTakerToMaker (ie. "in to out" or "out per in")
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
   -- fees do not exist for all TickUpdate events
