@@ -117,7 +117,8 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
               'derived.tx_price_data'.'related.dex.pair' = (${selectSortedPairID(
                 token0,
                 token1
-              )})
+              )}) AND
+              'derived.tx_price_data'.'LastTick' IS NOT NULL
             WINDOW resolution_window AS (
               PARTITION BY strftime(
                 ${partitionTimeFormat},
@@ -160,13 +161,7 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
                 return [
                   row['time_unix'],
                   // invert the indexes for the asked for price ratio
-                  // add condition to ensure that `-null` is not computed
-                  [
-                    row['open'] && -row['open'],
-                    row['high'] && -row['high'],
-                    row['low'] && -row['low'],
-                    row['close'] && -row['close'],
-                  ],
+                  [-row['open'], -row['high'], -row['low'], -row['close']],
                 ];
               }
         );
