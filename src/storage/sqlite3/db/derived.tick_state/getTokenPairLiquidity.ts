@@ -5,12 +5,13 @@ import { getLastBlockHeight } from '../../../../sync';
 import { RequestQuery } from '@hapi/hapi';
 import { getBlockRange } from '../blockRangeUtils';
 
-export type DataRow = [tick_index: number, reserves: number];
+export type DataRowA = [tick_index_b_to_a: number, reserves: number];
+export type DataRowB = [tick_index_b_to_a: number, reserves: number];
 
 export type HeightedTokenPairLiquidity = [
   height: number,
-  reservesTokenA: DataRow[],
-  reservesTokenB: DataRow[]
+  reservesTokenA: DataRowA[],
+  reservesTokenB: DataRowB[]
 ];
 
 export async function getHeightedTokenPairLiquidity(

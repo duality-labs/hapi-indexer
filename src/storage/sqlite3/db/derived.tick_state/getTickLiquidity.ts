@@ -9,8 +9,9 @@ import selectLatestTickState, {
 
 import { getLastBlockHeight } from '../../../../sync';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
+import { DataRowA } from './getTokenPairLiquidity';
 
-export type DataRow = [tick_index: number, reserves: number];
+export type DataRow = DataRowA;
 export type TickLiquidity = DataRow[];
 export type LiquidityCache = Policy<
   TickLiquidity,
