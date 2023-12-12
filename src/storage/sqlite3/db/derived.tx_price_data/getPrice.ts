@@ -117,7 +117,8 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
               'derived.tx_price_data'.'related.dex.pair' = (${selectSortedPairID(
                 token0,
                 token1
-              )})
+              )}) AND
+              'derived.tx_price_data'.'LastTick' IS NOT NULL
             WINDOW resolution_window AS (
               PARTITION BY strftime(
                 ${partitionTimeFormat},
