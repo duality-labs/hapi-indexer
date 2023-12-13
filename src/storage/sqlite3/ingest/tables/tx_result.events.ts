@@ -18,7 +18,7 @@ export default async function insertTxEventRows(
     txEvent.attributes.module === 'dex' &&
     (txEvent.type === 'message' || txEvent.type === 'TickUpdate');
   const dexPairId =
-    isDexMessage && txEvent.attributes.Token0 && txEvent.attributes.Token1
+    isDexMessage && txEvent.attributes.TokenZero && txEvent.attributes.TokenOne
       ? await insertDexPairsRows(txEvent)
       : undefined;
 

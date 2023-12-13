@@ -9,12 +9,12 @@ CREATE TABLE 'event.Withdraw' (
 
   'Creator' TEXT NOT NULL,
   'Receiver' TEXT NOT NULL,
-  'Token0' TEXT NOT NULL,
-  'Token1' TEXT NOT NULL,
+  'TokenZero' TEXT NOT NULL,
+  'TokenOne' TEXT NOT NULL,
   'TickIndex' INTEGER NOT NULL,
   'Fee' INTEGER NOT NULL,
-  'Reserves0Withdrawn' TEXT NOT NULL,
-  'Reserves1Withdrawn' TEXT NOT NULL,
+  'ReservesZeroWithdrawn' TEXT NOT NULL,
+  'ReservesOneWithdrawn' TEXT NOT NULL,
   'SharesRemoved' TEXT NOT NULL,
 
   'related.tx_result.events' INTEGER NOT NULL,

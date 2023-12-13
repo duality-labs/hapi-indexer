@@ -23,8 +23,8 @@ export default async function insertEventTickUpdate(
     FROM
       'event.TickUpdate'
     WHERE (
-      'event.TickUpdate'.'Token0' = ${txEvent.attributes['Token0']} AND
-      'event.TickUpdate'.'Token1' = ${txEvent.attributes['Token1']} AND
+      'event.TickUpdate'.'TokenZero' = ${txEvent.attributes['TokenZero']} AND
+      'event.TickUpdate'.'TokenOne' = ${txEvent.attributes['TokenOne']} AND
       'event.TickUpdate'.'TokenIn' = ${txEvent.attributes['TokenIn']} AND
       'event.TickUpdate'.'TickIndex' = ${txEvent.attributes['TickIndex']}
     )
@@ -48,8 +48,8 @@ export default async function insertEventTickUpdate(
     ...prepare(sql`
     INSERT INTO 'event.TickUpdate' (
 
-      'Token0',
-      'Token1',
+      'TokenZero',
+      'TokenOne',
       'TokenIn',
       'TickIndex',
       'Reserves',
@@ -62,8 +62,8 @@ export default async function insertEventTickUpdate(
       'related.dex.token'
     ) values (
 
-      ${txEvent.attributes['Token0']},
-      ${txEvent.attributes['Token1']},
+      ${txEvent.attributes['TokenZero']},
+      ${txEvent.attributes['TokenOne']},
       ${txEvent.attributes['TokenIn']},
       ${txEvent.attributes['TickIndex']},
       ${txEvent.attributes['Reserves']},
@@ -110,8 +110,8 @@ export default async function insertEventTickUpdate(
         )
       ),
       (${selectSortedPairID(
-        txEvent.attributes['Token0'],
-        txEvent.attributes['Token1']
+        txEvent.attributes['TokenZero'],
+        txEvent.attributes['TokenOne']
       )}),
       (${selectTokenID(txEvent.attributes['TokenIn'])})
     )

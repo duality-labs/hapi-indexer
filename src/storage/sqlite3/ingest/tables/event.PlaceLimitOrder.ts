@@ -18,8 +18,8 @@ export default async function insertEventPlaceLimitOrder(
 
       'Creator',
       'Receiver',
-      'Token0',
-      'Token1',
+      'TokenZero',
+      'TokenOne',
       'TokenIn',
       'TokenOut',
       'AmountIn',
@@ -36,14 +36,14 @@ export default async function insertEventPlaceLimitOrder(
 
       ${txEvent.attributes['Creator']},
       ${txEvent.attributes['Receiver']},
-      ${txEvent.attributes['Token0']},
-      ${txEvent.attributes['Token1']},
+      ${txEvent.attributes['TokenZero']},
+      ${txEvent.attributes['TokenOne']},
       ${txEvent.attributes['TokenIn']},
       ${
         // derive TokenOut
-        txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
-          ? txEvent.attributes['Token0']
-          : txEvent.attributes['Token1']
+        txEvent.attributes['TokenIn'] !== txEvent.attributes['TokenZero']
+          ? txEvent.attributes['TokenZero']
+          : txEvent.attributes['TokenOne']
       },
       ${txEvent.attributes['AmountIn']},
       ${txEvent.attributes['LimitTick']},
@@ -79,15 +79,15 @@ export default async function insertEventPlaceLimitOrder(
         )
       ),
       (${selectSortedPairID(
-        txEvent.attributes['Token0'],
-        txEvent.attributes['Token1']
+        txEvent.attributes['TokenZero'],
+        txEvent.attributes['TokenOne']
       )}),
       (${selectTokenID(txEvent.attributes['TokenIn'])}),
       (${selectTokenID(
         // derive TokenOut
-        txEvent.attributes['TokenIn'] !== txEvent.attributes['Token0']
-          ? txEvent.attributes['Token0']
-          : txEvent.attributes['Token1']
+        txEvent.attributes['TokenIn'] !== txEvent.attributes['TokenZero']
+          ? txEvent.attributes['TokenZero']
+          : txEvent.attributes['TokenOne']
       )}
       )
     )

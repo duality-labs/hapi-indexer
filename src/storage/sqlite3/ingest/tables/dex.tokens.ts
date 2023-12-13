@@ -10,8 +10,8 @@ export default async function insertDexTokensRows(
 ): Promise<void> {
   // if event has tokens, ensure these tokens are present in the DB
   const tokens = [
-    txEvent.attributes.Token0,
-    txEvent.attributes.Token1,
+    txEvent.attributes.TokenZero,
+    txEvent.attributes.TokenOne,
     txEvent.attributes.TokenIn,
     txEvent.attributes.TokenOut,
     txEvent.attributes.Token,

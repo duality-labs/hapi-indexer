@@ -17,12 +17,12 @@ export default async function insertEventDeposit(
 
       'Creator',
       'Receiver',
-      'Token0',
-      'Token1',
+      'TokenZero',
+      'TokenOne',
       'TickIndex',
       'Fee',
-      'Reserves0Deposited',
-      'Reserves1Deposited',
+      'ReservesZeroDeposited',
+      'ReservesOneDeposited',
       'SharesMinted',
 
       'related.tx_result.events',
@@ -30,12 +30,12 @@ export default async function insertEventDeposit(
     ) values (
       ${txEvent.attributes['Creator']},
       ${txEvent.attributes['Receiver']},
-      ${txEvent.attributes['Token0']},
-      ${txEvent.attributes['Token1']},
+      ${txEvent.attributes['TokenZero']},
+      ${txEvent.attributes['TokenOne']},
       ${txEvent.attributes['TickIndex']},
       ${txEvent.attributes['Fee']},
-      ${txEvent.attributes['Reserves0Deposited']},
-      ${txEvent.attributes['Reserves1Deposited']},
+      ${txEvent.attributes['ReservesZeroDeposited']},
+      ${txEvent.attributes['ReservesOneDeposited']},
       ${txEvent.attributes['SharesMinted']},
 
       (
@@ -66,8 +66,8 @@ export default async function insertEventDeposit(
         )
       ),
       (${selectSortedPairID(
-        txEvent.attributes['Token0'],
-        txEvent.attributes['Token1']
+        txEvent.attributes['TokenZero'],
+        txEvent.attributes['TokenOne']
       )})
     )
     `)

@@ -17,12 +17,12 @@ export default async function insertEventWithdraw(
 
       'Creator',
       'Receiver',
-      'Token0',
-      'Token1',
+      'TokenZero',
+      'TokenOne',
       'TickIndex',
       'Fee',
-      'Reserves0Withdrawn',
-      'Reserves1Withdrawn',
+      'ReservesZeroWithdrawn',
+      'ReservesOneWithdrawn',
       'SharesRemoved',
 
       'related.tx_result.events',
@@ -31,12 +31,12 @@ export default async function insertEventWithdraw(
 
       ${txEvent.attributes['Creator']},
       ${txEvent.attributes['Receiver']},
-      ${txEvent.attributes['Token0']},
-      ${txEvent.attributes['Token1']},
+      ${txEvent.attributes['TokenZero']},
+      ${txEvent.attributes['TokenOne']},
       ${txEvent.attributes['TickIndex']},
       ${txEvent.attributes['Fee']},
-      ${txEvent.attributes['Reserves0Withdrawn']},
-      ${txEvent.attributes['Reserves1Withdrawn']},
+      ${txEvent.attributes['ReservesZeroWithdrawn']},
+      ${txEvent.attributes['ReservesOneWithdrawn']},
       ${txEvent.attributes['SharesRemoved']},
 
       (
@@ -67,8 +67,8 @@ export default async function insertEventWithdraw(
         )
       ),
       (${selectSortedPairID(
-        txEvent.attributes['Token0'],
-        txEvent.attributes['Token1']
+        txEvent.attributes['TokenZero'],
+        txEvent.attributes['TokenOne']
       )})
     )
     `)

@@ -10,10 +10,10 @@ export default async function insertDexPairsRows(
   txEvent: DecodedTxEvent
 ): Promise<number | undefined> {
   // if event has tokens, ensure these tokens are present in the DB
-  if (txEvent.attributes.Token0 && txEvent.attributes.Token1) {
+  if (txEvent.attributes.TokenZero && txEvent.attributes.TokenOne) {
     const id = await getPairID(
-      txEvent.attributes['Token0'],
-      txEvent.attributes['Token1']
+      txEvent.attributes['TokenZero'],
+      txEvent.attributes['TokenOne']
     );
 
     if (id) {
@@ -28,8 +28,8 @@ export default async function insertDexPairsRows(
           'token0',
           'token1'
         ) values (
-          (${selectTokenID(txEvent.attributes['Token0'])}),
-          (${selectTokenID(txEvent.attributes['Token1'])})
+          (${selectTokenID(txEvent.attributes['TokenZero'])}),
+          (${selectTokenID(txEvent.attributes['TokenOne'])})
         )
         `)
       )) || {};

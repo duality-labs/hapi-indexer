@@ -22,7 +22,7 @@ export default async function upsertDerivedVolumeData(
 
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     const isForward =
-      txEvent.attributes['TokenIn'] === txEvent.attributes['Token1'];
+      txEvent.attributes['TokenIn'] === txEvent.attributes['TokenOne'];
     const queriedColumn = isForward ? 'ReservesFloat1' : 'ReservesFloat0';
     const otherColumn = !isForward ? 'ReservesFloat1' : 'ReservesFloat0';
     // note that previousReserves may not exist yet
@@ -36,8 +36,8 @@ export default async function upsertDerivedVolumeData(
         'derived.tx_volume_data'
       WHERE (
         'derived.tx_volume_data'.'related.dex.pair' = (${selectSortedPairID(
-          txEvent.attributes['Token0'],
-          txEvent.attributes['Token1']
+          txEvent.attributes['TokenZero'],
+          txEvent.attributes['TokenOne']
         )})
       )
       ORDER BY
@@ -54,8 +54,8 @@ export default async function upsertDerivedVolumeData(
       .get(
         ...prepare(sql`
           WITH 'latest.derived.tick_state' AS (${selectLatestTickState(
-            txEvent.attributes['Token0'],
-            txEvent.attributes['Token1'],
+            txEvent.attributes['TokenZero'],
+            txEvent.attributes['TokenOne'],
             txEvent.attributes['TokenIn'],
             { fromHeight: 0, toHeight: Number(tx_result.height) }
           )})
@@ -121,8 +121,8 @@ export default async function upsertDerivedVolumeData(
             )
           ),
           (${selectSortedPairID(
-            txEvent.attributes['Token0'],
-            txEvent.attributes['Token1']
+            txEvent.attributes['TokenZero'],
+            txEvent.attributes['TokenOne']
           )}),
           ${tx_result.height}
         )

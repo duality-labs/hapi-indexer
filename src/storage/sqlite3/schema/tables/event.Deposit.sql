@@ -9,12 +9,12 @@ CREATE TABLE 'event.Deposit' (
 
   'Creator' TEXT NOT NULL,
   'Receiver' TEXT NOT NULL,
-  'Token0' TEXT NOT NULL,
-  'Token1' TEXT NOT NULL,
+  'TokenZero' TEXT NOT NULL,
+  'TokenOne' TEXT NOT NULL,
   'TickIndex' INTEGER NOT NULL,
   'Fee' INTEGER NOT NULL,
-  'Reserves0Deposited' TEXT NOT NULL,
-  'Reserves1Deposited' TEXT NOT NULL,
+  'ReservesZeroDeposited' TEXT NOT NULL,
+  'ReservesOneDeposited' TEXT NOT NULL,
   'SharesMinted' TEXT NOT NULL,
 
   'related.tx_result.events' INTEGER NOT NULL,
