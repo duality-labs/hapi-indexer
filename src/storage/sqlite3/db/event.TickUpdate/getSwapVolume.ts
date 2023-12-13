@@ -176,7 +176,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
                 token1
               )}) AND
               -- restrict to tx Msg type
-              'tx_msg_type'.'action' = "dualitylabs.duality.dex.MsgPlaceLimitOrder"
+              'tx_msg_type'.'action' = "duality.dex.MsgPlaceLimitOrder"
           )
           SELECT
             'ungrouped_table'.'resolution_unix' as 'time_unix',
