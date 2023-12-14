@@ -13,7 +13,7 @@ export default async function insertEventDeposit(
 ) {
   return await db.run(
     ...prepare(sql`
-    INSERT INTO 'event.Deposit' (
+    INSERT INTO 'event.DepositLP' (
 
       'Creator',
       'Receiver',

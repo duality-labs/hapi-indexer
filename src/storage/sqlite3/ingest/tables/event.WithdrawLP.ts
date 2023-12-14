@@ -13,7 +13,7 @@ export default async function insertEventWithdraw(
 ) {
   return await db.run(
     ...prepare(sql`
-    INSERT INTO 'event.Withdraw' (
+    INSERT INTO 'event.WithdrawLP' (
 
       'Creator',
       'Receiver',

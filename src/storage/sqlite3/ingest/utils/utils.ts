@@ -15,8 +15,8 @@ export function isDexMessage(txEvent: DecodedTxEvent): boolean {
 
 type DexMessageAction =
   | 'PlaceLimitOrder'
-  | 'Deposit'
-  | 'Withdraw'
+  | 'DepositLP'
+  | 'WithdrawLP'
   | 'TickUpdate';
 
 export function getDexMessageAction(

@@ -11,8 +11,8 @@ import createTableDexTokens from './tables/dex.tokens.sql';
 import createTableDexPairs from './tables/dex.pairs.sql';
 
 // Duality specific events
-import createTableEventDeposit from './tables/event.Deposit.sql';
-import createTableEventWithdraw from './tables/event.Withdraw.sql';
+import createTableEventDeposit from './tables/event.DepositLP.sql';
+import createTableEventWithdraw from './tables/event.WithdrawLP.sql';
 import createTableEventPlaceLimitOrder from './tables/event.PlaceLimitOrder.sql';
 import createTableEventTickUpdate from './tables/event.TickUpdate.sql';
 

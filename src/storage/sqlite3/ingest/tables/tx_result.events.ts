@@ -63,8 +63,10 @@ export default async function insertTxEventRows(
         txEvent.attributes.action === 'PlaceLimitOrder' &&
         dexPairId
       },
-      ${isDexMessage && txEvent.attributes.action === 'Deposit' && dexPairId},
-      ${isDexMessage && txEvent.attributes.action === 'Withdraw' && dexPairId},
+      ${isDexMessage && txEvent.attributes.action === 'DepositLP' && dexPairId},
+      ${
+        isDexMessage && txEvent.attributes.action === 'WithdrawLP' && dexPairId
+      },
       ${lastMsgID || null}
     )`)
   );
