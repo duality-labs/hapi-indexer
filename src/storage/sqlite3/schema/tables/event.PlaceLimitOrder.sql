@@ -9,8 +9,8 @@ CREATE TABLE 'event.PlaceLimitOrder' (
 
   'Creator' TEXT NOT NULL,
   'Receiver' TEXT NOT NULL,
-  'Token0' TEXT NOT NULL,
-  'Token1' TEXT NOT NULL,
+  'TokenZero' TEXT NOT NULL,
+  'TokenOne' TEXT NOT NULL,
   'TokenIn' TEXT NOT NULL,
   'TokenOut' TEXT NOT NULL,
   'AmountIn' TEXT NOT NULL,

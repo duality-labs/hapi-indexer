@@ -9,8 +9,8 @@ import insertTxEventRows from './tables/tx_result.events';
 
 import insertEventTickUpdate from './tables/event.TickUpdate';
 import insertEventPlaceLimitOrder from './tables/event.PlaceLimitOrder';
-import insertEventDeposit from './tables/event.Deposit';
-import insertEventWithdraw from './tables/event.Withdraw';
+import insertEventDeposit from './tables/event.DepositLP';
+import insertEventWithdraw from './tables/event.WithdrawLP';
 import { upsertDerivedTickStateRows } from './tables/derived.tick_state';
 
 import decodeEvent from './utils/decodeEvent';
@@ -81,15 +81,15 @@ export default async function ingestTxs(
       if (dexAction) {
         // add event rows to specific event tables:
         switch (dexAction) {
-          case 'Deposit':
-            timer.start('processing:txs:event.Deposit');
+          case 'DepositLP':
+            timer.start('processing:txs:event.DepositLP');
             await insertEventDeposit(tx_result, txEvent, index);
-            timer.stop('processing:txs:event.Deposit');
+            timer.stop('processing:txs:event.DepositLP');
             break;
-          case 'Withdraw':
-            timer.start('processing:txs:event.Withdraw');
+          case 'WithdrawLP':
+            timer.start('processing:txs:event.WithdrawLP');
             await insertEventWithdraw(tx_result, txEvent, index);
-            timer.stop('processing:txs:event.Withdraw');
+            timer.stop('processing:txs:event.WithdrawLP');
             break;
           case 'PlaceLimitOrder':
             timer.start('processing:txs:event.PlaceLimitOrder');

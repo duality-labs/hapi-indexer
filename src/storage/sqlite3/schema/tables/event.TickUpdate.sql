@@ -6,9 +6,10 @@
   */
 CREATE TABLE 'event.TickUpdate' (
 
-  'Token0' TEXT NOT NULL,
-  'Token1' TEXT NOT NULL,
+  'TokenZero' TEXT NOT NULL,
+  'TokenOne' TEXT NOT NULL,
   'TokenIn' TEXT NOT NULL,
+  -- TickIndex here is TickIndexTakerToMaker (ie. "in to out" or "out per in")
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
   -- fees do not exist for all TickUpdate events
@@ -50,11 +51,11 @@ ON
 
 /* add index for ingestion lookups, ie. lookup previous tickUpdate */
 CREATE INDEX
-  'event.TickUpdate--Token0,Token1,TokenIn,TickIndex,related.tx_result.events'
+  'event.TickUpdate--TokenZero,TokenOne,TokenIn,TickIndex,related.tx_result.events'
 ON
   'event.TickUpdate' (
-    'Token0',
-    'Token1',
+    'TokenZero',
+    'TokenOne',
     'TokenIn',
     'TickIndex',
     'related.tx_result.events'

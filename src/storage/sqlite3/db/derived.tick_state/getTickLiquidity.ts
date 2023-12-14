@@ -9,8 +9,9 @@ import selectLatestTickState, {
 
 import { getLastBlockHeight } from '../../../../sync';
 import hasInvertedOrder from '../dex.pairs/hasInvertedOrder';
+import { DataRowA } from './getTokenPairLiquidity';
 
-export type DataRow = [tick_index: number, reserves: number];
+export type DataRow = DataRowA;
 export type TickLiquidity = DataRow[];
 export type LiquidityCache = Policy<
   TickLiquidity,
@@ -45,7 +46,6 @@ export const tickLiquidityCache: PolicyOptions<TickLiquidity> = {
     }
 
     // return the result set
-    const reverseDirection = token1 === tokenIn;
     return await db
       .all<TickStateTableRow[]>(
         ...prepare(sql`
@@ -82,20 +82,16 @@ export const tickLiquidityCache: PolicyOptions<TickLiquidity> = {
             }
             -- sum reserves across tick indexes
             GROUP BY 'latest.derived.tick_state'.'TickIndex'
-            -- order by tick side
             -- order by most important (middle) ticks first
-            ORDER BY 'latest.derived.tick_state'.'TickIndex' ${
-              reverseDirection ? sql`ASC` : sql`DESC`
-            }
+            ORDER BY 'latest.derived.tick_state'.'TickIndex' ASC
         `)
       )
       // transform data for the tickIndexes to be in terms of A/B.
       .then((data) => {
         return data.map((row): DataRow => {
           return [
-            // invert the indexes depending on which price ratio was asked for
-            // so the indexes are in terms of token/otherToken
-            reverseDirection ? -row['tickIndex'] : row['tickIndex'],
+            // invert the indexes to transform tick index from AtoB to BtoA (A/B)
+            -row['tickIndex'],
             // return reserves as a number (of smaller precision to save bytes)
             Number(new BigNumber(row['reserves']).toPrecision(3)),
           ];

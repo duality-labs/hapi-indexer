@@ -83,7 +83,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
               (
                 CASE
                   WHEN (
-                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token0' AND
+                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenZero' AND
                     'event.TickUpdate'.'derived.ReservesDiff' > 0
                   )
                   THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
@@ -94,7 +94,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
               (
                 CASE
                   WHEN (
-                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token0' AND
+                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenZero' AND
                     'event.TickUpdate'.'derived.ReservesDiff' > 0
                   )
                   THEN (
@@ -108,7 +108,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
               (
                 CASE
                   WHEN (
-                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token1' AND
+                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenOne' AND
                     'event.TickUpdate'.'derived.ReservesDiff' > 0
                   )
                   THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
@@ -119,7 +119,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
               (
                 CASE
                   WHEN (
-                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'Token1' AND
+                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenOne' AND
                     'event.TickUpdate'.'derived.ReservesDiff' > 0
                   )
                   THEN (
@@ -176,7 +176,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
                 token1
               )}) AND
               -- restrict to tx Msg type
-              'tx_msg_type'.'action' = "dualitylabs.duality.dex.MsgPlaceLimitOrder"
+              'tx_msg_type'.'action' = "duality.dex.MsgPlaceLimitOrder"
           )
           SELECT
             'ungrouped_table'.'resolution_unix' as 'time_unix',

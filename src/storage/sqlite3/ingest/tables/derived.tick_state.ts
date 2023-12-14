@@ -29,8 +29,8 @@ export async function upsertDerivedTickStateRows(
     const previousStateData = await db.get(
       ...prepare(sql`
         WITH 'latest.derived.tick_state' AS (${selectLatestTickState(
-          txEvent.attributes['Token0'],
-          txEvent.attributes['Token1'],
+          txEvent.attributes['TokenZero'],
+          txEvent.attributes['TokenOne'],
           txEvent.attributes['TokenIn'],
           { fromHeight: 0, toHeight: Number(tx_result.height) }
         )})
@@ -75,8 +75,8 @@ export async function upsertDerivedTickStateRows(
         ${txEvent.attributes['Reserves']},
 
         (${selectSortedPairID(
-          txEvent.attributes['Token0'],
-          txEvent.attributes['Token1']
+          txEvent.attributes['TokenZero'],
+          txEvent.attributes['TokenOne']
         )}),
         (${selectTokenID(txEvent.attributes['TokenIn'])}),
         ${tx_result.height}

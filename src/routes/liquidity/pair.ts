@@ -1,7 +1,8 @@
 import { Request, ResponseToolkit, ServerRoute } from '@hapi/hapi';
 
 import {
-  DataRow,
+  DataRowA,
+  DataRowB,
   getHeightedTokenPairLiquidity,
 } from '../../storage/sqlite3/db/derived.tick_state/getTokenPairLiquidity';
 import { paginateData } from '../../storage/sqlite3/db/paginationUtils';
@@ -11,11 +12,11 @@ import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 import { Plugins } from '.';
 
 const shape = [
-  [['tick_index', 'reserves']],
-  [['tick_index', 'reserves']],
+  [['tick_index_b_to_a', 'reserves']],
+  [['tick_index_a_to_b', 'reserves']],
 ] as const;
 type Shape = typeof shape;
-type DataSets = [Array<DataRow>, Array<DataRow>];
+type DataSets = [Array<DataRowA>, Array<DataRowB>];
 
 const defaultPaginationLimit = 10000;
 

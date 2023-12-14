@@ -4,17 +4,17 @@
   * these are key values form the event attributes
   * in 'tx_result.events'.'attributes' as JSON blobs
   */
-CREATE TABLE 'event.Deposit' (
+CREATE TABLE 'event.DepositLP' (
   'id' INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
 
   'Creator' TEXT NOT NULL,
   'Receiver' TEXT NOT NULL,
-  'Token0' TEXT NOT NULL,
-  'Token1' TEXT NOT NULL,
+  'TokenZero' TEXT NOT NULL,
+  'TokenOne' TEXT NOT NULL,
   'TickIndex' INTEGER NOT NULL,
   'Fee' INTEGER NOT NULL,
-  'Reserves0Deposited' TEXT NOT NULL,
-  'Reserves1Deposited' TEXT NOT NULL,
+  'ReservesZeroDeposited' TEXT NOT NULL,
+  'ReservesOneDeposited' TEXT NOT NULL,
   'SharesMinted' TEXT NOT NULL,
 
   'related.tx_result.events' INTEGER NOT NULL,
@@ -29,8 +29,8 @@ CREATE TABLE 'event.Deposit' (
 
 /* add unique index constraint */
 CREATE UNIQUE INDEX
-  'event.Deposit--tx_result.events'
+  'event.DepositLP--tx_result.events'
 ON
-  'event.Deposit' (
+  'event.DepositLP' (
     'related.tx_result.events'
   );
