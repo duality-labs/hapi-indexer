@@ -1,4 +1,4 @@
-# Duality hapi-indexer
+# Neutron / Duality Dex hapi indexer
 
 A Node.js based indexer for the Duality Cosmos chain made with the [Hapi](https://hapi.dev/) server framework
 and with data stored in [SQLite3](https://www.sqlite.org/).
@@ -6,8 +6,8 @@ and with data stored in [SQLite3](https://www.sqlite.org/).
 ## Versioning
 
 Please note that the package version of the indexer should match the release
-version of the Duality chain that the indexer is targeting in:
-https://github.com/duality-labs/duality/releases
+version of the Neutron chain that the indexer is targeting in:
+https://github.com/neutron-org/neutron/releases
 
 ## Goals
 
@@ -223,7 +223,13 @@ To get started with a local version of the chain:
    NODE_ENV=development
 
    # Connect to local chain served by a Docker container
-   # eg. https://github.com/duality-labs/dualityd-docker-services
+   # eg. by following the steps of https://docs.neutron.org/neutron/build-and-run/cosmopark
+   # - set up local repo folders by cloning from git
+   # - use Makefile https://github.com/neutron-org/neutron-integration-tests/blob/61353cf7f3e358c8e4b4d15c8c0c66be27efe11f/setup/Makefile#L16-L26
+   #   - to build: `make build-all`
+   #   - to run: `make start-cosmopark-no-rebuild`
+   #   - to stop: `make stop-cosmopark`
+   # this creates a Neutron chain that will be reachable to the indexer with env vars:
    REST_API=http://host.docker.internal:1317
    RPC_API=http://host.docker.internal:26657
    WEBSOCKET_URL=ws://host.docker.internal:26657/websocket
