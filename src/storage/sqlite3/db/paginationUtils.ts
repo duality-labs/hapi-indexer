@@ -108,7 +108,7 @@ export function getPaginationFromQuery(
         // (for consistent processing)
         before: Number(query['pagination.before']) || undefined,
         after: Number(query['pagination.after']) || undefined,
-        count_total: Boolean(query['pagination.after']) || undefined,
+        count_total: Boolean(query['pagination.count_total']) || undefined,
       });
     }
     // otherwise return no new key
