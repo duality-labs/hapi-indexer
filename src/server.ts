@@ -22,6 +22,7 @@ function safeReadFileText(filename: string) {
 }
 
 const {
+  PORT = '8000',
   RPC_API = '',
   ALLOW_ROUTES_BEFORE_SYNCED = '',
   SSL_PRIVATE_KEY_FILE = 'ssl-key.pem',
@@ -113,7 +114,7 @@ const init = async () => {
   // start server before adding in indexer routes
   // (so that the server may report the indexing status)
   const server = Hapi.server({
-    port: 8000,
+    port: PORT,
     // host: 0.0.0.0 resolves better than host: localhost in a Docker container
     host: '0.0.0.0',
     routes: {
