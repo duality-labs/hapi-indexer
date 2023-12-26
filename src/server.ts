@@ -22,8 +22,10 @@ function safeReadFileText(filename: string) {
 }
 
 const {
+  NODE_ENV = 'production',
   PORT = '8000',
   RPC_API = '',
+  CORS_ALLOWED_ORIGIN = '',
   ALLOW_ROUTES_BEFORE_SYNCED = '',
   SSL_PRIVATE_KEY_FILE = 'ssl-key.pem',
   SSL_PUBLIC_KEY_FILE = 'ssl-cert.pem',
@@ -120,9 +122,11 @@ const init = async () => {
     routes: {
       cors: {
         origin:
-          process.env.NODE_ENV !== 'development'
-            ? [process.env.CORS_ORIGIN || 'app.duality.xyz'] // production CORS settings
-            : ['*'], // development CORS settings
+          NODE_ENV !== 'development'
+            ? // production CORS settings (default disallowed)
+              [CORS_ALLOWED_ORIGIN]
+            : // development CORS settings (default allowed)
+              [CORS_ALLOWED_ORIGIN || '*'],
         headers: ['Accept', 'Content-Type'],
         additionalHeaders: ['X-Requested-With'],
       },
