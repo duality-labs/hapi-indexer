@@ -147,8 +147,8 @@ CosmosSDK:
 
 but we also add in new standard pagination parameters for timeseries timestamp limits:
 
-- `pagination.before`
-- `pagination.after`
+- `block_range.from_height`
+- `block_range.to_height`
 
 ### Serving Real-Time Data (long-polling)
 

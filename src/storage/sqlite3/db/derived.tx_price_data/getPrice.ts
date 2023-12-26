@@ -194,9 +194,10 @@ export async function getPairPriceTimeseries(
   // todo: add some sort of restrictions so that we don't fetch millions of rows
   const currentHeight = getLastBlockHeight();
   const [fromHeight = 0, toHeight = currentHeight] = await Promise.all([
-    // prioritize block_range over pagination query params
-    blockRange.from_height ?? getCompletedHeightAtTime(pagination.after),
-    blockRange.to_height ?? getCompletedHeightAtTime(pagination.before),
+    // prioritize block_range over other pagination query params
+    blockRange.from_height ??
+      getCompletedHeightAtTime(pagination.from_timestamp),
+    blockRange.to_height ?? getCompletedHeightAtTime(pagination.to_timestamp),
   ])
     // restrict heights to the maximum of the last processed block
     // (ie. don't include data from partially ingested blocks)

@@ -49,8 +49,8 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
     params['tokenB'],
     'day',
     {
-      'pagination.before': `${nowUnix}`,
-      'pagination.after': `${nowUnix - 22 * days}`,
+      'block_range.to_timestamp': `${nowUnix}`,
+      'block_range.from_timestamp': `${nowUnix - 22 * days}`,
     }
   );
 

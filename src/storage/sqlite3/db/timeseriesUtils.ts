@@ -48,8 +48,8 @@ async function getStartOfDayOffset(pagination: PaginationInput) {
   const { offset } = await db.get(
     ...prepare(sql`
     SELECT (
-      ${pagination.before} - unixepoch(
-        datetime(${pagination.before}, "unixepoch"),
+      ${pagination.to_timestamp} - unixepoch(
+        datetime(${pagination.to_timestamp}, "unixepoch"),
         "start of day"
       )
     ) as 'offset'
