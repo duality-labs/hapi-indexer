@@ -101,13 +101,10 @@ export async function getHeightedTokenPairsLiquidity(
   context: Plugins
 ): Promise<HeightedTokenPairsLiquidity | null> {
   const { tokenPairsLiquidityCache, cachedTokenPrices, cachedAssets } = context;
-  const {
-    from_height: fromHeight = 0,
-    to_height: toHeight = getLastBlockHeight(),
-  } = getBlockRange(query);
+  const blockRange = await getBlockRange(query);
 
   // get liquidity state through cache
-  const cacheID = [fromHeight, toHeight].join('|');
+  const cacheID = [blockRange.from_height, blockRange.to_height].join('|');
   const [tokenPairsLiquidity, tokenPrices] = await Promise.all([
     tokenPairsLiquidityCache.get(cacheID),
     cachedTokenPrices?.get(),
@@ -162,7 +159,7 @@ export async function getHeightedTokenPairsLiquidity(
           ],
         ];
       });
-    return [toHeight, sortedtokenPairsLiquidity];
+    return [blockRange.to_height, sortedtokenPairsLiquidity];
   } else {
     return null;
   }

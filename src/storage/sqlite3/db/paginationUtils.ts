@@ -7,17 +7,23 @@ export interface PaginatedRequestQuery extends RequestQuery {
   'pagination.offset'?: string; // integer
   'pagination.limit'?: string; // integer
   'pagination.count_total'?: string; // boolean
-  // custom
+  // include custom keys for "next key"s that include these limits
+  // they are not manipulated here except for a string -> number conversion
   'block_range.from_timestamp'?: string; // unix timestamp
   'block_range.to_timestamp'?: string; // unix timestamp
+  'block_range.from_height'?: string; // integer
+  'block_range.to_height'?: string; // integer
 }
 
 export interface PaginationInput {
   offset: number;
   limit: number;
-  from_timestamp: number; // unix timestamp
-  to_timestamp: number; // unix timestamp
   count_total: boolean;
+  // custom block range limits:
+  from_timestamp?: number; // unix timestamp
+  to_timestamp?: number; // unix timestamp
+  from_height?: number;
+  to_height?: number;
 }
 
 interface PaginationOutput {
@@ -33,13 +39,15 @@ export interface PaginatedResponse {
 export function decodePagination(
   query: PaginatedRequestQuery,
   defaultPageSize = 1000
-): Required<PaginationInput> {
+): PaginationInput {
   // collect pagination keys into a pagination object
   let unsafePagination: Partial<PaginationInput> = {
     offset: Number(query['pagination.offset']) || undefined,
     limit: Number(query['pagination.limit']) || undefined,
     from_timestamp: Number(query['block_range.from_timestamp']) || undefined,
     to_timestamp: Number(query['block_range.to_timestamp']) || undefined,
+    from_height: Number(query['block_range.from_height']) || undefined,
+    to_height: Number(query['block_range.to_height']) || undefined,
     count_total: query['pagination.count_total']
       ? query['pagination.count_total'] === 'true'
       : undefined,
@@ -57,11 +65,11 @@ export function decodePagination(
 
   // ensure some basic pagination limits are respected
   return {
+    // don't limit block range limits
+    ...unsafePagination,
+    // limit pagination limits
     offset: Math.max(0, unsafePagination.offset ?? 0),
     limit: Math.min(10000, unsafePagination.limit ?? defaultPageSize),
-    from_timestamp: unsafePagination.from_timestamp ?? 0,
-    to_timestamp:
-      unsafePagination.to_timestamp ?? Math.floor(Date.now() / 1000),
     count_total: unsafePagination.count_total ?? false,
   };
 }
@@ -100,14 +108,13 @@ export function getPaginationFromQuery(
     // add offset increase and return key
     if (offsetIncrease > 0) {
       return encodePaginationKey({
+        // pass through keys that may be undefined and weren't changed
+        ...pagination,
         // restrict offset and limit for more controlled next page behavior
         offset: pagination.offset + offsetIncrease,
         limit: pagination.limit,
         // pass height queries back in almost exactly as they came
         // (for consistent processing)
-        from_timestamp:
-          Number(query['block_range.from_timestamp']) || undefined,
-        to_timestamp: Number(query['block_range.to_timestamp']) || undefined,
         count_total: Boolean(query['pagination.count_total']) || undefined,
       });
     }

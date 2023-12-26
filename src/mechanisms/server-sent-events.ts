@@ -2,7 +2,6 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../logger';
 import { getLastBlockHeight, waitForNextBlock } from '../sync';
-import { getCompletedHeightAtTime } from '../storage/sqlite3/db/block/getHeight';
 import {
   BlockRangeRequestQuery,
   getBlockRange,
@@ -37,21 +36,14 @@ export default async function serverSentEventRequest<
     compressResponses?: boolean;
   }
 ): Promise<void> {
-  const {
-    from_height: fromHeight = 0,
-    to_height: toHeight = request.query['block_range.to_timestamp']
-      ? // note: this limit translation of "to_timestamp" -> "to_height"
-        //       will not resolve future timestamp blocks correctly (as they
-        //       do not exist yet), and will resolve the current block height
-        // todo: a better way to track "getData() time" than height would allow
-        //       a better condition check as to when to exit the response loop
-        //       and allow a 'to_timestamp' future time to be used and behave
-        //       as expected and end when the time has passed (in block data)
-        await getCompletedHeightAtTime(
-          request.query['block_range.to_timestamp']
-        )
-      : Number.POSITIVE_INFINITY,
-  } = getBlockRange(request.query);
+  // get request block range limits
+  const { from_height: fromHeight, to_height: toHeight } = await getBlockRange(
+    request.query,
+    {
+      // allow initial query to be over an unbound range to get future data
+      maximumQueryBlockHeight: Number.POSITIVE_INFINITY,
+    }
+  );
 
   const { req, res } = request.raw;
   // establish SSE content through headers

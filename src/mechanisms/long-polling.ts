@@ -38,17 +38,20 @@ export default async function longPollRequest<
   }
 ): Promise<ResponseObject> {
   try {
-    const blockRange = getBlockRange(request.query);
-    const { from_height: fromHeight = 0, to_height: toHeight } = blockRange;
+    const lastBlockHeight = getLastBlockHeight();
+    const blockRange = await getBlockRange(request.query);
 
-    // get the liquidity data (but if we *will* wait for new data then skip)
-    let data =
-      fromHeight !== getLastBlockHeight()
-        ? await getData(request.params, request.query, h.context)
-        : null;
-
-    // await new data if the data does not meet the known height requirement
-    if (fromHeight && !toHeight) {
+    // get the data now or at next block height that contains data
+    let data: [height: number, ...DataSets] | null = null;
+    // get the data now or at next block height that contains data
+    if (blockRange.from_height < lastBlockHeight) {
+      data = await getData(request.params, request.query, h.context);
+    }
+    if (blockRange.from_height > lastBlockHeight) {
+      return h.response('Cannot wait for future start height').code(400);
+    }
+    // await new data if the height was specified but no data was yet found
+    else if (blockRange.from_height && !data) {
       const timeLeft = getMsLeft(timeoutMs);
       // wait until we get new non-empty data
       while (((data || []) as [][]).every((v) => !v?.length)) {
@@ -62,6 +65,8 @@ export default async function longPollRequest<
         // get current data
         data = await getData(request.params, request.query, h.context);
       }
+    } else {
+      return h.response('Cannot wait for future start height').code(400);
     }
 
     // return errors if needed
@@ -77,7 +82,7 @@ export default async function longPollRequest<
       data: partialResponse?.data,
       pagination: partialResponse?.pagination,
       block_range: partialResponse?.block_range ?? {
-        from_height: getBlockRange(request.query).from_height || 0,
+        from_height: blockRange.from_height,
         to_height: height,
       },
     };

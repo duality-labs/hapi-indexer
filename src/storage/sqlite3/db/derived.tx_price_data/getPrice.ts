@@ -15,7 +15,6 @@ import {
 } from '../timeseriesUtils';
 import { selectSortedPairID } from '../dex.pairs/selectPairID';
 import { getLastBlockHeight } from '../../../../sync';
-import { getCompletedHeightAtTime } from '../block/getHeight';
 import { getBlockRange } from '../blockRangeUtils';
 import {
   selectTimeUnixAfterBlockHeight,
@@ -188,22 +187,10 @@ export async function getPairPriceTimeseries(
 
   // collect pagination keys into a pagination object
   const [pagination] = getPaginationFromQuery(query);
-  const offsetSeconds = await getOffsetSeconds(pagination, periodOffsetType);
-
-  const blockRange = getBlockRange(query);
-  // todo: add some sort of restrictions so that we don't fetch millions of rows
-  const currentHeight = getLastBlockHeight();
-  const [fromHeight = 0, toHeight = currentHeight] = await Promise.all([
-    // prioritize block_range over other pagination query params
-    blockRange.from_height ??
-      getCompletedHeightAtTime(pagination.from_timestamp),
-    blockRange.to_height ?? getCompletedHeightAtTime(pagination.to_timestamp),
-  ])
-    // restrict heights to the maximum of the last processed block
-    // (ie. don't include data from partially ingested blocks)
-    .then((heights) =>
-      heights.map((height) => Math.min(height, currentHeight))
-    );
+  const [blockRange, offsetSeconds] = await Promise.all([
+    getBlockRange(query),
+    getOffsetSeconds(pagination, periodOffsetType),
+  ]);
 
   // get prices through cache
   const cacheKey = [
@@ -212,11 +199,11 @@ export async function getPairPriceTimeseries(
     tokenIn,
     partitionTimeFormat,
     offsetSeconds,
-    fromHeight,
-    toHeight,
+    blockRange.from_height,
+    blockRange.to_height,
   ].join('|');
   const data = await pairPriceCache.get(cacheKey);
-  return data ? [toHeight, data] : null;
+  return data ? [blockRange.to_height, data] : null;
 }
 
 export async function getUnsortedPairPriceTimeseries(
