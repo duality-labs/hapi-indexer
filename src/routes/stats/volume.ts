@@ -16,7 +16,7 @@ import { getLastBlockHeight } from '../../sync';
 const routes = [
   {
     method: 'GET',
-    path: '/stats/volume/{tokenA}/{tokenB}/{resolution?}',
+    path: '/stats/volume/{tokenA}/{tokenB}',
     handler: async (request: Request, h: ResponseToolkit) => {
       const shape = [
         [
