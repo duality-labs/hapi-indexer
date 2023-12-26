@@ -18,11 +18,11 @@ ON
 
 /* add values */
 INSERT INTO 'tx_msg_type' ('id', 'action')
-  VALUES (1,'duality.dex.MsgDeposit');
+  VALUES (1,'neutron.dex.MsgDeposit');
 INSERT INTO 'tx_msg_type' ('id', 'action')
-  VALUES (2,'duality.dex.MsgWithdrawal');
+  VALUES (2,'neutron.dex.MsgWithdrawal');
 INSERT INTO 'tx_msg_type' ('id', 'action')
-  VALUES (3,'duality.dex.MsgPlaceLimitOrder');
+  VALUES (3,'neutron.dex.MsgPlaceLimitOrder');
 
 
 /*
