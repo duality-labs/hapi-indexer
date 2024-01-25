@@ -183,9 +183,10 @@ send updates to that data for as long as the user keeps the connection open.
 
 ## Future Improvements
 
-The indexer is a work in progress, and still many things are planned
+The indexer is a work in progress, and many things may still be improved:
 
-- the current ingestion times for some Duality Dex transactions are quite high
+- Use websockets to listen for block updates from the chain, instead of polling frequently to check if new transactions are available to process
+- The current ingestion times for some Duality Dex transactions are quite high
   and we should attempt to make them quicker to allow greater practical
   transaction throughput of the chain.
   - the [timer log outputs](https://github.com/duality-labs/hapi-indexer/pull/33) when running the server suggests that the main issue in the processing times are the "get tick state" steps of processing data for both the `derived.tx_price_data` and `derived.tx_volume_data` tables.
