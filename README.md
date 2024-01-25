@@ -259,18 +259,12 @@ By using the VSCode devcontainer you will automatically be able to see syntax hi
 
 ### Local tools
 
-1.  have git installed
-1.  Ensure you have the correct Node.js version installed (refer to the Dockerfile node dependency)
-1.  ensure you have a `.env.local` file with local environment settings you want to use
-1.  use `npm ci` to install dependencies and git hooks
-1.  use `npm run build` to build the distribution files
-1.  use `npm start` to run the chain
-    - environment variables should be made availble to this command
-      - eg. using `NODE_ENV=development npm start`
-      - see `.env` for example environment variables
-    - if there are issues with the SQL driver file please refer to
-      [the sqlite3 docs](https://github.com/TryGhost/node-sqlite3#source-install).
-      The SQL driver binary must match the system it is running on.
+To setup a dev environment without Docker, the setup can be completed as a [production without Docker](#without-docker) setup.
+
+To restart the server after making code changes:
+
+- run `npm run dev` instead of `npm start`
+- or just kill the server (ctrl+c) and start it again with `npm run build && npm run start`
 
 ### Difference between start scripts
 
