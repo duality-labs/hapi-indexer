@@ -110,7 +110,7 @@ export async function getHeightedTokenPairsLiquidity(
   const cacheID = [fromHeight, toHeight].join('|');
   const [tokenPairsLiquidity, tokenPrices] = await Promise.all([
     tokenPairsLiquidityCache.get(cacheID),
-    cachedTokenPrices?.get(),
+    cachedTokenPrices.get(),
   ]);
   // return the response data
   if (tokenPairsLiquidity !== null) {
@@ -143,7 +143,9 @@ export async function getHeightedTokenPairsLiquidity(
         )
     );
     const sortedtokenPairsLiquidity = valuedTokenPairsLiquidity
-      // sort by value data
+      // sort by token amount (by default)
+      .sort((a, b) => b.reserves0 + b.reserves1 - (a.reserves0 + a.reserves1))
+      // sort by value data (if available)
       // note: sorting doesn't need to be exact (eg. exact price this second)
       //       its more of a guide for clients to follow
       //       the client can then fetch more accurate price information to sort
@@ -157,6 +159,8 @@ export async function getHeightedTokenPairsLiquidity(
           [
             row.token0,
             row.token1,
+            // return approximate liquidity, too much precision here can be
+            // unhelpful to a UI, so avoid tiny updates that may not matter
             Number(new BigNumber(row.reserves0).toPrecision(4)),
             Number(new BigNumber(row.reserves1).toPrecision(4)),
           ],
