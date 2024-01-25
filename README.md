@@ -1,6 +1,6 @@
 # Neutron / Duality Dex hapi indexer
 
-A Node.js based indexer for the Duality Cosmos chain made with the [Hapi](https://hapi.dev/) server framework
+A Node.js based indexer for Duality Dex data on the [Neutron chain](https://github.com/neutron-org/neutron) made with the [Hapi](https://hapi.dev/) server framework
 and with data stored in [SQLite3](https://www.sqlite.org/).
 
 ## Versioning
@@ -8,6 +8,12 @@ and with data stored in [SQLite3](https://www.sqlite.org/).
 Please note that the package version of the indexer should match the release
 version of the Neutron chain that the indexer is targeting in:
 https://github.com/neutron-org/neutron/releases
+
+## Quick Start
+
+Clone/download this codebase and open it using VSCode with the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension installed. The indexer will start serving on https://localhost:8000 after the container is built.
+
+Or see the [#get-started](#get-started) section for more options
 
 ## Goals
 
@@ -167,7 +173,7 @@ the response with new requests from the responded height recursively
 (i.e. querying `block_range.from_height={currentKnownHeight}` with each returned
 response body's `block_range.to_height`), we get long-polling real-time data.
 
-### Future: Serving Real-Time Data (HTTP/2 SSE)
+### Serving Real-Time Data (HTTP/2 SSE)
 
 Server-Sent Events (SSE) are a good choice for sending real-time data of a
 constantly updating state of a resource: the user sends one request for one resource
@@ -175,29 +181,23 @@ and the server may respond with the whole resource at that point in time (or its
 `block_range.from_height` update if requested) and after the initial data it may
 send updates to that data for as long as the user keeps the connection open.
 
-This feature has not yet been created but should work well after validating
-that the request and response is able to use HTTP/2 SSE (is a HTTP/2 request).
-In a way it should work like the long-polling mechanism, except sending out an
-event when new data is found and not ending the response immediately after that.
+## Optional Price Data
+
+The approximate total value locked (TVL) in USD for each liquidity pair is used to sort the order of the liquidity pairs of the `/liquidity/pairs` endpoint. This is acheived through queries to CoinGecko using API keys passed in [ENV vars](#environment-variables).
+
+This sorting feature is useful for the API to provide, but is not strictly required: a UI using the endpoint data can calculate USD values independently and re-sort an unsorted list of liquidity pairs.
+
+This feature was added in PR: https://github.com/duality-labs/hapi-indexer/pull/40.
 
 ## Future Improvements
 
-The indexer is a work in progress, and still many things are planned
+The indexer is a work in progress, and many things may still be improved:
 
-- caching of data on all or almost all routes
-  - the abstraction of this as an easy to use utility may be helpful
-- expanding saved data in `derived` data tables to include any block height
-  (not just last block height) would allow true `block_range` queries between
-  any known heights. Currently, specific `block_range.to_height` queries may fail.
-  see the following issue for more context:
-  - https://github.com/duality-labs/hapi-indexer/issues/22
-- the current ingestion times for some Duality Dex transactions are quite high
+- Use websockets to listen for block updates from the chain, instead of polling frequently to check if new transactions are available to process
+- The current ingestion times for some Duality Dex transactions are quite high
   and we should attempt to make them quicker to allow greater practical
   transaction throughput of the chain.
-  - should add more detail into the breakdown of which parts of the ingestion
-    process require the most time. I believe it is currently probably inserting
-    `derived` data table rows which can sometimes require large queries to gather
-    the current state before computing the required row to insert.
+  - the [timer log outputs](https://github.com/duality-labs/hapi-indexer/pull/33) when running the server suggests that the main issue in the processing times are the "get tick state" steps of processing data for both the `derived.tx_price_data` and `derived.tx_volume_data` tables.
 
 # Requirements
 
@@ -206,72 +206,117 @@ The indexer is a work in progress, and still many things are planned
   - VSCode: https://code.visualstudio.com/
   - Docker + Docker compose: https://www.docker.com/products/docker-desktop/
 - otherwise:
-  - correct Node.js version: https://nodejs.org
+  - correct Node.js version: https://nodejs.org (or through [NVM](https://github.com/nvm-sh/nvm)))
   - [optional] Docker + Docker compose
 
 # Get started
 
-To get started with a local version of the chain:
+## Environment variables
 
-1. make sure you have a local environment settings file defined.
-   The following Docker steps will not work without one.
+You can customize your environment settings in a `.env.local` file defined.
+This file will be needed for Docker environments but may be empty and automatically created. If not using Docker, the ENV vars should just be made available to the execution environment through any other usual means.
 
-   ```ini
-   # .env.local
+For more details about available ENV vars see the current .env file in https://github.com/duality-labs/hapi-indexer/blob/main/.env.
+An example of local development ENV vars is given here:
 
-   # Add dev endpoints
-   NODE_ENV=development
+```ini
+# .env.local
 
-   # Connect to local chain served by a Docker container
-   # eg. by following the steps of https://docs.neutron.org/neutron/build-and-run/cosmopark
-   # - set up local repo folders by cloning from git
-   # - use Makefile https://github.com/neutron-org/neutron-integration-tests/blob/61353cf7f3e358c8e4b4d15c8c0c66be27efe11f/setup/Makefile#L16-L26
-   #   - to build: `make build-all`
-   #   - to run: `make start-cosmopark-no-rebuild`
-   #   - to stop: `make stop-cosmopark`
-   # this creates a Neutron chain that will be reachable to the indexer with env vars:
-   REST_API=http://host.docker.internal:1317
-   RPC_API=http://host.docker.internal:26657
-   WEBSOCKET_URL=ws://host.docker.internal:26657/websocket
-   ```
+# Add dev endpoints
+NODE_ENV=development
 
-2. Pick an development style option:
+# Connect to local chain served by a Docker container
+# eg. by following the steps of https://docs.neutron.org/neutron/build-and-run/cosmopark
+# - set up local repo folders by cloning from git
+# - use Makefile https://github.com/neutron-org/neutron-integration-tests/blob/61353cf7f3e358c8e4b4d15c8c0c66be27efe11f/setup/Makefile#L16-L26
+#   - to build: `make build-all`
+#   - to run: `make start-cosmopark-no-rebuild`
+#   - to stop: `make stop-cosmopark`
+# this creates a Neutron chain that will be reachable to the indexer with env vars:
+REST_API=http://host.docker.internal:1317
+RPC_API=http://host.docker.internal:26657
+WEBSOCKET_URL=ws://host.docker.internal:26657/websocket
+```
 
-   ### VSCode + Dev Containers
+## Development options:
 
-   1. Open this code in VSCode with the
-      [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-      extension installed, and select to "Reopen in container" when prompted
-   2. The indexer should compile and start running immediately
-      - this process can be exited and another one started
-      - run `npm run dev` in the VSCode terminal to start the indexer
-   3. [optional] if you intend to git outside of VSCode
-      - use `npm ci` (with Node.js v16+) locally to install git hooks if not available
+### VSCode + Dev Containers (recommended)
 
-   ***
+By using the VSCode devcontainer you will automatically be able to see syntax highlighting for SQL in .sql and .ts files, provided by the defined VSCode extensions in the devcontainer settings file.
 
-   ### Docker Compose
+1.  Add any [ENV vars](#environment-variables) that you want into a .env.local file
+1.  Open this code in VSCode with the
+    [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+    extension installed, and select to "Reopen in container" when prompted
+1.  The indexer should compile and start running immediately in a VSCode terminal
+    - this process can be exited using `ctrl+c`
+    - run `npm run dev` in the VSCode terminal to restart the indexer
+1.  [optional] if you intend to commit to git in a process outside of VSCode:
+    - use `npm ci` (with Node.js v18+) locally to install git hooks first
 
-   1. have Node.js (v16+) installed locally
-   2. use `npm ci` to install git hooks locally
-   3. use `npm run docker` to run the code in a Docker Compose container
+---
 
-   ***
+### Docker Compose
 
-   ### Local tools
+1.  have git installed
+2.  have Node.js (v16/18+) installed (recommended: use [NVM](https://github.com/nvm-sh/nvm))
+3.  use `npm ci` to install git hooks (and other dependencies)
+4.  Add any [ENV vars](#environment-variables) that you want into a .env.local file
+5.  use `npm run docker` to run the server in a Docker Compose container
 
-   1. Ensure you have the correct Node.js version installed (refer to the Dockerfile node dependency)
-   2. use `npm ci` to install dependencies and git hooks
-   3. use `npm start` to run the chain
-      - environment variables should be made availble to this command
-        - eg. using `NODE_ENV=development npm start`
-        - see `.env` for example environment variables
-      - if there are issues with the SQL driver file please refer to
-        [the sqlite3 docs](https://github.com/TryGhost/node-sqlite3#source-install).
-        The SQL driver binary must match the system it is running on.
+---
 
-## Difference between start scripts
+### Local tools
+
+To setup a dev environment without Docker, the setup can be completed as a [production without Docker](#without-docker) setup.
+
+To restart the server after making code changes:
+
+- run `npm run dev` instead of `npm start`
+- or just kill the server (ctrl+c) and start it again with `npm run build && npm run start`
+
+### Difference between start scripts
 
 - `npm start` will start the indexer
-- `npm run dev` will start the indexer and also listen for code changes
-  and restart the indexer on any detected changes to the JavaScript bundle
+- `npm run dev` will start the indexer and also listen for and rebuild code changes
+  and restart the indexer on any detected changes to the JavaScript bundle,
+  additionally the dev server will delete the DB file before each restart
+  so that it can start with a clean state
+
+## Running in production / CI
+
+### In Docker
+
+If using Docker images in production or CI, the [included Dockerfile](https://github.com/duality-labs/hapi-indexer/blob/main/Dockerfile) already provides steps to build an image with minimal dependencies
+
+- `docker build -t hapi-indexer .`
+- `docker run hapi-indexer`
+  - any [ENV vars](#environment-variables) that you want should be made available to the container here
+    (eg. through `--env` or `--env-file` options)
+
+### Without Docker
+
+To build the indexer for production the following steps may help:
+
+1. Ensure requirements are met:
+   - Node.js v18+ is required (check package.json for exact version)
+   - git should not be required
+2. Install dependencies with:
+   - `npm run ci`
+3. Build the distribution files with:
+   - `npm run build`
+4. Start the server with:
+   - `npm start` (or `node dist/server.js`)
+   - any needed [ENV vars](#environment-variables) should be made available in the execution environment for this step
+
+#### Slimmer production build
+
+Optionally for a slimmer production image most of the dependencies can be removed. In the example Dockerfile in https://github.com/duality-labs/hapi-indexer/blob/api-v2.0.0/Dockerfile:
+
+- copy the built distribution files in the distribution directory (./dist/)
+- copy any relevant SSL .pem files to serve HTTPS responses
+- install the only required dependency sqlite3 (its a bit complicated to bundle)
+  - `npm i --no-save sqlite3`
+- run server with:
+  - `node dist/server.js`
+  - any needed [ENV vars](#environment-variables) should be made available in the execution environment for this step
