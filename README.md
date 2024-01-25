@@ -173,7 +173,7 @@ the response with new requests from the responded height recursively
 (i.e. querying `block_range.from_height={currentKnownHeight}` with each returned
 response body's `block_range.to_height`), we get long-polling real-time data.
 
-### Future: Serving Real-Time Data (HTTP/2 SSE)
+### Serving Real-Time Data (HTTP/2 SSE)
 
 Server-Sent Events (SSE) are a good choice for sending real-time data of a
 constantly updating state of a resource: the user sends one request for one resource
@@ -181,29 +181,14 @@ and the server may respond with the whole resource at that point in time (or its
 `block_range.from_height` update if requested) and after the initial data it may
 send updates to that data for as long as the user keeps the connection open.
 
-This feature has not yet been created but should work well after validating
-that the request and response is able to use HTTP/2 SSE (is a HTTP/2 request).
-In a way it should work like the long-polling mechanism, except sending out an
-event when new data is found and not ending the response immediately after that.
-
 ## Future Improvements
 
 The indexer is a work in progress, and still many things are planned
 
-- caching of data on all or almost all routes
-  - the abstraction of this as an easy to use utility may be helpful
-- expanding saved data in `derived` data tables to include any block height
-  (not just last block height) would allow true `block_range` queries between
-  any known heights. Currently, specific `block_range.to_height` queries may fail.
-  see the following issue for more context:
-  - https://github.com/duality-labs/hapi-indexer/issues/22
 - the current ingestion times for some Duality Dex transactions are quite high
   and we should attempt to make them quicker to allow greater practical
   transaction throughput of the chain.
-  - should add more detail into the breakdown of which parts of the ingestion
-    process require the most time. I believe it is currently probably inserting
-    `derived` data table rows which can sometimes require large queries to gather
-    the current state before computing the required row to insert.
+  - the [timer log outputs](https://github.com/duality-labs/hapi-indexer/pull/33) when running the server suggests that the main issue in the processing times are the "get tick state" steps of processing data for both the `derived.tx_price_data` and `derived.tx_volume_data` tables.
 
 # Requirements
 
