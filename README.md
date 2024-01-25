@@ -263,6 +263,7 @@ By using the VSCode devcontainer you will automatically be able to see syntax hi
 1.  Ensure you have the correct Node.js version installed (refer to the Dockerfile node dependency)
 1.  ensure you have a `.env.local` file with local environment settings you want to use
 1.  use `npm ci` to install dependencies and git hooks
+1.  use `npm run build` to build the distribution files
 1.  use `npm start` to run the chain
     - environment variables should be made availble to this command
       - eg. using `NODE_ENV=development npm start`
@@ -271,10 +272,10 @@ By using the VSCode devcontainer you will automatically be able to see syntax hi
       [the sqlite3 docs](https://github.com/TryGhost/node-sqlite3#source-install).
       The SQL driver binary must match the system it is running on.
 
-## Difference between start scripts
+### Difference between start scripts
 
 - `npm start` will start the indexer
-- `npm run dev` will start the indexer and also listen for code changes
+- `npm run dev` will start the indexer and also listen for and rebuild code changes
   and restart the indexer on any detected changes to the JavaScript bundle,
   additionally the dev server will delete the DB file before each restart
   so that it can start with a clean state
