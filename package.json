@@ -4,7 +4,7 @@
   "description": "A Node.js based indexer for the Neutron Duality Dex module",
   "main": "dist/server.js",
   "scripts": {
-    "prepare": "husky install",
+    "prepare": "[ -d '.git' ] && husky install || echo 'skipping husky'",
     "docker": "docker compose up --build --abort-on-container-exit || true && docker compose down",
     "build": "tsc",
     "esbuild": "esbuild src/server.ts --bundle --external:sqlite3 --platform=node --loader:.sql=text --outdir=dist",
