@@ -206,72 +206,81 @@ The indexer is a work in progress, and still many things are planned
   - VSCode: https://code.visualstudio.com/
   - Docker + Docker compose: https://www.docker.com/products/docker-desktop/
 - otherwise:
-  - correct Node.js version: https://nodejs.org
+  - correct Node.js version: https://nodejs.org (or through [NVM](https://github.com/nvm-sh/nvm)))
   - [optional] Docker + Docker compose
 
 # Get started
 
-To get started with a local version of the chain:
+## Environment variables
 
-1. make sure you have a local environment settings file defined.
-   The following Docker steps will not work without one.
+You can customize your environment settings in a `.env.local` file defined.
+This file will be needed for Docker environments but may be empty and automatically created.
 
-   ```ini
-   # .env.local
+For more details about available env vars see the current .env file in https://github.com/duality-labs/hapi-indexer/blob/main/.env.
+An example is given here:
 
-   # Add dev endpoints
-   NODE_ENV=development
+```ini
+# .env.local
 
-   # Connect to local chain served by a Docker container
-   # eg. by following the steps of https://docs.neutron.org/neutron/build-and-run/cosmopark
-   # - set up local repo folders by cloning from git
-   # - use Makefile https://github.com/neutron-org/neutron-integration-tests/blob/61353cf7f3e358c8e4b4d15c8c0c66be27efe11f/setup/Makefile#L16-L26
-   #   - to build: `make build-all`
-   #   - to run: `make start-cosmopark-no-rebuild`
-   #   - to stop: `make stop-cosmopark`
-   # this creates a Neutron chain that will be reachable to the indexer with env vars:
-   REST_API=http://host.docker.internal:1317
-   RPC_API=http://host.docker.internal:26657
-   WEBSOCKET_URL=ws://host.docker.internal:26657/websocket
-   ```
+# Add dev endpoints
+NODE_ENV=development
 
-2. Pick an development style option:
+# Connect to local chain served by a Docker container
+# eg. by following the steps of https://docs.neutron.org/neutron/build-and-run/cosmopark
+# - set up local repo folders by cloning from git
+# - use Makefile https://github.com/neutron-org/neutron-integration-tests/blob/61353cf7f3e358c8e4b4d15c8c0c66be27efe11f/setup/Makefile#L16-L26
+#   - to build: `make build-all`
+#   - to run: `make start-cosmopark-no-rebuild`
+#   - to stop: `make stop-cosmopark`
+# this creates a Neutron chain that will be reachable to the indexer with env vars:
+REST_API=http://host.docker.internal:1317
+RPC_API=http://host.docker.internal:26657
+WEBSOCKET_URL=ws://host.docker.internal:26657/websocket
+```
 
-   ### VSCode + Dev Containers
+## Development options:
 
-   1. Open this code in VSCode with the
-      [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-      extension installed, and select to "Reopen in container" when prompted
-   2. The indexer should compile and start running immediately
-      - this process can be exited and another one started
-      - run `npm run dev` in the VSCode terminal to start the indexer
-   3. [optional] if you intend to git outside of VSCode
-      - use `npm ci` (with Node.js v16+) locally to install git hooks if not available
+### VSCode + Dev Containers
 
-   ***
+1.  Open this code in VSCode with the
+    [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+    extension installed, and select to "Reopen in container" when prompted
+2.  The indexer should compile and start running immediately in a VSCode terminal
+    - this process can be exited using `ctrl+c`
+    - run `npm run dev` in the VSCode terminal to restart the indexer
+3.  [optional] if you intend to commit to git in a process outside of VSCode:
+    - use `npm ci` (with Node.js v18+) locally to install git hooks first
 
-   ### Docker Compose
+---
 
-   1. have Node.js (v16+) installed locally
-   2. use `npm ci` to install git hooks locally
-   3. use `npm run docker` to run the code in a Docker Compose container
+### Docker Compose
 
-   ***
+1.  have git installed
+2.  have Node.js (v16/18+) installed (recommended: use [NVM](https://github.com/nvm-sh/nvm))
+3.  use `npm ci` to install git hooks (and other dependencies)
+4.  ensure you have a `.env.local` file with local environment settings you want to use
+5.  use `npm run docker` to run the code in a Docker Compose container
 
-   ### Local tools
+---
 
-   1. Ensure you have the correct Node.js version installed (refer to the Dockerfile node dependency)
-   2. use `npm ci` to install dependencies and git hooks
-   3. use `npm start` to run the chain
-      - environment variables should be made availble to this command
-        - eg. using `NODE_ENV=development npm start`
-        - see `.env` for example environment variables
-      - if there are issues with the SQL driver file please refer to
-        [the sqlite3 docs](https://github.com/TryGhost/node-sqlite3#source-install).
-        The SQL driver binary must match the system it is running on.
+### Local tools
+
+1.  have git installed
+1.  Ensure you have the correct Node.js version installed (refer to the Dockerfile node dependency)
+1.  ensure you have a `.env.local` file with local environment settings you want to use
+1.  use `npm ci` to install dependencies and git hooks
+1.  use `npm start` to run the chain
+    - environment variables should be made availble to this command
+      - eg. using `NODE_ENV=development npm start`
+      - see `.env` for example environment variables
+    - if there are issues with the SQL driver file please refer to
+      [the sqlite3 docs](https://github.com/TryGhost/node-sqlite3#source-install).
+      The SQL driver binary must match the system it is running on.
 
 ## Difference between start scripts
 
 - `npm start` will start the indexer
 - `npm run dev` will start the indexer and also listen for code changes
-  and restart the indexer on any detected changes to the JavaScript bundle
+  and restart the indexer on any detected changes to the JavaScript bundle,
+  additionally the dev server will delete the DB file before each restart
+  so that it can start with a clean state

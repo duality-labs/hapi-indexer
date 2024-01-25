@@ -13,6 +13,10 @@
     "dev": "npm run esbuild && concurrently npm:dev:*",
     "start": "npm run esbuild && node dist/server.js"
   },
+  "engines": {
+    "node": "^18.19.0",
+    "npm": "^10.2.3"
+  },
   "dependencies": {
     "@chain-registry/client": "^1.15.0",
     "@hapi/accept": "^6.0.3",
