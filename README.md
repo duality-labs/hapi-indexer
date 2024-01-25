@@ -232,7 +232,9 @@ WEBSOCKET_URL=ws://host.docker.internal:26657/websocket
 
 ## Development options:
 
-### VSCode + Dev Containers
+### VSCode + Dev Containers (recommended)
+
+By using the VSCode devcontainer you will automatically be able to see syntax highlighting for SQL in .sql and .ts files, provided by the defined VSCode extensions in the devcontainer settings file.
 
 1.  Open this code in VSCode with the
     [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
