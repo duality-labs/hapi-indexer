@@ -1,6 +1,6 @@
 # Neutron / Duality Dex hapi indexer
 
-A Node.js based indexer for the Duality Cosmos chain made with the [Hapi](https://hapi.dev/) server framework
+A Node.js based indexer for Duality Dex data on the [Neutron chain](https://github.com/neutron-org/neutron) made with the [Hapi](https://hapi.dev/) server framework
 and with data stored in [SQLite3](https://www.sqlite.org/).
 
 ## Versioning
