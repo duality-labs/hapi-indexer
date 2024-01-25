@@ -181,6 +181,14 @@ and the server may respond with the whole resource at that point in time (or its
 `block_range.from_height` update if requested) and after the initial data it may
 send updates to that data for as long as the user keeps the connection open.
 
+## Optional Price Data
+
+The approximate total value locked (TVL) in USD for each liquidity pair is used to sort the order of the liquidity pairs of the `/liquidity/pairs` endpoint. This is acheived through queries to CoinGecko using API keys passed in [ENV vars](#environment-variables).
+
+This sorting feature is useful for the API to provide, but is not strictly required: a UI using the endpoint data can calculate USD values independently and re-sort an unsorted list of liquidity pairs.
+
+This feature was added in PR: https://github.com/duality-labs/hapi-indexer/pull/40.
+
 ## Future Improvements
 
 The indexer is a work in progress, and many things may still be improved:
