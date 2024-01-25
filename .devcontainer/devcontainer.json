@@ -11,6 +11,8 @@
     "--security-opt",
     "seccomp=unconfined"
   ],
+  // ensure .env.local exists for dev container runArgs
+  "initializeCommand": "touch .env.local",
 
   // Configure tool-specific properties.
   "customizations": {
