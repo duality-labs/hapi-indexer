@@ -9,6 +9,12 @@ Please note that the package version of the indexer should match the release
 version of the Neutron chain that the indexer is targeting in:
 https://github.com/neutron-org/neutron/releases
 
+## Quick Start
+
+Clone/download this codebase and open it using VSCode with the [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension installed. The indexer will start serving on https://localhost:8000 after the container is built.
+
+Or see the [#get-started](#get-started) section for more options
+
 ## Goals
 
 The Goals of the indexer are to:
