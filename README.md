@@ -206,10 +206,10 @@ The indexer is a work in progress, and many things may still be improved:
 ## Environment variables
 
 You can customize your environment settings in a `.env.local` file defined.
-This file will be needed for Docker environments but may be empty and automatically created.
+This file will be needed for Docker environments but may be empty and automatically created. If not using Docker, the ENV vars should just be made available to the execution environment through any other usual means.
 
-For more details about available env vars see the current .env file in https://github.com/duality-labs/hapi-indexer/blob/main/.env.
-An example is given here:
+For more details about available ENV vars see the current .env file in https://github.com/duality-labs/hapi-indexer/blob/main/.env.
+An example of local development ENV vars is given here:
 
 ```ini
 # .env.local
@@ -236,13 +236,14 @@ WEBSOCKET_URL=ws://host.docker.internal:26657/websocket
 
 By using the VSCode devcontainer you will automatically be able to see syntax highlighting for SQL in .sql and .ts files, provided by the defined VSCode extensions in the devcontainer settings file.
 
+1.  Add any [ENV vars](#environment-variables) that you want into a .env.local file
 1.  Open this code in VSCode with the
     [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
     extension installed, and select to "Reopen in container" when prompted
-2.  The indexer should compile and start running immediately in a VSCode terminal
+1.  The indexer should compile and start running immediately in a VSCode terminal
     - this process can be exited using `ctrl+c`
     - run `npm run dev` in the VSCode terminal to restart the indexer
-3.  [optional] if you intend to commit to git in a process outside of VSCode:
+1.  [optional] if you intend to commit to git in a process outside of VSCode:
     - use `npm ci` (with Node.js v18+) locally to install git hooks first
 
 ---
@@ -252,8 +253,8 @@ By using the VSCode devcontainer you will automatically be able to see syntax hi
 1.  have git installed
 2.  have Node.js (v16/18+) installed (recommended: use [NVM](https://github.com/nvm-sh/nvm))
 3.  use `npm ci` to install git hooks (and other dependencies)
-4.  ensure you have a `.env.local` file with local environment settings you want to use
-5.  use `npm run docker` to run the code in a Docker Compose container
+4.  Add any [ENV vars](#environment-variables) that you want into a .env.local file
+5.  use `npm run docker` to run the server in a Docker Compose container
 
 ---
 
@@ -282,9 +283,8 @@ If using Docker images in production or CI, the [included Dockerfile](https://gi
 
 - `docker build -t hapi-indexer .`
 - `docker run hapi-indexer`
-  - don't forget to pass ENV vars to the container (through `--env` or otherwise)
-  - if passing ENV vars through an .env file you can use:
-    `docker run --env-file .env`
+  - any [ENV vars](#environment-variables) that you want should be made available to the container here
+    (eg. through `--env` or `--env-file` options)
 
 ### Without Docker
 
@@ -299,6 +299,7 @@ To build the indexer for production the following steps may help:
    - `npm run build`
 4. Start the server with:
    - `npm start` (or `node dist/server.js`)
+   - any needed [ENV vars](#environment-variables) should be made available in the execution environment for this step
 
 #### Slimmer production build
 
@@ -310,4 +311,4 @@ Optionally for a slimmer production image most of the dependencies can be remove
   - `npm i --no-save sqlite3`
 - run server with:
   - `node dist/server.js`
-  - remember to have any ENV vars already available in the execution environment, `dist/server.js` won't read and parse `.env` or `.env.local` into ENV vars in this step.
+  - any needed [ENV vars](#environment-variables) should be made available in the execution environment for this step
