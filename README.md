@@ -279,3 +279,41 @@ By using the VSCode devcontainer you will automatically be able to see syntax hi
   and restart the indexer on any detected changes to the JavaScript bundle,
   additionally the dev server will delete the DB file before each restart
   so that it can start with a clean state
+
+## Running in production / CI
+
+### In Docker
+
+If using Docker images in production or CI, the [included Dockerfile](https://github.com/duality-labs/hapi-indexer/blob/main/Dockerfile) already provides steps to build an image with minimal dependencies
+
+- `docker build -t hapi-indexer .`
+- `docker run hapi-indexer`
+  - don't forget to pass ENV vars to the container (through `--env` or otherwise)
+  - if passing ENV vars through an .env file you can use:
+    `docker run --env-file .env`
+
+### Without Docker
+
+To build the indexer for production the following steps may help:
+
+1. Ensure requirements are met:
+   - Node.js v18+ is required (check package.json for exact version)
+   - git should not be required
+2. Install dependencies with:
+   - `npm run ci`
+3. Build the distribution files with:
+   - `npm run build`
+4. Start the server with:
+   - `npm start` (or `node dist/server.js`)
+
+#### Slimmer production build
+
+Optionally for a slimmer production image most of the dependencies can be removed. In the example Dockerfile in https://github.com/duality-labs/hapi-indexer/blob/api-v2.0.0/Dockerfile:
+
+- copy the built distribution files in the distribution directory (./dist/)
+- copy any relevant SSL .pem files to serve HTTPS responses
+- install the only required dependency sqlite3 (its a bit complicated to bundle)
+  - `npm i --no-save sqlite3`
+- run server with:
+  - `node dist/server.js`
+  - remember to have any ENV vars already available in the execution environment, `dist/server.js` won't read and parse `.env` or `.env.local` into ENV vars in this step.
