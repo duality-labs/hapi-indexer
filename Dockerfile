@@ -37,7 +37,7 @@ COPY . .
 EXPOSE 8000
 
 # build bundled code
-RUN npm run esbuild
+RUN npm run build
 
 # start process in build-env if desired
 CMD npm start

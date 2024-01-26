@@ -1,17 +1,20 @@
 {
   "name": "duality-hapi-indexer",
-  "version": "0.5.0",
-  "description": "A Node.js based indexer for the Duality Cosmos chain",
+  "version": "2.0.0",
+  "description": "A Node.js based indexer for the Neutron Duality Dex module",
   "main": "dist/server.js",
   "scripts": {
-    "prepare": "husky install",
+    "prepare": "[ -d '.git' ] && husky install || echo 'skipping husky'",
     "docker": "docker compose up --build --abort-on-container-exit || true && docker compose down",
-    "build": "tsc",
-    "esbuild": "esbuild src/server.ts --bundle --external:sqlite3 --platform=node --loader:.sql=text --outdir=dist",
-    "dev:build": "npm run esbuild -- --watch",
-    "dev:start": "nodemon dist/server.js",
-    "dev": "concurrently npm:dev:*",
-    "start": "npm run esbuild && node dist/server.js"
+    "build": "esbuild src/server.ts --bundle --external:sqlite3 --platform=node --loader:.sql=text --outdir=dist",
+    "dev:build": "npm run build -- --watch",
+    "dev:start": "nodemon dist/server.js --exec 'rm -f $DB_FILENAME && node'",
+    "dev": "npm run build && concurrently npm:dev:*",
+    "start": "node dist/server.js"
+  },
+  "engines": {
+    "node": "^18.19.0",
+    "npm": "^10.2.3"
   },
   "dependencies": {
     "@chain-registry/client": "^1.15.0",

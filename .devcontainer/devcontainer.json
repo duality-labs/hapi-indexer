@@ -11,6 +11,8 @@
     "--security-opt",
     "seccomp=unconfined"
   ],
+  // ensure .env.local exists for dev container runArgs
+  "initializeCommand": "touch .env.local",
 
   // Configure tool-specific properties.
   "customizations": {
@@ -51,6 +53,7 @@
     // "rust": "1.61.0"
   },
 
-  "postCreateCommand": "sh ./scripts/create-certs.sh && npm ci",
+  // if NODE_ENV is "production", we still install dev dependencies to run the dev server
+  "postCreateCommand": "sh ./scripts/create-certs.sh && npm i --include dev",
   "postStartCommand": "npm run dev"
 }
