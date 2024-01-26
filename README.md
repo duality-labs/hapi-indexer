@@ -15,6 +15,10 @@ Clone/download this codebase and open it using VSCode with the [Dev Containers](
 
 Or see the [#get-started](#get-started) section for more options
 
+## API Spec
+
+The details of the API can be found at [API.md](https://github.com/duality-labs/hapi-indexer/blob/main/API.md).
+
 ## Goals
 
 The Goals of the indexer are to:
