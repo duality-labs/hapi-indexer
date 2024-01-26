@@ -15,6 +15,10 @@ Clone/download this codebase and open it using VSCode with the [Dev Containers](
 
 Or see the [#get-started](#get-started) section for more options
 
+## API Spec
+
+The details of the API can be found at [API.md](https://github.com/duality-labs/hapi-indexer/blob/main/API.md).
+
 ## Goals
 
 The Goals of the indexer are to:
@@ -153,41 +157,51 @@ CosmosSDK:
 
 but we also add in new standard pagination parameters for timeseries timestamp limits:
 
-- `pagination.before`
-- `pagination.after`
+- `pagination.before` (will be renamed to `block_range.to_timestamp`)
+- `pagination.after` (will be renamed to `block_range.from_timestamp`)
+- `block_range.from_timestamp`
+- `block_range.to_timestamp`
 
-### Serving Real-Time Data (long-polling)
+### Serving Real-Time Data
 
-for real-time requests a new standard set of query parameters have been used:
+For real-time requests a new set of query parameters have been created:
 
+- `block_range.from_timestamp`
 - `block_range.from_height`
 - `block_range.to_height`
 
-These parameters indicate whether the response should be on a specific range of data,
-and if the chain height does not exist yet this implies that the response should
+These parameters indicate that the response should be filtered to a specific range of data,
+and if the queried chain height range does not exist yet this implies that the response should
 wait for new data before returning. These attributes are also returned in the
-response body attributes to indicate the range of chain heights that the data is comprised of.
+response body attributes to indicate the chain height range of the response data.
 
-By requesting the initial route without `block_range` parameters and following
-the response with new requests from the responded height recursively
-(i.e. querying `block_range.from_height={currentKnownHeight}` with each returned
-response body's `block_range.to_height`), we get long-polling real-time data.
+#### Long Polling
 
-### Serving Real-Time Data (HTTP/2 SSE)
+A long-polling mechanism can be achieved by using the new `block_range` parameters like this:
 
-Server-Sent Events (SSE) are a good choice for sending real-time data of a
-constantly updating state of a resource: the user sends one request for one resource
-and the server may respond with the whole resource at that point in time (or its
-`block_range.from_height` update if requested) and after the initial data it may
-send updates to that data for as long as the user keeps the connection open.
+1. By requesting an endpoint initial with no `block_range` parameters, we can get the current data state and also the latest block height in its returned `block_range.to_height` attribute.
+2. If we take from the previous response `currentBlockHeight = block_range.to_height` and then make a new request with a `block_range.from_height={currentBlockHeight}` param filter, the API will delay sending a response until there is data available to show us a data update to that resource starting from the requesting `block_range.from_height`.
+3. If we repeat step 2 (for as long as we want) and continue following the current data height recursively we get long-polled real-time data.
 
-## Optional Price Data
+#### HTTP/2 Server-Sent Events (SSE)
 
-The approximate total value locked (TVL) in USD for each liquidity pair is used to sort the order of the liquidity pairs of the `/liquidity/pairs` endpoint. This is acheived through queries to CoinGecko using API keys passed in [ENV vars](#environment-variables).
+By extending the logic of long-polling further, [Server-Sent Events (SSE)](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) are a good choice for sending real-time data of a constantly updating state of a resource: the user sends one request for one data resource and the server may respond with the resource state at that point in time (or the changes since a certain `block_range.from_height` or `block_range.from_timestamp` if requested) and after the initial data is sent it may continue sending updates of that data resources as long as the user keeps the connection open.
+
+This feature works well for streaming new data on each block finalization, but also for streaming very large responses of an initial state as any response is able to be broken down into several small pages (streaming pagination pages).
+
+This feature is only used after validating that the connection is able to use HTTP/2 SSE (is a HTTP/2 request).
+
+#### Response caching
+
+Most SQL data requests in the indexer are cached to IDs representing unique (and deterministic) request responses. In this way, multiple incoming requests from multiple users by request the same information and the SQL query and response is generated only once for each common request. For common endpoints such as `/liquidity/pairs` (which most users will be subscribed to with the app open) the response data will only be computed once per new block and the same response streamed to every subscribed user when ready.
+
+### Optional Price Data
+
+The approximate total value locked (TVL) in USD for each liquidity pair is used to sort the order of the liquidity pairs of the `/liquidity/pairs` endpoint. This is achieved through queries to CoinGecko using API keys passed in [ENV vars](#environment-variables).
 
 This sorting feature is useful for the API to provide, but is not strictly required: a UI using the endpoint data can calculate USD values independently and re-sort an unsorted list of liquidity pairs.
 
-This feature was added in PR: https://github.com/duality-labs/hapi-indexer/pull/40.
+This feature was added in PR: [#40](https://github.com/duality-labs/hapi-indexer/pull/40).
 
 ## Future Improvements
 
