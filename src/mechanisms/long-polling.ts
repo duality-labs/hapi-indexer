@@ -47,6 +47,7 @@ export default async function longPollRequest<
     if (blockRange.from_height < lastBlockHeight) {
       data = await getData(request.params, request.query, h.context);
     }
+    // prevent requests the start from a future height: they could wait forever
     if (blockRange.from_height > lastBlockHeight) {
       return h.response('Cannot wait for future start height').code(400);
     }
