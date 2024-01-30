@@ -65,8 +65,6 @@ export default async function longPollRequest<
         // get current data
         data = await getData(request.params, request.query, h.context);
       }
-    } else {
-      return h.response('Cannot wait for future start height').code(400);
     }
 
     // return errors if needed
