@@ -239,6 +239,9 @@ An example of local development ENV vars is given here:
 # Add dev endpoints
 NODE_ENV=development
 
+# Allow all CORS origins for development
+CORS_ALLOWED_ORIGIN=*
+
 # Connect to local chain served by a Docker container
 # eg. by following the steps of https://docs.neutron.org/neutron/build-and-run/cosmopark
 # - set up local repo folders by cloning from git
