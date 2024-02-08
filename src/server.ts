@@ -24,7 +24,7 @@ function safeReadFileText(filename: string) {
 const {
   PORT = '8000',
   RPC_API = '',
-  CORS_ALLOWED_ORIGIN = '',
+  CORS_ALLOWED_ORIGINS = '',
   ALLOW_ROUTES_BEFORE_SYNCED = '',
   SSL_PRIVATE_KEY_FILE = 'ssl-key.pem',
   SSL_PUBLIC_KEY_FILE = 'ssl-cert.pem',
@@ -120,7 +120,8 @@ const init = async () => {
     host: '0.0.0.0',
     routes: {
       cors: {
-        origin: [CORS_ALLOWED_ORIGIN],
+        // CORS origins may be a comma separated list as a string
+        origin: CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()),
         headers: ['Accept', 'Content-Type'],
         additionalHeaders: ['X-Requested-With'],
       },

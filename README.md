@@ -240,7 +240,10 @@ An example of local development ENV vars is given here:
 NODE_ENV=development
 
 # Allow all CORS origins for development
-CORS_ALLOWED_ORIGIN=*
+CORS_ALLOWED_ORIGINS=*
+# or
+# Allow specific CORS origins for development
+CORS_ALLOWED_ORIGINS=https://app.testnet.duality.xyz,https://localhost:5173
 
 # Connect to local chain served by a Docker container
 # eg. by following the steps of https://docs.neutron.org/neutron/build-and-run/cosmopark
