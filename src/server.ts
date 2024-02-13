@@ -121,6 +121,9 @@ const init = async () => {
     routes: {
       cors: {
         // CORS origins may be a comma separated list as a string
+        // note that "*" may be a wildcard for all origins but may also
+        // be used to whitelist an origin pattern, eg. https://*.duality.xyz
+        // docs: https://hapi.dev/api/?v=21.3.3#-routeoptionscors
         origin: CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()),
         headers: ['Accept', 'Content-Type'],
         additionalHeaders: ['X-Requested-With'],
