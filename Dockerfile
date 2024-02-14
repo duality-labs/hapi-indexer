@@ -1,6 +1,6 @@
 # install node
 # https://hub.docker.com/_/node/
-FROM node:18-alpine as build-env
+FROM node:18.19-alpine as build-env
 
 RUN apk add openssl
 
@@ -33,7 +33,7 @@ RUN NODE_ENV=${NODE_ENV} npm ci
 # copy app source to destination container
 COPY . .
 
-# expose container port
+# expose container port: docker-compose will serve PORT 8000 from this build-env
 EXPOSE 8000
 
 # build bundled code
@@ -44,7 +44,7 @@ CMD npm start
 
 
 # return slimmer build
-FROM node:18-alpine
+FROM node:18.19-alpine
 
 WORKDIR /usr/workspace
 

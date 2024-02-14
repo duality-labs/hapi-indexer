@@ -22,11 +22,9 @@ function safeReadFileText(filename: string) {
 }
 
 const {
-  NODE_ENV = 'production',
   PORT = '8000',
   RPC_API = '',
-  // by default allow all CORS origins in non-production environments only
-  CORS_ALLOWED_ORIGIN = NODE_ENV === 'production' ? '' : '*',
+  CORS_ALLOWED_ORIGINS = '',
   ALLOW_ROUTES_BEFORE_SYNCED = '',
   SSL_PRIVATE_KEY_FILE = 'ssl-key.pem',
   SSL_PUBLIC_KEY_FILE = 'ssl-cert.pem',
@@ -122,7 +120,11 @@ const init = async () => {
     host: '0.0.0.0',
     routes: {
       cors: {
-        origin: [CORS_ALLOWED_ORIGIN],
+        // CORS origins may be a comma separated list as a string
+        // note that "*" may be a wildcard for all origins but may also
+        // be used to whitelist an origin pattern, eg. https://*.duality.xyz
+        // docs: https://hapi.dev/api/?v=21.3.3#-routeoptionscors
+        origin: CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()),
         headers: ['Accept', 'Content-Type'],
         additionalHeaders: ['X-Requested-With'],
       },
