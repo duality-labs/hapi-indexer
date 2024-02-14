@@ -33,7 +33,7 @@ RUN NODE_ENV=${NODE_ENV} npm ci
 # copy app source to destination container
 COPY . .
 
-# expose container port
+# expose container port: docker-compose will serve PORT 8000 from this build-env
 EXPOSE 8000
 
 # build bundled code
