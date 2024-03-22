@@ -38,7 +38,7 @@ export default async function upsertDerivedPriceData(
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['TokenOne'];
 
-    // derive data from entire ticks state (useful for maybe some other calculations)
+    // get current (normalized) tick index from event
     const currentTickIndex: number | null = txEvent.attributes['TickIndex']
       ? Number(txEvent.attributes['TickIndex']) * (isForward ? 1 : -1)
       : null;
