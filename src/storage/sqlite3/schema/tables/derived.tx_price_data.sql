@@ -5,10 +5,8 @@
   */
 CREATE TABLE 'derived.tx_price_data' (
 
-  'HighestNormalizedTickIndex0' INTEGER,
-  'LowestNormalizedTickIndex1' INTEGER,
-  -- last tick (current price tick) may be null if all liquidity is removed
-  'LastTickIndex1To0' INTEGER,
+  -- last tick index that a trade happened on
+  'LastTickIndex1To0' INTEGER NOT NULL,
 
   'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,
