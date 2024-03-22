@@ -37,27 +37,6 @@ export default async function upsertDerivedPriceData(
   if (isDexMessage && isDexTickUpdate && isDexTxMsgPlaceLimitOrder) {
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['TokenOne'];
-    // note that previousTickIndex may not exist yet
-    timer.start('processing:txs:derived.tx_price_data:get:tx_price_data');
-    const previousPriceData = await db.get(
-      ...prepare(sql`
-      SELECT
-        'derived.tx_price_data'.'HighestNormalizedTickIndex0',
-        'derived.tx_price_data'.'LowestNormalizedTickIndex1'
-      FROM
-        'derived.tx_price_data'
-      WHERE (
-        'derived.tx_price_data'.'related.dex.pair' = (${selectSortedPairID(
-          txEvent.attributes['TokenZero'],
-          txEvent.attributes['TokenOne']
-        )})
-      )
-      ORDER BY
-        'derived.tx_price_data'.'related.tx_result.events' DESC
-      LIMIT 1
-      `)
-    );
-    timer.stop('processing:txs:derived.tx_price_data:get:tx_price_data');
 
     // derive data from entire ticks state (useful for maybe some other calculations)
     const currentTickIndex: number | null = txEvent.attributes['TickIndex']
@@ -66,17 +45,11 @@ export default async function upsertDerivedPriceData(
 
     // if activity has a current price then update data
     if (currentTickIndex !== null) {
-      const previousOtherSideTickIndex =
-        (isForward
-          ? previousPriceData?.['HighestNormalizedTickIndex0']
-          : previousPriceData?.['LowestNormalizedTickIndex1']) ?? null;
       timer.start('processing:txs:derived.tx_price_data:set:tx_price_data');
       await db.run(
         ...prepare(sql`
         INSERT OR REPLACE INTO 'derived.tx_price_data' (
 
-          'HighestNormalizedTickIndex0',
-          'LowestNormalizedTickIndex1',
           -- NormalizedTickIndex is TickIndex1To0
           'LastTickIndex1To0',
 
@@ -85,9 +58,7 @@ export default async function upsertDerivedPriceData(
 
         ) values (
 
-          ${isForward ? previousOtherSideTickIndex : currentTickIndex},
-          ${isForward ? currentTickIndex : previousOtherSideTickIndex},
-          ${currentTickIndex ?? previousOtherSideTickIndex ?? null},
+          ${currentTickIndex},
 
           (
             SELECT
