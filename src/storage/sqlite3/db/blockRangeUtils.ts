@@ -11,18 +11,18 @@ export interface BlockRangeRequestQuery extends RequestQuery {
 }
 
 interface BlockRangeInput {
-  from_timestamp?: number; // unix timestamp from (non-incluse)
-  to_timestamp?: number; // unix timestamp to (non-incluse)
-  from_height?: number; // range from (non-incluse)
-  to_height?: number; // range to (non-incluse)
+  from_timestamp?: number; // unix timestamp from (non-inclusive)
+  to_timestamp?: number; // unix timestamp to (inclusive)
+  from_height?: number; // range from (non-inclusive)
+  to_height?: number; // range to (inclusive)
 }
 
 // a block range is: `from_height` (non-inclusive) -> `to_height` (inclusive)
 // this is so we can start at a known height `from_height`
 // and craft a range that adds to that known height to reach a new `to_height`
 export interface BlockRange {
-  from_height: number; // range from (non-incluse)
-  to_height: number; // range to (incluse)
+  from_height: number; // range from (non-inclusive)
+  to_height: number; // range to (inclusive)
 }
 
 export interface BlockRangeResponse {
