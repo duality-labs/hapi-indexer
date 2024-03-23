@@ -60,7 +60,12 @@ export async function getBlockRange(
   } = {}
 ): Promise<BlockRange> {
   // get input in usable form
-  const blockRangeInput = getBlockRangeInput(query);
+  const {
+    from_height: fromHeight,
+    to_height: toHeight,
+    from_timestamp: fromTimestamp,
+    to_timestamp: toTimestamp,
+  } = getBlockRangeInput(query);
 
   // determine block heights from given height or derived from timestamps or not
   // note: this limit translation of "to_timestamp" -> "to_height"
@@ -71,20 +76,20 @@ export async function getBlockRange(
   //       and allow a 'to_timestamp' future time to be used and behave
   //       as expected and end when the time has passed (in block data)
   return {
-    from_height: blockRangeInput.from_height
+    from_height: fromHeight
       ? // get block from given block
-        Math.min(maximumQueryBlockHeight, blockRangeInput.from_height)
-      : blockRangeInput.from_timestamp
+        Math.min(maximumQueryBlockHeight, fromHeight)
+      : fromTimestamp
       ? // get block from timestamp
-        await getCompletedHeightAtTime(blockRangeInput.from_timestamp)
+        await getCompletedHeightAtTime(fromTimestamp)
       : // default to querying from first block
         0,
-    to_height: blockRangeInput.to_height
+    to_height: toHeight
       ? // get block from given block
-        Math.min(maximumQueryBlockHeight, blockRangeInput.to_height)
-      : blockRangeInput.to_timestamp
+        Math.min(maximumQueryBlockHeight, toHeight)
+      : toTimestamp
       ? // get block from timestamp
-        await getCompletedHeightAtTime(blockRangeInput.to_timestamp)
+        await getCompletedHeightAtTime(toTimestamp)
       : // default to querying up to last processed block
         maximumQueryBlockHeight,
   };
