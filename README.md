@@ -158,7 +158,9 @@ CosmosSDK:
 but we also add in new standard pagination parameters for timeseries timestamp limits:
 
 - `block_range.from_height`
+  - `pagination.after` is an aliased deprecated key for this
 - `block_range.to_height`
+  - `pagination.before` is an aliased deprecated key for this
 
 ### Serving Real-Time Data
 

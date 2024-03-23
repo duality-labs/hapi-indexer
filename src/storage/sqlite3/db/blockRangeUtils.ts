@@ -4,6 +4,8 @@ import { getLastBlockHeight } from '../../../sync';
 
 export interface BlockRangeRequestQuery extends RequestQuery {
   // custom query parameters
+  'pagination.after'?: string; // deprecated unix timestamp (use from_timestamp)
+  'pagination.before'?: string; // deprecated unix timestamp (use to_timestamp)
   'block_range.from_timestamp'?: string; // unix timestamp
   'block_range.to_timestamp'?: string; // unix timestamp
   'block_range.from_height'?: string; // integer
@@ -11,6 +13,8 @@ export interface BlockRangeRequestQuery extends RequestQuery {
 }
 
 interface BlockRangeInput {
+  after?: number; // deprecated unix timestamp from (non-inclusive)
+  before?: number; // deprecated unix timestamp to (inclusive)
   from_timestamp?: number; // unix timestamp from (non-inclusive)
   to_timestamp?: number; // unix timestamp to (inclusive)
   from_height?: number; // range from (non-inclusive)
@@ -32,6 +36,8 @@ export interface BlockRangeResponse {
 function getBlockRangeInput(query: BlockRangeRequestQuery): BlockRangeInput {
   // collect possible keys into a user given object
   const unsafeRequest: Partial<BlockRangeInput> = {
+    after: Number(query['pagination.after']) || undefined, // deprecated
+    before: Number(query['pagination.before']) || undefined, // deprecated
     from_timestamp: Number(query['block_range.from_timestamp']) || undefined,
     to_timestamp: Number(query['block_range.to_timestamp']) || undefined,
     from_height: Number(query['block_range.from_height']) || undefined,
@@ -42,6 +48,8 @@ function getBlockRangeInput(query: BlockRangeRequestQuery): BlockRangeInput {
   return {
     // ensure number is positive
     // treat "0" as "no height set"
+    after: Math.max(0, unsafeRequest.after ?? 0) || undefined, // deprecated
+    before: Math.max(0, unsafeRequest.before ?? 0) || undefined, // deprecated
     from_timestamp: Math.max(0, unsafeRequest.from_timestamp ?? 0) || undefined,
     to_timestamp: Math.max(0, unsafeRequest.to_timestamp ?? 0) || undefined,
     from_height: Math.max(0, unsafeRequest.from_height ?? 0) || undefined,
@@ -61,10 +69,15 @@ export async function getBlockRange(
 ): Promise<BlockRange> {
   // get input in usable form
   const {
+    // direct block range params given
     from_height: fromHeight,
     to_height: toHeight,
-    from_timestamp: fromTimestamp,
-    to_timestamp: toTimestamp,
+    // deprecated "pagination" timestamp params given
+    after,
+    before,
+    // block range timestamps given, or defaulted to deprecated timestamp keys
+    from_timestamp: fromTimestamp = after,
+    to_timestamp: toTimestamp = before,
   } = getBlockRangeInput(query);
 
   // determine block heights from given height or derived from timestamps or not
