@@ -45,11 +45,12 @@ export type Resolution = keyof typeof resolutionTimeFormats;
 
 // calculate how far from the start of day we are in secods
 async function getStartOfDayOffset(pagination: PaginationInput) {
+  const toTimestamp = pagination.to_timestamp || Math.round(Date.now() / 1000);
   const { offset } = await db.get(
     ...prepare(sql`
     SELECT (
-      ${pagination.to_timestamp} - unixepoch(
-        datetime(${pagination.to_timestamp}, "unixepoch"),
+      ${toTimestamp} - unixepoch(
+        datetime(${toTimestamp}, "unixepoch"),
         "start of day"
       )
     ) as 'offset'
