@@ -161,7 +161,7 @@ export const pairPriceCache: PolicyOptions<DataSet> = {
                 return [
                   row['time_unix'],
                   // invert the indexes for the asked for price ratio
-                  [-row['open'], -row['high'], -row['low'], -row['close']],
+                  [-row['open'], -row['low'], -row['high'], -row['close']],
                 ];
               }
         );

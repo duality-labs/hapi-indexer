@@ -12,6 +12,8 @@ services:
     env_file:
       - .env
       - .env.local
+    environment:
+      - PORT=8000
     volumes:
       - ./src:/usr/workspace/src
     ports:
