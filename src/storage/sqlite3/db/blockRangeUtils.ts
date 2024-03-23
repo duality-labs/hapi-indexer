@@ -74,17 +74,17 @@ export async function getBlockRange(
     from_height: blockRangeInput.from_height
       ? // get block from given block
         Math.min(maximumQueryBlockHeight, blockRangeInput.from_height)
-      : blockRangeInput.from_height
+      : blockRangeInput.from_timestamp
       ? // get block from timestamp
-        await getCompletedHeightAtTime(blockRangeInput.from_height)
+        await getCompletedHeightAtTime(blockRangeInput.from_timestamp)
       : // default to querying from first block
         0,
     to_height: blockRangeInput.to_height
       ? // get block from given block
         Math.min(maximumQueryBlockHeight, blockRangeInput.to_height)
-      : blockRangeInput.to_height
+      : blockRangeInput.to_timestamp
       ? // get block from timestamp
-        await getCompletedHeightAtTime(blockRangeInput.to_height)
+        await getCompletedHeightAtTime(blockRangeInput.to_timestamp)
       : // default to querying up to last processed block
         maximumQueryBlockHeight,
   };
