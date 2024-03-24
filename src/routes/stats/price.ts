@@ -46,8 +46,8 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
     params['tokenB'],
     'day',
     {
-      'pagination.before': `${mostRecentMinuteUnix}`,
-      'pagination.after': `${mostRecentMinuteUnix - 48 * hours}`,
+      'block_range.to_timestamp': `${mostRecentMinuteUnix}`,
+      'block_range.from_timestamp': `${mostRecentMinuteUnix - 48 * hours}`,
     },
     'last24Hours'
   );

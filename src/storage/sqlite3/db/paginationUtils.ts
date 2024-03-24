@@ -7,17 +7,23 @@ export interface PaginatedRequestQuery extends RequestQuery {
   'pagination.offset'?: string; // integer
   'pagination.limit'?: string; // integer
   'pagination.count_total'?: string; // boolean
-  // custom
-  'pagination.before'?: string; // unix timestamp
-  'pagination.after'?: string; // unix timestamp
+  // include custom keys for "next key"s that include these limits
+  // they are not manipulated here except for a string -> number conversion
+  'block_range.from_timestamp'?: string; // unix timestamp
+  'block_range.to_timestamp'?: string; // unix timestamp
+  'block_range.from_height'?: string; // integer
+  'block_range.to_height'?: string; // integer
 }
 
 export interface PaginationInput {
   offset: number;
   limit: number;
-  before: number; // unix timestamp
-  after: number; // unix timestamp
   count_total: boolean;
+  // custom block range limits:
+  from_timestamp?: number; // unix timestamp
+  to_timestamp?: number; // unix timestamp
+  from_height?: number;
+  to_height?: number;
 }
 
 interface PaginationOutput {
@@ -33,13 +39,15 @@ export interface PaginatedResponse {
 export function decodePagination(
   query: PaginatedRequestQuery,
   defaultPageSize = 1000
-): Required<PaginationInput> {
+): PaginationInput {
   // collect pagination keys into a pagination object
   let unsafePagination: Partial<PaginationInput> = {
     offset: Number(query['pagination.offset']) || undefined,
     limit: Number(query['pagination.limit']) || undefined,
-    before: Number(query['pagination.before']) || undefined,
-    after: Number(query['pagination.after']) || undefined,
+    from_timestamp: Number(query['block_range.from_timestamp']) || undefined,
+    to_timestamp: Number(query['block_range.to_timestamp']) || undefined,
+    from_height: Number(query['block_range.from_height']) || undefined,
+    to_height: Number(query['block_range.to_height']) || undefined,
     count_total: query['pagination.count_total']
       ? query['pagination.count_total'] === 'true'
       : undefined,
@@ -57,10 +65,11 @@ export function decodePagination(
 
   // ensure some basic pagination limits are respected
   return {
+    // don't limit block range limits
+    ...unsafePagination,
+    // limit pagination limits
     offset: Math.max(0, unsafePagination.offset ?? 0),
     limit: Math.min(10000, unsafePagination.limit ?? defaultPageSize),
-    before: unsafePagination.before ?? Math.floor(Date.now() / 1000),
-    after: unsafePagination.after ?? 0,
     count_total: unsafePagination.count_total ?? false,
   };
 }
@@ -69,17 +78,15 @@ export function decodePagination(
 const paginationKeys: Array<keyof PaginationInput> = [
   'offset',
   'limit',
-  'before',
-  'after',
+  'from_timestamp',
+  'to_timestamp',
 ];
 function encodePaginationKey(
-  pagination: Partial<PaginationInput | PaginatedRequestQuery>
+  pagination: Partial<PaginationInput>
 ): PaginationOutput['next_key'] {
   // whitelist only expected pagination keys
   const paginationProps = Object.fromEntries(
     Object.entries(pagination)
-      // remove pagination prefix
-      .map(([key, value]) => [key.replace(/^pagination\./, ''), value])
       // remove non-pagination keys
       .filter(([key]) => (paginationKeys as string[]).includes(key))
   );
@@ -101,14 +108,14 @@ export function getPaginationFromQuery(
     // add offset increase and return key
     if (offsetIncrease > 0) {
       return encodePaginationKey({
+        // pass through keys that may be undefined and weren't changed
+        ...pagination,
         // restrict offset and limit for more controlled next page behavior
         offset: pagination.offset + offsetIncrease,
         limit: pagination.limit,
         // pass height queries back in almost exactly as they came
         // (for consistent processing)
-        before: Number(query['pagination.before']) || undefined,
-        after: Number(query['pagination.after']) || undefined,
-        count_total: Boolean(query['pagination.after']) || undefined,
+        count_total: Boolean(query['pagination.count_total']) || undefined,
       });
     }
     // otherwise return no new key
@@ -121,10 +128,10 @@ export function getPaginationFromQuery(
 export function paginateData<T = unknown>(
   data: Array<T>,
   query: PaginatedRequestQuery,
-  defaultPageSize?: number
+  pageSize?: number
 ): [Array<T>, PaginationOutput] {
   // collect pagination keys into a pagination object
-  const { offset, limit } = decodePagination(query, defaultPageSize);
+  const { offset, limit, ...pagination } = decodePagination(query, pageSize);
 
   // get this page
   const nextOffset = offset + limit;
@@ -132,7 +139,7 @@ export function paginateData<T = unknown>(
   // and generate a next key to represent the next page of data
   const nextKey =
     data.length > nextOffset
-      ? encodePaginationKey({ ...query, offset: nextOffset, limit })
+      ? encodePaginationKey({ ...pagination, offset: nextOffset, limit })
       : null;
 
   return [page, { next_key: nextKey, total: data.length }];

@@ -68,10 +68,10 @@ All liquidity and time series endpoints accept the following query parameters to
   - `pagination.limit`: page limit (number)
   - `pagination.count_total`: return item count (boolean) (not relevant to streams)
 - additional block range query parameters
-  - `pagination.before`: limits data to blocks before or equal to this timestamp
-  - `pagination.after`: limits data to blocks after this timestamp
-  - `block_range.from_timestamp`: will re-key `pagination.after` to here
-  - `block_range.to_timestamp`: will re-key `pagination.before` to here
+  - `block_range.from_timestamp`: limits data to blocks after this timestamp
+    - `pagination.after` is an aliased deprecated key for this
+  - `block_range.to_timestamp`: limits data to blocks before or equal to this timestamp
+    - `pagination.before` is an aliased deprecated key for this
   - `block_range.from_height`: limits data to blocks after to this height
   - `block_range.to_height`: limits data to blocks before or equal to this height
 
