@@ -68,7 +68,9 @@ export default async function insertEventTickUpdate(
       ${txEvent.attributes['TokenIn']},
       ${txEvent.attributes['TickIndex']},
       ${txEvent.attributes['Reserves']},
-      ${txEvent.attributes['Fee'] || null},
+      -- set either TrancheKey or Fee: a Fee where TrancheKey exists is a bug
+      -- see: https://github.com/neutron-org/neutron/pull/473
+      ${txEvent.attributes['TrancheKey'] ? null : txEvent.attributes['Fee']},
       ${txEvent.attributes['TrancheKey'] || null},
 
       -- derive the difference in reserves from the previous tick state
