@@ -12,8 +12,9 @@ CREATE TABLE 'event.TickUpdate' (
   -- TickIndex here is TickIndexTakerToMaker (ie. "in to out" or "out per in")
   'TickIndex' INTEGER NOT NULL,
   'Reserves' TEXT NOT NULL,
-  -- fees do not exist for all TickUpdate events
+  -- TickUpdate may include a fee (reserves on Dex) or TrancheKey (reserves in a tranche), but not both
   'Fee' INTEGER,
+  'TrancheKey' TEXT,
 
   -- derive the difference in reserves from the previous tick state
   'derived.ReservesDiff' TEXT NOT NULL,
