@@ -99,7 +99,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
                   )
                   THEN (
                     CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT) *
-                    'event.TickUpdate'.'Fee' / 10000
+                    COALESCE('event.TickUpdate'.'Fee', 0) / 10000
                   )
                   ELSE 0
                 END
@@ -124,7 +124,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
                   )
                   THEN (
                     CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT) *
-                    'event.TickUpdate'.'Fee' / 10000
+                    COALESCE('event.TickUpdate'.'Fee', 0) / 10000
                   )
                   ELSE 0
                 END
