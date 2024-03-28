@@ -24,8 +24,8 @@ const routes = [
         [
           'time_unix',
           [
-            `amount ${request.params['tokenA']}`,
-            `amount ${request.params['tokenB']}`,
+            `amount (excluding fee) ${request.params['tokenA']}`,
+            `amount (excluding fee) ${request.params['tokenB']}`,
             `fee ${request.params['tokenA']}`,
             `fee ${request.params['tokenB']}`,
           ],

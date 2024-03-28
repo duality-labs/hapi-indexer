@@ -83,7 +83,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
               (
                 CASE
                   WHEN (
-                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenZero' AND
+                    'event.TickUpdate'.'TokenOut' = 'event.TickUpdate'.'TokenZero' AND
                     'event.TickUpdate'.'derived.ReservesDiff' > 0
                   )
                   THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
@@ -94,7 +94,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
               (
                 CASE
                   WHEN (
-                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenZero' AND
+                    'event.TickUpdate'.'TokenOut' = 'event.TickUpdate'.'TokenZero' AND
                     'event.TickUpdate'.'derived.ReservesDiff' > 0
                   )
                   THEN (
@@ -108,7 +108,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
               (
                 CASE
                   WHEN (
-                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenOne' AND
+                    'event.TickUpdate'.'TokenOut' = 'event.TickUpdate'.'TokenOne' AND
                     'event.TickUpdate'.'derived.ReservesDiff' > 0
                   )
                   THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
@@ -119,7 +119,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
               (
                 CASE
                   WHEN (
-                    'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenOne' AND
+                    'event.TickUpdate'.'TokenOut' = 'event.TickUpdate'.'TokenOne' AND
                     'event.TickUpdate'.'derived.ReservesDiff' > 0
                   )
                   THEN (
