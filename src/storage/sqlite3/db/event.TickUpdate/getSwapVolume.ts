@@ -79,52 +79,64 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
                   'unixepoch'
                 )
               ) + ${offsetSeconds} as 'resolution_unix',
-              -- select only the deposited reserves for token0
+              -- select only the withdrawn reserves for token0
               (
                 CASE
                   WHEN (
                     'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenZero' AND
-                    'event.TickUpdate'.'derived.ReservesDiff' > 0
+                    'event.TickUpdate'.'derived.ReservesDiff' < 0
                   )
                   THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
                   ELSE 0
                 END
               ) as 'swap_amount_0',
-              -- select only the calculated deposit fee for token0 deposits
+              -- select only the calculated withdrawal fee for token0 deposits
               (
                 CASE
                   WHEN (
                     'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenZero' AND
-                    'event.TickUpdate'.'derived.ReservesDiff' > 0
+                    'event.TickUpdate'.'derived.ReservesDiff' < 0 AND
+                    'event.TickUpdate'.'Fee' > 0
                   )
                   THEN (
-                    CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT) *
-                    COALESCE('event.TickUpdate'.'Fee', 0) / 10000
+                    -- calculate fees as percentage of token deposited (not withdrawn)
+                    -- where 1):  reservesIn = reservesOut + feesOut
+                    -- and   2):     feesOut = reservesIn * fee
+                    -- 2 sub 1):     feesOut = (reservesOut + feesOut) * fee
+                    --               feesOut = reservesOut * fee + feesOut * fee
+                    --               feesOut - feesOut * fee = reservesOut * fee
+                    --               feesOut * (1 - fee) = reservesOut * fee
+                    --               feesOut = reservesOut * fee / (1 - fee)
+                    --               feesOut = reservesOut / (1/fee - 1)
+                    CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
+                    / (10000 / 'event.TickUpdate'.'Fee' - 1)
                   )
                   ELSE 0
                 END
               ) as 'swap_fee_0',
-              -- select only the deposited reserves for token1
+              -- select only the withdrawn reserves for token1
               (
                 CASE
                   WHEN (
                     'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenOne' AND
-                    'event.TickUpdate'.'derived.ReservesDiff' > 0
+                    'event.TickUpdate'.'derived.ReservesDiff' < 0
                   )
                   THEN CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
                   ELSE 0
                 END
               ) as 'swap_amount_1',
-              -- select only the calculated deposit fee for token1 deposits
+              -- select only the calculated withdrawal fee for token1 deposits
               (
                 CASE
                   WHEN (
                     'event.TickUpdate'.'TokenIn' = 'event.TickUpdate'.'TokenOne' AND
-                    'event.TickUpdate'.'derived.ReservesDiff' > 0
+                    'event.TickUpdate'.'derived.ReservesDiff' < 0 AND
+                    'event.TickUpdate'.'Fee' > 0
                   )
                   THEN (
-                    CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT) *
-                    COALESCE('event.TickUpdate'.'Fee', 0) / 10000
+                    -- calculate fees as percentage of token deposited (not withdrawn)
+                    CAST('event.TickUpdate'.'derived.ReservesDiff' as FLOAT)
+                    / (10000 / 'event.TickUpdate'.'Fee' - 1)
                   )
                   ELSE 0
                 END
@@ -190,8 +202,8 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
             'ungrouped_table'.'resolution_unix'
           HAVING
             -- ignore empty rows
-            sum('ungrouped_table'.'swap_amount_0') > 0 OR
-            sum('ungrouped_table'.'swap_amount_1') > 0
+            sum('ungrouped_table'.'swap_amount_0') < 0 OR
+            sum('ungrouped_table'.'swap_amount_1') < 0
           ORDER BY
             'ungrouped_table'.'resolution_unix' DESC
         `)
@@ -208,7 +220,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
                 fee0,
                 fee1,
               }): DataRow => {
-                return [timeUnix, [amount0, amount1, fee0, fee1]];
+                return [timeUnix, [-amount0, -amount1, -fee0, -fee1]];
               }
             : ({
                 time_unix: timeUnix,
@@ -217,7 +229,7 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
                 fee0,
                 fee1,
               }): DataRow => {
-                return [timeUnix, [amount1, amount0, fee1, fee0]];
+                return [timeUnix, [-amount1, -amount0, -fee1, -fee0]];
               }
         );
       });
