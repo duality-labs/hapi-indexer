@@ -32,7 +32,13 @@ export default async function insertEventTickUpdate(
       'event.TickUpdate'.'TokenZero' = ${txEvent.attributes['TokenZero']} AND
       'event.TickUpdate'.'TokenOne' = ${txEvent.attributes['TokenOne']} AND
       'event.TickUpdate'.'TokenIn' = ${txEvent.attributes['TokenIn']} AND
-      'event.TickUpdate'.'TickIndex' = ${txEvent.attributes['TickIndex']}
+      'event.TickUpdate'.'TickIndex' = ${txEvent.attributes['TickIndex']} AND
+      ${
+        // match either the Fee or the Tranche
+        txEvent.attributes['TrancheKey']
+          ? sql`'event.TickUpdate'.'TrancheKey' = ${txEvent.attributes['TrancheKey']}`
+          : sql`'event.TickUpdate'.'Fee' = ${txEvent.attributes['Fee']}`
+      }
     )
     ORDER BY
       'event.TickUpdate'.'related.tx_result.events' DESC
