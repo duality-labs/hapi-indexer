@@ -2,16 +2,16 @@ import sql from 'sql-template-tag';
 import { TxResponse } from '../../../../@types/tx';
 
 import db, { prepare } from '../../db/db';
-import selectLatestTickState from '../../db/derived.tick_state/selectLatestDerivedTickState';
 
 import { isDexTickUpdate, isDexTrancheUpdate } from '../utils/utils';
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
 import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
+import { DerivedTickUpdateAttributes } from './event.TickUpdate';
 
 export default async function upsertDerivedVolumeData(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent,
+  txEvent: DecodedTxEvent & { derived: DerivedTickUpdateAttributes },
   index: number,
   timer = new Timer()
 ) {
@@ -23,8 +23,8 @@ export default async function upsertDerivedVolumeData(
   ) {
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['TokenOne'];
-    const queriedColumn = isForward ? 'ReservesFloat1' : 'ReservesFloat0';
-    const otherColumn = !isForward ? 'ReservesFloat1' : 'ReservesFloat0';
+    const inColumn = isForward ? 'ReservesFloat1' : 'ReservesFloat0';
+    const outColumn = !isForward ? 'ReservesFloat1' : 'ReservesFloat0';
     // note that previousReserves may not exist yet
     timer.start('processing:txs:derived.tx_volume_data:get:tx_volume_data');
     const previousData = await db.get(
@@ -45,39 +45,20 @@ export default async function upsertDerivedVolumeData(
       LIMIT 1
       `)
     );
-    const previousReserves = previousData?.[queriedColumn];
     timer.stop('processing:txs:derived.tx_volume_data:get:tx_volume_data');
 
-    timer.start('processing:txs:derived.tx_volume_data:get:tick_state');
-    // derive data from entire ticks state (useful for maybe some other calculations)
-    const currentReserves = await db
-      .get(
-        ...prepare(sql`
-          WITH 'latest.derived.tick_state' AS (${selectLatestTickState(
-            txEvent.attributes['TokenZero'],
-            txEvent.attributes['TokenOne'],
-            txEvent.attributes['TokenIn'],
-            { fromHeight: 0, toHeight: Number(tx_result.height) }
-          )})
-          SELECT
-            -- get all token reserves of a token in a pair (as a float for ease)
-            SUM( CAST('latest.derived.tick_state'.'Reserves' AS FLOAT) ) as 'ReservesFloat'
-          FROM
-            'latest.derived.tick_state'
-          WHERE (
-            'latest.derived.tick_state'.'Reserves' != '0'
-          )
-          GROUP BY
-            'latest.derived.tick_state'.'related.dex.pair',
-            'latest.derived.tick_state'.'related.dex.token'
-        `)
-      )
-      .then((row) => row?.['ReservesFloat'] ?? null);
-    timer.stop('processing:txs:derived.tx_volume_data:get:tick_state');
+    // calculate new reserves from previous value and this update diff
+    // todo: the accuracy of this value is limited by floating point math
+    //       the 'derived.tx_volume_data'.'ReservesFloat' column could be better
+    const currentInSideReserves = Math.max(
+      Number(previousData?.[inColumn] ?? 0) +
+        Number(txEvent.derived['ReservesDiff']),
+      0
+    );
 
     // if activity has changed current reserves then update data
-    if (previousReserves !== currentReserves) {
-      const previousOtherSideReserves = previousData?.[otherColumn] ?? 0;
+    if (Number(txEvent.derived['ReservesDiff']) !== 0) {
+      const previousOutSideReserves = previousData?.[outColumn] ?? 0;
       timer.start('processing:txs:derived.tx_volume_data:set:tx_volume_data');
       await db.run(
         ...prepare(sql`
@@ -90,8 +71,8 @@ export default async function upsertDerivedVolumeData(
           'related.block.header.height'
         ) values (
 
-          ${isForward ? previousOtherSideReserves : currentReserves},
-          ${isForward ? currentReserves : previousOtherSideReserves},
+          ${isForward ? previousOutSideReserves : currentInSideReserves},
+          ${isForward ? currentInSideReserves : previousOutSideReserves},
 
           (
             SELECT

@@ -7,10 +7,11 @@ import { isDexSwapTickUpdate } from '../utils/utils';
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
 import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
+import type { DerivedTickUpdateAttributes } from './event.TickUpdate';
 
 export default async function upsertDerivedPriceData(
   tx_result: TxResponse,
-  txEvent: DecodedTxEvent,
+  txEvent: DecodedTxEvent & { derived: DerivedTickUpdateAttributes },
   index: number,
   timer = new Timer()
 ) {

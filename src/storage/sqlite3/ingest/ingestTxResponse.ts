@@ -11,7 +11,9 @@ import insertEventTickUpdate from './tables/event.TickUpdate';
 import insertEventPlaceLimitOrder from './tables/event.PlaceLimitOrder';
 import insertEventDeposit from './tables/event.DepositLP';
 import insertEventWithdraw from './tables/event.WithdrawLP';
-import { upsertDerivedTickStateRows } from './tables/derived.tick_state';
+import upsertDerivedTickStateRows from './tables/derived.tick_state';
+import upsertDerivedPriceData from './tables/derived.tx_price_data';
+import upsertDerivedVolumeData from './tables/derived.tx_volume_data';
 
 import decodeEvent, { DecodedTxEvent } from './utils/decodeEvent';
 import { getDexMessageAction, isValidResult } from './utils/utils';
@@ -98,10 +100,20 @@ export default async function ingestTxs(
             await insertEventPlaceLimitOrder(tx_result, txEvent, index);
             timer.stop('processing:txs:event.PlaceLimitOrder');
             break;
-          case 'TickUpdate':
-            await insertEventTickUpdate(tx_result, txEvent, index, timer);
-            await upsertDerivedTickStateRows(tx_result, txEvent, index, timer);
+          case 'TickUpdate': {
+            const derivedAttributes = await insertEventTickUpdate(
+              tx_result,
+              txEvent,
+              index,
+              timer
+            );
+            if (!derivedAttributes) break;
+            const tkUpdate = { ...txEvent, derived: derivedAttributes };
+            await upsertDerivedTickStateRows(tx_result, tkUpdate, index, timer);
+            await upsertDerivedPriceData(tx_result, tkUpdate, index, timer);
+            await upsertDerivedVolumeData(tx_result, tkUpdate, index, timer);
             break;
+          }
         }
       }
     }

@@ -10,12 +10,17 @@ import Timer from '../../../../utils/timer';
 import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
 import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
+export interface DerivedTickUpdateAttributes {
+  ReservesDiff: string;
+  IsSwapEvent: boolean;
+}
+
 export default async function insertEventTickUpdate(
   tx_result: TxResponse,
   txEvent: DecodedTxEvent,
   index: number,
   timer = new Timer()
-) {
+): Promise<DerivedTickUpdateAttributes | undefined> {
   timer.start('processing:txs:event.TickUpdate:get:event.TickUpdate');
   const previousTickUpdate = await db.get<{ Reserves: string }>(
     ...prepare(sql`
@@ -43,6 +48,16 @@ export default async function insertEventTickUpdate(
     // skip adding of non-update
     return;
   }
+
+  const derivedAttributes: DerivedTickUpdateAttributes = {
+    ReservesDiff:
+      previousReserves !== '0'
+        ? new BigNumber(txEvent.attributes['Reserves'])
+            .minus(previousReserves)
+            .toFixed(0)
+        : txEvent.attributes['Reserves'],
+    IsSwapEvent: isDexSwapTickUpdate(txEvent, tx_result),
+  };
 
   timer.start('processing:txs:event.TickUpdate:set:event.TickUpdate');
   await db.run(
@@ -75,18 +90,10 @@ export default async function insertEventTickUpdate(
       ${txEvent.attributes['TrancheKey'] ? null : txEvent.attributes['Fee']},
       ${txEvent.attributes['TrancheKey'] || null},
 
-      -- derive the difference in reserves from the previous tick state
-      ${
-        previousReserves !== '0'
-          ? new BigNumber(txEvent.attributes['Reserves'])
-              .minus(previousReserves)
-              .toFixed(0)
-          : txEvent.attributes['Reserves']
-      },
-      -- derive the swap state of the TickUpdate:
-      -- swaps occur on PlaceLimitOrder actions, but these actions may also
-      -- deposit reserves in the tranche that is in the PlaceLimitOrder action
-      ${isDexSwapTickUpdate(txEvent, tx_result) ? 1 : 0},
+      -- get the derived difference in reserves from the previous tick state
+      ${derivedAttributes.ReservesDiff},
+      -- get the derived swap state of the TickUpdate
+      ${derivedAttributes.IsSwapEvent ? 1 : 0},
   
       (
         SELECT
@@ -124,4 +131,6 @@ export default async function insertEventTickUpdate(
     `)
   );
   timer.stop('processing:txs:event.TickUpdate:set:event.TickUpdate');
+
+  return derivedAttributes;
 }
