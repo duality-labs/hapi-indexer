@@ -38,10 +38,25 @@ async function set(tx_result: TxResponse) {
   );
 }
 
+const lastBlock: {
+  height: string;
+  id?: number;
+} = {
+  height: '0',
+};
+
 export default async function insertBlockRows(tx_result: TxResponse) {
+  // get from var
+  if (lastBlock.id && lastBlock.height === tx_result.height) {
+    return lastBlock.id;
+  }
   const { lastID } = (await get(tx_result)) || (await set(tx_result));
   if (!lastID) {
     throw new Error('unable to insert dex.pairs id');
   }
+  // set to var
+  lastBlock.height = tx_result.height;
+  lastBlock.id = lastID;
+  // return ID
   return lastID;
 }

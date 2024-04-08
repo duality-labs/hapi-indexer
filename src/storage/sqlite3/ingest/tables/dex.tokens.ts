@@ -5,6 +5,7 @@ import db, { prepare } from '../../db/db';
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import getTokenID from '../../db/dex.tokens/getTokenID';
 
+const tokenMap = new Map<string, number>();
 export default async function insertDexTokensRows(
   txEvent: DecodedTxEvent
 ): Promise<void> {
@@ -25,8 +26,7 @@ export default async function insertDexTokensRows(
   if (tokens.length > 0) {
     await Promise.all(
       tokens.map(async (token) => {
-        const id = await getTokenID(token);
-
+        const id = tokenMap.get(token) ?? (await getTokenID(token));
         if (id) {
           return id;
         }
@@ -40,6 +40,7 @@ export default async function insertDexTokensRows(
         if (!lastID) {
           throw new Error('unable to insert dex.tokens id');
         }
+        tokenMap.set(token, lastID);
         return lastID;
       })
     );
