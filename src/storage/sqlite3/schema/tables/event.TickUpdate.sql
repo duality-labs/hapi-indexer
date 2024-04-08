@@ -18,6 +18,7 @@ CREATE TABLE 'event.TickUpdate' (
 
   -- derive the difference in reserves from the previous tick state
   'derived.ReservesDiff' TEXT NOT NULL,
+  'derived.IsSwapEvent' INTEGER NOT NULL,
 
   'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,

@@ -4,6 +4,7 @@ import { TxResponse } from '../../../../@types/tx';
 
 import db, { prepare } from '../../db/db';
 
+import { isDexSwapTickUpdate } from '../utils/utils';
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
 import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
@@ -57,6 +58,7 @@ export default async function insertEventTickUpdate(
       'TrancheKey',
 
       'derived.ReservesDiff',
+      'derived.IsSwapEvent',
 
       'related.tx_result.events',
       'related.dex.pair',
@@ -81,6 +83,10 @@ export default async function insertEventTickUpdate(
               .toFixed(0)
           : txEvent.attributes['Reserves']
       },
+      -- derive the swap state of the TickUpdate:
+      -- swaps occur on PlaceLimitOrder actions, but these actions may also
+      -- deposit reserves in the tranche that is in the PlaceLimitOrder action
+      ${isDexSwapTickUpdate(txEvent, tx_result) ? 1 : 0},
   
       (
         SELECT

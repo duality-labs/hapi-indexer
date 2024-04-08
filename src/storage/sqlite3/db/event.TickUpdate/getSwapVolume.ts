@@ -149,16 +149,6 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
               'tx_result.events'.'id' = 'event.TickUpdate'.'related.tx_result.events'
             )
             INNER JOIN
-              'tx_msg'
-            ON (
-              'tx_msg'.'id' = 'tx_result.events'.'related.tx_msg'
-            )
-            INNER JOIN
-              'tx_msg_type'
-            ON (
-              'tx_msg_type'.'id' = 'tx_msg'.'related.tx_msg_type'
-            )
-            INNER JOIN
               'tx'
             ON (
               'tx'.'id' = 'tx_result.events'.'related.tx'
@@ -187,8 +177,8 @@ export const swapVolumeCache: PolicyOptions<DataSet> = {
                 token0,
                 token1
               )}) AND
-              -- restrict to tx Msg type
-              'tx_msg_type'.'action' = "neutron.dex.MsgPlaceLimitOrder"
+              -- restrict to swap event TickUpdates
+              'event.TickUpdate'.'derived.IsSwapEvent' = 1
           )
           SELECT
             'ungrouped_table'.'resolution_unix' as 'time_unix',
