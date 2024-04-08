@@ -13,14 +13,14 @@ import insertEventDeposit from './tables/event.DepositLP';
 import insertEventWithdraw from './tables/event.WithdrawLP';
 import { upsertDerivedTickStateRows } from './tables/derived.tick_state';
 
-import decodeEvent from './utils/decodeEvent';
+import decodeEvent, { DecodedTxEvent } from './utils/decodeEvent';
 import { getDexMessageAction, isValidResult } from './utils/utils';
 import Timer from '../../../utils/timer';
 
 let lastHeight = '0';
 let lastTxIndex = 0;
 export default async function ingestTxs(
-  txPage: TxResponse[],
+  txPage: (TxResponse & { decodedEvents?: DecodedTxEvent[] })[],
   timer = new Timer()
 ) {
   for (const tx_result of txPage) {
@@ -36,6 +36,8 @@ export default async function ingestTxs(
 
     // get tx events in decoded form
     const txEvents = (tx_result.events || []).map(decodeEvent);
+    // append decoded events into result so other functions to do need to
+    tx_result.decodedEvents = txEvents;
 
     // first add block rows
     timer.start('processing:txs:block');

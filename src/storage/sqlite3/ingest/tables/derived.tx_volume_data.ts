@@ -4,6 +4,7 @@ import { TxResponse } from '../../../../@types/tx';
 import db, { prepare } from '../../db/db';
 import selectLatestTickState from '../../db/derived.tick_state/selectLatestDerivedTickState';
 
+import { isDexTickUpdate, isDexTrancheUpdate } from '../utils/utils';
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
 import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
@@ -14,18 +15,12 @@ export default async function upsertDerivedVolumeData(
   index: number,
   timer = new Timer()
 ) {
-  // repeat basic Dex event check
-  const isDexMessage =
-    tx_result.code === 0 && txEvent.attributes.module === 'dex';
-
-  // only consider non-tranche TickUpdates for volume movements
-  const isDexLiquidityTickUpdate =
-    isDexMessage &&
-    txEvent.type === 'TickUpdate' &&
-    txEvent.attributes.action === 'TickUpdate' &&
-    !txEvent.attributes.TrancheKey;
-
-  if (isDexMessage && isDexLiquidityTickUpdate) {
+  // consider all non-tranche tick updates in TVL movements
+  if (
+    tx_result.code === 0 &&
+    isDexTickUpdate(txEvent) &&
+    !isDexTrancheUpdate(txEvent)
+  ) {
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['TokenOne'];
     const queriedColumn = isForward ? 'ReservesFloat1' : 'ReservesFloat0';

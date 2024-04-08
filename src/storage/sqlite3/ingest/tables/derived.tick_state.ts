@@ -7,6 +7,7 @@ import selectLatestTickState from '../../db/derived.tick_state/selectLatestDeriv
 import upsertDerivedPriceData from './derived.tx_price_data';
 import upsertDerivedVolumeData from './derived.tx_volume_data';
 
+import { isDexTickUpdate, isDexTrancheUpdate } from '../utils/utils';
 import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
 import { selectTokenID } from '../../db/dex.tokens/selectTokenID';
@@ -18,12 +19,12 @@ export async function upsertDerivedTickStateRows(
   index: number,
   timer = new Timer()
 ) {
-  const isDexMessage =
-    txEvent.type === 'TickUpdate' &&
-    txEvent.attributes.module === 'dex' &&
-    tx_result.code === 0;
-
-  if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
+  // consider all non-tranche tick updates in tracked liquidity state
+  if (
+    tx_result.code === 0 &&
+    isDexTickUpdate(txEvent) &&
+    !isDexTrancheUpdate(txEvent)
+  ) {
     // get previous state to compare against
     timer.start('processing:txs:derived.tick_state:get:tick_state');
     const previousStateData = await db.get(

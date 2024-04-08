@@ -3,7 +3,8 @@ import { TxResponse } from '../../../../@types/tx';
 
 import db, { prepare } from '../../db/db';
 
-import decodeEvent, { DecodedTxEvent } from '../utils/decodeEvent';
+import { isDexSwapTickUpdate } from '../utils/utils';
+import { DecodedTxEvent } from '../utils/decodeEvent';
 import Timer from '../../../../utils/timer';
 import { selectSortedPairID } from '../../db/dex.pairs/selectPairID';
 
@@ -13,29 +14,8 @@ export default async function upsertDerivedPriceData(
   index: number,
   timer = new Timer()
 ) {
-  // repeat basic Dex event check
-  const isDexMessage =
-    tx_result.code === 0 && txEvent.attributes.module === 'dex';
-
-  // only consider non-tranche TickUpdates for price movements
-  const isDexLiquidityTickUpdate =
-    isDexMessage &&
-    txEvent.type === 'TickUpdate' &&
-    txEvent.attributes.action === 'TickUpdate' &&
-    !txEvent.attributes.TrancheKey;
-
-  // only consider TickUpdates from PlaceLimitOrder actions as price movements
-  const isDexTxMsgPlaceLimitOrder =
-    isDexLiquidityTickUpdate &&
-    (tx_result.events || [])
-      .filter((txEvent) => txEvent.type === 'message')
-      .map(decodeEvent)
-      .find(
-        (txDecodedEvent) =>
-          txDecodedEvent.attributes['action'] === 'PlaceLimitOrder'
-      );
-
-  if (isDexMessage && isDexLiquidityTickUpdate && isDexTxMsgPlaceLimitOrder) {
+  // only consider "swap" TickUpdates for price movements
+  if (tx_result.code === 0 && isDexSwapTickUpdate(txEvent, tx_result)) {
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['TokenOne'];
 
