@@ -27,7 +27,6 @@ export default async function insertTxEventRows(
     INSERT INTO 'tx_result.events' (
       'index',
       'type',
-      'attributes',
 
       'related.tx',
       'related.dex.pair_swap',
@@ -38,7 +37,6 @@ export default async function insertTxEventRows(
 
       ${txEvent.index},
       ${txEvent.type},
-      ${JSON.stringify(txEvent.attributes)},
 
       (
         SELECT

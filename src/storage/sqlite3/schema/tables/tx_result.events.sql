@@ -9,7 +9,6 @@ CREATE TABLE 'tx_result.events' (
 
   'index' INTEGER NOT NULL,
   'type' TEXT NOT NULL,
-  'attributes' TEXT NOT NULL,
 
   'related.tx' INTEGER NOT NULL,
   'related.dex.pair_swap' INTEGER NOT NULL,
