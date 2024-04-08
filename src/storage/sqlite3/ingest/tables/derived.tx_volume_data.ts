@@ -18,7 +18,14 @@ export default async function upsertDerivedVolumeData(
   const isDexMessage =
     tx_result.code === 0 && txEvent.attributes.module === 'dex';
 
-  if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
+  // only consider non-tranche TickUpdates for volume movements
+  const isDexLiquidityTickUpdate =
+    isDexMessage &&
+    txEvent.type === 'TickUpdate' &&
+    txEvent.attributes.action === 'TickUpdate' &&
+    !txEvent.attributes.TrancheKey;
+
+  if (isDexMessage && isDexLiquidityTickUpdate) {
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['TokenOne'];
     const queriedColumn = isForward ? 'ReservesFloat1' : 'ReservesFloat0';

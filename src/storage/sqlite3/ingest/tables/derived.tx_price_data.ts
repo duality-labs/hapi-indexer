@@ -17,15 +17,16 @@ export default async function upsertDerivedPriceData(
   const isDexMessage =
     tx_result.code === 0 && txEvent.attributes.module === 'dex';
 
-  // only consider TickUpdates for price movements
-  const isDexTickUpdate =
+  // only consider non-tranche TickUpdates for price movements
+  const isDexLiquidityTickUpdate =
     isDexMessage &&
     txEvent.type === 'TickUpdate' &&
-    txEvent.attributes.action === 'TickUpdate';
+    txEvent.attributes.action === 'TickUpdate' &&
+    !txEvent.attributes.TrancheKey;
 
   // only consider TickUpdates from PlaceLimitOrder actions as price movements
   const isDexTxMsgPlaceLimitOrder =
-    isDexTickUpdate &&
+    isDexLiquidityTickUpdate &&
     (tx_result.events || [])
       .filter((txEvent) => txEvent.type === 'message')
       .map(decodeEvent)
@@ -34,7 +35,7 @@ export default async function upsertDerivedPriceData(
           txDecodedEvent.attributes['action'] === 'PlaceLimitOrder'
       );
 
-  if (isDexMessage && isDexTickUpdate && isDexTxMsgPlaceLimitOrder) {
+  if (isDexMessage && isDexLiquidityTickUpdate && isDexTxMsgPlaceLimitOrder) {
     const isForward =
       txEvent.attributes['TokenIn'] === txEvent.attributes['TokenOne'];
 
