@@ -39,6 +39,7 @@ const {
   RPC_API = '',
   POLLING_INTERVAL_MS = '',
   SYNC_PAGE_SIZE = '',
+  AVOID_USING_SERVER_TIME = '',
   COLOR_LOGS = '',
   FETCH_TIMEOUT = '',
 } = process.env;
@@ -315,19 +316,6 @@ export async function catchUp({
     const { result } = (await response.json()) as RpcTxSearchResponse;
     stopParsingTimer();
     for (const { height, hash, tx_result } of result.txs) {
-      // note current block height
-      const newHeight = Number(height);
-      if (newHeight > maxBlockHeight) {
-        // set last known (completed) block height to the previous height
-        // as we don't expect to see any further transactions from that block
-        lastBlockHeight.set(maxBlockHeight);
-        // set this loop to continue only after listeners of the
-        // waitForNextBlock (and the 'newHeight' event) have been resolved
-        await new Promise((resolve) => setTimeout(resolve, 1));
-        // set new height for the next for-loop if condition
-        maxBlockHeight = newHeight;
-      }
-
       // skip this tx if the result code was 0 (there was an error)
       if (tx_result.code !== 0) {
         continue;
@@ -375,6 +363,19 @@ export async function catchUp({
       }
       const timestamp = blockTimestamps[height];
 
+      // note current block height
+      const newHeight = Number(height);
+      if (newHeight > maxBlockHeight) {
+        // set last known (completed) block height to the previous height
+        // as we don't expect to see any further transactions from that block
+        lastBlockHeight.set(maxBlockHeight, timestamp);
+        // set this loop to continue only after listeners of the
+        // waitForNextBlock (and the 'newHeight' event) have been resolved
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        // set new height for the next for-loop if condition
+        maxBlockHeight = newHeight;
+      }
+
       const stopProcessingTimer = timer.start('processing:txs');
       // ingest single tx
       await ingestTxs(
@@ -404,12 +405,17 @@ const newHeightEmitter = new EventEmitter().setMaxListeners(Infinity);
 // different each time during an asynchronous function
 class BlockHeight {
   private lastBlockHeight = 0;
+  private lastBlockTimestamp: Date = new Date(0);
   get() {
     return this.lastBlockHeight;
   }
-  set(height: number) {
+  getTimestamp() {
+    return this.lastBlockTimestamp;
+  }
+  set(height: number, timestamp: string) {
     if (height > this.lastBlockHeight) {
       this.lastBlockHeight = height;
+      this.lastBlockTimestamp = new Date(timestamp);
       newHeightEmitter.emit('newHeight', height);
     }
   }
@@ -421,6 +427,15 @@ const lastBlockHeight = new BlockHeight();
 // expose last block height synchronously to other files, but not the set method
 export function getLastBlockHeight() {
   return lastBlockHeight.get();
+}
+export function getLastBlockMinuteUnix() {
+  // optionally avoid using server OS time (as default timeseries filter value)
+  const now = AVOID_USING_SERVER_TIME
+    ? // use chain time
+      new Date(lastBlockHeight.getTimestamp())
+    : // use OS time
+      new Date();
+  return now.setSeconds(0, 0) / 1000;
 }
 
 // export a function to allow other functions to listen for the next block
@@ -492,7 +507,7 @@ export async function keepUp() {
       // all txs for the lastAbciBlockHeight have been processed so we can set
       // the new lastBlockHeight and inform all listeners of the new value
       const newBlockHeight = maxTxBlockHeight || lastAbciBlockHeight;
-      lastBlockHeight.set(newBlockHeight);
+      lastBlockHeight.set(newBlockHeight, blockTimestamps[newBlockHeight]);
 
       // log block height increments
       if (newBlockHeight > previousLastBlockHeight) {

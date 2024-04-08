@@ -9,7 +9,7 @@ import {
 import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 import { Plugins } from '.';
 import { hours } from '../../storage/sqlite3/db/timeseriesUtils';
-import { getLastBlockHeight } from '../../sync';
+import { getLastBlockHeight, getLastBlockMinuteUnix } from '../../sync';
 
 const shape = [['time_unix', ['open', 'high', 'low', 'close']]] as const;
 type Shape = typeof shape;
@@ -39,7 +39,7 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
   const currentHeight = getLastBlockHeight();
 
   // round down to the passing of the most recent minute
-  const mostRecentMinuteUnix = new Date().setSeconds(0, 0) / 1000;
+  const mostRecentMinuteUnix = getLastBlockMinuteUnix();
   const response = await getUnsortedPairPriceTimeseries(
     context.pairPriceCache,
     params['tokenA'],

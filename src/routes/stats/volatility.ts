@@ -7,7 +7,7 @@ import { GetEndpointData, GetEndpointResponse } from '../../mechanisms/types';
 import { Plugins } from '.';
 import { days } from '../../storage/sqlite3/db/timeseriesUtils';
 import hasInvertedOrder from '../../storage/sqlite3/db/dex.pairs/hasInvertedOrder';
-import { getLastBlockHeight } from '../../sync';
+import { getLastBlockHeight, getLastBlockMinuteUnix } from '../../sync';
 
 // todo: remove seemingly useless array around volatility data
 //       when the front end has this refactored the previous logic of timeseries
@@ -40,8 +40,7 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
   const currentHeight = getLastBlockHeight();
 
   // round down to the passing of the most recent minute for "now"
-  const now = new Date().setSeconds(0, 0).valueOf();
-  const nowUnix = now / 1000;
+  const mostRecentMinuteUnix = getLastBlockMinuteUnix();
 
   const dataPromise = getUnsortedPairPriceTimeseries(
     context.pairPriceCache,
@@ -49,8 +48,8 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
     params['tokenB'],
     'day',
     {
-      'pagination.before': `${nowUnix}`,
-      'pagination.after': `${nowUnix - 22 * days}`,
+      'pagination.before': `${mostRecentMinuteUnix}`,
+      'pagination.after': `${mostRecentMinuteUnix - 22 * days}`,
     }
   );
 
@@ -71,7 +70,7 @@ const getData: GetEndpointData<Plugins, DataSets> = async (
   const [, lastest22Days] = data;
 
   // round down to the passing of the most recent day for calculations
-  const startOfToday = new Date(now);
+  const startOfToday = new Date(mostRecentMinuteUnix * 1000);
   startOfToday.setSeconds(0, 0);
   startOfToday.setMinutes(0);
   startOfToday.setHours(0);
