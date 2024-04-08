@@ -14,11 +14,9 @@ export default async function upsertDerivedVolumeData(
   index: number,
   timer = new Timer()
 ) {
-  // repeat checks
+  // repeat basic Dex event check
   const isDexMessage =
-    txEvent.type === 'TickUpdate' &&
-    txEvent.attributes.module === 'dex' &&
-    tx_result.code === 0;
+    tx_result.code === 0 && txEvent.attributes.module === 'dex';
 
   if (isDexMessage && txEvent.attributes.action === 'TickUpdate') {
     const isForward =

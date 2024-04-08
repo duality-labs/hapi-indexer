@@ -13,15 +13,15 @@ export default async function upsertDerivedPriceData(
   index: number,
   timer = new Timer()
 ) {
-  // repeat checks
+  // repeat basic Dex event check
   const isDexMessage =
-    txEvent.type === 'TickUpdate' &&
-    txEvent.attributes.module === 'dex' &&
-    tx_result.code === 0;
+    tx_result.code === 0 && txEvent.attributes.module === 'dex';
 
   // only consider TickUpdates for price movements
   const isDexTickUpdate =
-    isDexMessage && txEvent.attributes.action === 'TickUpdate';
+    isDexMessage &&
+    txEvent.type === 'TickUpdate' &&
+    txEvent.attributes.action === 'TickUpdate';
 
   // only consider TickUpdates from PlaceLimitOrder actions as price movements
   const isDexTxMsgPlaceLimitOrder =
