@@ -49,7 +49,12 @@ export default async function insertEventPlaceLimitOrder(
       ${txEvent.attributes['LimitTick']},
       ${txEvent.attributes['OrderType']},
       ${txEvent.attributes['Shares']},
-      ${txEvent.attributes['TrancheKey']},
+      ${
+        // don't save a TrancheKey when no shares were added ('0' or '' or null)
+        Number(txEvent.attributes['Shares']) > 0
+          ? txEvent.attributes['TrancheKey']
+          : null
+      },
 
       (
         SELECT

@@ -17,7 +17,7 @@ CREATE TABLE 'event.PlaceLimitOrder' (
   'LimitTick' INTEGER NOT NULL,
   'OrderType' TEXT NOT NULL,
   'Shares' TEXT NOT NULL,
-  'TrancheKey' TEXT NOT NULL,
+  'TrancheKey' TEXT,
 
   'related.tx_result.events' INTEGER NOT NULL,
   'related.dex.pair' INTEGER NOT NULL,
