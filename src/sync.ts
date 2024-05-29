@@ -51,7 +51,12 @@ type PageReader = (options: {
   page?: number;
   timer: Timer;
 }) => Promise<
-  [pageItemCount: number, totalItemCount: number, nextOffset: number | null]
+  [
+    pageItemCount: number,
+    knownHeight: number,
+    chainHeight: number,
+    nextOffset: number | null
+  ]
 >;
 
 const defaultLogger = createLogger({
@@ -87,10 +92,9 @@ function formatNumber(value: number, decimalPlaces = 0, padding = 0) {
 
 async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   let lastProgressTime = 0;
-  let lastNumerator = 0;
   function printProgress(
-    numerator: number,
-    divisor: number,
+    pageItemCount: number,
+    percentProgress: number,
     message?: string,
     timer?: Timer
   ) {
@@ -105,10 +109,10 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
       else if (timer?.get('processing')) {
         defaultLogger.info(
           `import progress: ${formatNumber(
-            (100 * numerator) / divisor,
+            100 * percentProgress,
             1,
             5
-          )}% (${formatNumber(numerator)} items) ${
+          )}% (page: ${formatNumber(pageItemCount)} items) ${
             timer
               ? `(fetching: ${formatNumber(
                   timer.get('fetching') ?? 0,
@@ -119,7 +123,7 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
                   0,
                   3
                 )}ms, processing: ${formatNumber(
-                  (timer.get('processing') ?? 0) / (numerator - lastNumerator),
+                  (timer.get('processing') ?? 0) / (pageItemCount || 1),
                   0,
                   3
                 )}ms per item)`
@@ -157,7 +161,7 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
       // log empty polling information to file but not console
       else {
         logger.info(
-          `poll: (${formatNumber(numerator)} items) ${
+          `poll: (${formatNumber(pageItemCount)} items) ${
             timer
               ? `(fetching: ${formatNumber(
                   timer.get('fetching') ?? 0,
@@ -173,7 +177,6 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
         );
       }
       lastProgressTime = now;
-      lastNumerator = numerator;
     }
   }
 
@@ -182,14 +185,15 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
   let previousItemCount = 0;
 
   const startTime = Date.now();
-  printProgress(0, 1, 'import starting');
+  printProgress(0, 0, 'import starting');
   do {
     const timer = new Timer();
     // read page data and return counting details
-    const [pageItemCount, totalItemCount, nextPage] = await readPage({
-      page: currentPage,
-      timer,
-    });
+    const [pageItemCount, currentHeight, totalHeight, nextPage] =
+      await readPage({
+        page: currentPage,
+        timer,
+      });
 
     // update progress
     previousItemCount = currentItemCount;
@@ -197,11 +201,11 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
     currentPage = nextPage;
 
     // see progress
-    printProgress(currentItemCount, totalItemCount, '', timer);
+    printProgress(pageItemCount, currentHeight / (totalHeight || 1), '', timer);
   } while (currentItemCount > previousItemCount && !!currentPage);
   const duration = Date.now() - startTime;
   printProgress(
-    1,
+    0,
     1,
     `import done (done in ${formatNumber(duration)}ms, ${(
       duration / (currentItemCount || 1)
@@ -236,11 +240,30 @@ const blockTimestamps: { [height: string]: string } = {};
 // note: this number should be 1 or divisible by 10
 const itemsPerPage = Math.max(1, Math.min(100, Number(SYNC_PAGE_SIZE) || 100));
 
+let syncBlocksQuerySize = 100;
+let knownChainHeight = 0;
+let fromBlockHeight = 0;
 export async function catchUp({
-  fromBlockHeight = 0,
+  fromBlockHeight: givenFromBlockHeight = 0,
   logger = defaultLogger,
 } = {}): Promise<number> {
+  fromBlockHeight = Math.max(fromBlockHeight, givenFromBlockHeight);
   let maxBlockHeight = 0;
+
+  // get last known block height before querying transactions
+  // this value is only used if the transactions list from the block height
+  // contains no transactions (and we can't derive the last known block height)
+  // todo: using REST requests this is in header or each request so it can be continually updated: "Grpc-Metadata-X-Cosmos-Block-Height"
+  knownChainHeight = await fetch(`${RPC_API}/abci_info`)
+    .then((response) => response.json() as Promise<RpcAbciResponse>)
+    .then(({ result }) => {
+      return Number(result?.response?.last_block_height) || 0;
+    });
+
+  const nearChainHeight = fromBlockHeight > knownChainHeight - 1000;
+  const toBlockHeight = !nearChainHeight
+    ? fromBlockHeight + syncBlocksQuerySize
+    : undefined;
   // read tx pages
   await iterateThroughPages(async ({ page: offset = 0, timer }) => {
     // we default starting page to 1 as this API has 1-based page numbers
@@ -263,7 +286,13 @@ export async function catchUp({
       }
       const page = Math.round(offset / itemsToRequest) + 1;
       const url = `${RPC_API}/tx_search?query="${encodeURIComponent(
-        `tx.height>=${fromBlockHeight} AND message.module='dex'`
+        [
+          `tx.height>=${fromBlockHeight}`,
+          toBlockHeight && `tx.height<=${toBlockHeight - 1}`,
+          `message.module='${'dex'}'`,
+        ]
+          .filter(Boolean)
+          .join(' AND ')
       )}"&per_page=${itemsToRequest}&page=${page}`;
       // create timer label for this request (and label for last request)
       const fetchTxsTimerLabel = `fetching:txs:try-${retryCount
@@ -385,14 +414,30 @@ export async function catchUp({
       stopProcessingTimer();
     }
 
+    // adjust page fetching extents
+    if (result?.txs?.length) {
+      syncBlocksQuerySize = 100;
+    } else {
+      syncBlocksQuerySize = Math.min(syncBlocksQuerySize * 10, 1000000);
+    }
+
     // return next page information for page iterating function
     const pageItemCount = result.txs.length;
     const totalItemCount = Number(result.total_count) || 0;
     const currentItemCount = offset + pageItemCount;
     const nextOffset =
       currentItemCount < totalItemCount ? currentItemCount : null;
-    return [pageItemCount, totalItemCount, nextOffset];
+    return [
+      pageItemCount,
+      maxBlockHeight,
+      knownChainHeight,
+      // todo: fix: when nextOffset is null (pagination is finished, catchUp is done)
+      //       this is no longer the case now that we are fetching chunks of events
+      nextOffset,
+    ];
   }, logger.child({ label: 'transaction' }));
+
+  fromBlockHeight = toBlockHeight || fromBlockHeight;
 
   return maxBlockHeight;
 }
@@ -485,35 +530,22 @@ export async function keepUp() {
     const startTime = Date.now();
     try {
       const previousLastBlockHeight = lastBlockHeight.get();
-      // get last known block height before querying transactions
-      // this value is only used if the transactions list from the block height
-      // contains no transactions (and we can't derive the last known block height)
-      const lastAbciBlockHeight =
-        previousLastBlockHeight > 0
-          ? await fetch(`${RPC_API}/abci_info`)
-              .then((response) => response.json() as Promise<RpcAbciResponse>)
-              .then(({ result }) => {
-                return Number(result?.response?.last_block_height) || 0;
-              })
-          : 0;
 
-      const maxTxBlockHeight = await catchUp({
+      const newBlockHeight = await catchUp({
         fromBlockHeight: previousLastBlockHeight + 1,
         logger: pollingLogger,
       });
       const now = Date.now();
       const duration = now - startTime;
 
-      // all txs for the lastAbciBlockHeight have been processed so we can set
-      // the new lastBlockHeight and inform all listeners of the new value
-      const newBlockHeight = maxTxBlockHeight || lastAbciBlockHeight;
-      lastBlockHeight.set(newBlockHeight, blockTimestamps[newBlockHeight]);
-
       // log block height increments
       if (newBlockHeight > previousLastBlockHeight) {
+        // inform all listeners of the new value
+        lastBlockHeight.set(newBlockHeight, blockTimestamps[newBlockHeight]);
         defaultLogger.info(
           `keeping up: last block processed: ${newBlockHeight}`
         );
+
         lastHeartbeatTime = now;
       } else {
         pollingLogger.info(
