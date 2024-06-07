@@ -174,14 +174,16 @@ const init = async () => {
   // add "on start" routes
   server.route(onStartRoutes);
 
+  // wait for database to be set up before starting server
+  await initDb();
+  await initDbSchema();
+
   serverTimes.starting = new Date();
   await server.start();
   logger.info(`Server running on ${server.info.uri}`);
   serverTimes.started = new Date();
 
-  // wait for database to be set up before adding indexer routes
-  await initDb();
-  await initDbSchema();
+  // wait for database to have up-to-date data before allowing indexer routes
   serverTimes.indexing = new Date();
   // prevent routes from being usable until the indexer is synced with the chain
   if (ALLOW_ROUTES_BEFORE_SYNCED !== 'true') {
@@ -199,7 +201,11 @@ const init = async () => {
 };
 
 process.on('unhandledRejection', async (err) => {
+  logger.info('unhandledRejection found');
   logger.error(err);
+  // todo: maybe write DB to file after every new block height
+  //       and hav a way to start from that file
+  // also: maybe upgrade Node: https://github.com/nodejs/node/issues/51677
   await db.close();
   process.exit(1);
 });
