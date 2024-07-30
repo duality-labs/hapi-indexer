@@ -45,14 +45,11 @@ export function isDexSwapTickUpdate(
       txDecodedEvent.attributes['module'] === 'dex'
   );
 
-  // swap events are TickUpdates of PlaceLimitOrder actions that either:
+  // swap events are TickUpdates of PlaceLimitOrder actions that withdrew tokens
   return (
     !!placeLimitOrderEvent &&
-    // did not deposit reserves, ie. no shares were created
-    (!Number(placeLimitOrderEvent.attributes['Shares']) ||
-      // or the deposited reserves were not the tranche of the TickUpdate
-      placeLimitOrderEvent.attributes['TrancheKey'] !==
-        txEvent.attributes['TrancheKey'])
+    placeLimitOrderEvent.attributes['TokenOut'] ===
+      txEvent.attributes['TokenIn']
   );
 }
 
