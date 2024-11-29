@@ -38,6 +38,7 @@ interface RpcBlockHeaderLookupResponse {
 const {
   RPC_API = '',
   POLLING_INTERVAL_MS = '',
+  INITIAL_BLOCK_HEIGHT = '',
   SYNC_PAGE_SIZE = '',
   AVOID_USING_SERVER_TIME = '',
   COLOR_LOGS = '',
@@ -110,8 +111,8 @@ async function iterateThroughPages(readPage: PageReader, logger: Logger) {
         defaultLogger.info(
           `import progress: ${formatNumber(
             100 * percentProgress,
-            1,
-            5
+            3,
+            7
           )}% (page: ${formatNumber(pageItemCount)} items) ${
             timer
               ? `(fetching: ${formatNumber(
@@ -290,6 +291,8 @@ export async function catchUp({
           `tx.height>=${fromBlockHeight}`,
           toBlockHeight && `tx.height<=${toBlockHeight - 1}`,
           `message.module='${'dex'}'`,
+          'message.TokenZero=\'ibc/773B4D0A3CD667B2275D5A4A7A2F0909C0BA0F4059C0B9181E680DDF4965DCC7\'',
+          'message.TokenOne=\'ibc/B559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E4F81\'',
         ]
           .filter(Boolean)
           .join(' AND ')
@@ -339,11 +342,18 @@ export async function catchUp({
         );
       }
     }
+    // set what the current block height we're targeting is
+    processingBlockHeight.set(toBlockHeight || 0, new Date().toISOString())
 
     // read the RPC tx search results for tx hashes
     const stopParsingTimer = timer.start(`parsing:txs:size-${itemsToRequest}`);
     const { result } = (await response.json()) as RpcTxSearchResponse;
     stopParsingTimer();
+    defaultLogger.info(`import page found: ${
+      `height ${fromBlockHeight} -> ${toBlockHeight || 'the moon'}`
+    }: ${
+      `${result.total_count} items`
+    }`)
     for (const { height, hash, tx_result } of result.txs) {
       // skip this tx if the result code was 0 (there was an error)
       if (tx_result.code !== 0) {
@@ -437,7 +447,11 @@ export async function catchUp({
     ];
   }, logger.child({ label: 'transaction' }));
 
-  fromBlockHeight = toBlockHeight || fromBlockHeight;
+  fromBlockHeight = fromBlockHeight > knownChainHeight
+    ? knownChainHeight
+    : toBlockHeight || fromBlockHeight;
+
+  console.log('returning maxBlockHeight', maxBlockHeight, { fromBlockHeight, knownChainHeight, toBlockHeight })
 
   return maxBlockHeight;
 }
@@ -449,7 +463,7 @@ const newHeightEmitter = new EventEmitter().setMaxListeners(Infinity);
 // and to let us know that when we access lastBlockHeight.get() it may be
 // different each time during an asynchronous function
 class BlockHeight {
-  private lastBlockHeight = 0;
+  private lastBlockHeight = Number(INITIAL_BLOCK_HEIGHT) || 0;
   private lastBlockTimestamp: Date = new Date(0);
   get() {
     return this.lastBlockHeight;
@@ -468,6 +482,7 @@ class BlockHeight {
 // last block height means "last completed/finalized block height"
 // it should be safe to assume no new transactions will appear in this block
 const lastBlockHeight = new BlockHeight();
+const processingBlockHeight = new BlockHeight();
 
 // expose last block height synchronously to other files, but not the set method
 export function getLastBlockHeight() {
@@ -518,12 +533,15 @@ interface RpcAbciResponse {
     };
   };
 }
-export async function keepUp() {
+export async function keepUp(intervalMs = pollIntervalMs, keepUp = true) {
   defaultLogger.info(
     `keeping up: polling from block height: ${lastBlockHeight.get()}`
   );
   let lastHeartbeatTime = Date.now();
 
+  return new Promise<number>((resolve) => {
+
+  let dataFound = false;
   // poll for updates
   async function poll() {
     pollingLogger.info('keeping up: polling');
@@ -535,6 +553,7 @@ export async function keepUp() {
         fromBlockHeight: previousLastBlockHeight + 1,
         logger: pollingLogger,
       });
+      console.log(' ! catched up?', newBlockHeight)
       const now = Date.now();
       const duration = now - startTime;
 
@@ -545,13 +564,19 @@ export async function keepUp() {
         defaultLogger.info(
           `keeping up: last block processed: ${newBlockHeight}`
         );
+        dataFound = true;
 
         lastHeartbeatTime = now;
       } else {
         pollingLogger.info(
           `keeping up: no change (done in ${formatNumber(duration)}ms)`
         );
-        if (now - lastHeartbeatTime > 10000) {
+        console.log(' ! might resolve promise with', { newBlockHeight, dataFound, knownChainHeight, lastBlockHeight: lastBlockHeight.get(), processingBlockHeight: processingBlockHeight.get() })
+        if (!keepUp && processingBlockHeight.get() > knownChainHeight) {
+          console.log(' ! ! ! # ! resolved')
+          return resolve(newBlockHeight);
+        }
+        if (keepUp && now - lastHeartbeatTime > 10000) {
           defaultLogger.info('keeping up: still polling ...');
           lastHeartbeatTime = now;
         }
@@ -566,8 +591,11 @@ export async function keepUp() {
     // note: prefer setTimeout over setInterval because of concerns about
     // overlapping ingestions into the DB (ie. if ingestion takes longer than
     // the setInterval time then multiple invocations of catchUp will run concurrently)
-    setTimeout(poll, pollIntervalMs);
+    setTimeout(poll, intervalMs);
   }
 
   poll();
+        
+  })
+
 }

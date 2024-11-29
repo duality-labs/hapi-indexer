@@ -140,6 +140,7 @@ const init = async () => {
     method: 'GET',
     path: '/',
     handler: () => {
+      console.log('testing')
       return {
         status: 'OK',
         http2Available: isSecure,
@@ -187,8 +188,10 @@ const init = async () => {
   serverTimes.indexing = new Date();
   // prevent routes from being usable until the indexer is synced with the chain
   if (ALLOW_ROUTES_BEFORE_SYNCED !== 'true') {
-    await sync.catchUp();
+    await sync.keepUp(500, false);
   }
+
+  console.log(" !!!!! finished catching up")
   serverTimes.indexed = new Date();
 
   // and indexer plugin routes
