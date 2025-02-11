@@ -26,6 +26,7 @@ const {
   SSL_PUBLIC_KEY = safeReadFileText(SSL_PUBLIC_KEY_FILE) || '',
   CLICKHOUSE_DB_HOST = '',
   CLICKHOUSE_DB_PORT = '',
+  CLICKHOUSE_DB_PASS = '',
 } = process.env;
 
 async function testConnection(): Promise<boolean> {
@@ -42,6 +43,11 @@ async function testConnection(): Promise<boolean> {
 
     if (!ping.success) {
       throw new Error('DB did not return ping');
+    }
+
+    // skip DB check if there are no base credentials
+    if (!CLICKHOUSE_DB_PASS) {
+      return true;
     }
 
     const queryStart = Date.now();
