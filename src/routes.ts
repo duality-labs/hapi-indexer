@@ -9,7 +9,16 @@ const debugRoute = {
   handler: async (request: Request, h: ResponseToolkit) => {
     try {
       const query = request.query['query'];
-      const response = await client.query({ query });
+      const response = await client.query({
+        query,
+        ...(request.query['username'] &&
+          request.query['password'] && {
+            auth: {
+              username: request.query['username'],
+              password: request.query['password'],
+            },
+          }),
+      });
       return await response.json();
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -32,6 +41,13 @@ const debugHeight = {
       const response = await client.query({
         query:
           'SELECT max(height) as raw_block_results_height from raw_block_results',
+        ...(request.query['username'] &&
+          request.query['password'] && {
+            auth: {
+              username: request.query['username'],
+              password: request.query['password'],
+            },
+          }),
       });
       return await response.json();
     } catch (err: unknown) {
@@ -102,6 +118,13 @@ const debugSSE = {
           try {
             const response = await client.query({
               query: 'SELECT max(height) as height from raw_block_results',
+              ...(request.query['username'] &&
+                request.query['password'] && {
+                  auth: {
+                    username: request.query['username'],
+                    password: request.query['password'],
+                  },
+                }),
             });
             const json = await response.json();
             logger.info(JSON.stringify(json, null, 2));
