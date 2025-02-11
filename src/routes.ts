@@ -1,15 +1,16 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from './logger';
+import { client } from './client';
 
 // add debug route
 const debugRoute = {
   method: 'GET',
-  path: '/debug/{limit?}',
+  path: '/debug',
   handler: async (request: Request, h: ResponseToolkit) => {
-    // set limit to all or the given number (defaulting to 100)
-    const limit = Number(request.params['limit']) || 100;
     try {
-      return { limit };
+      const query = request.query['query'];
+      const response = await client.query({ query });
+      return await response.json();
     } catch (err: unknown) {
       if (err instanceof Error) {
         logger.error(err);

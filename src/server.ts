@@ -8,7 +8,8 @@ import globalPlugins from './plugins';
 import { routes } from './routes';
 import { inMs, minutes } from './utils/time';
 
-import { createClient, SingleDocumentJSONFormat } from '@clickhouse/client';
+import { SingleDocumentJSONFormat } from '@clickhouse/client';
+import { client } from './client';
 
 function safeReadFileText(filename: string) {
   if (filename && fs.existsSync(filename)) {
@@ -25,17 +26,7 @@ const {
   SSL_PUBLIC_KEY = safeReadFileText(SSL_PUBLIC_KEY_FILE) || '',
   CLICKHOUSE_DB_HOST = '',
   CLICKHOUSE_DB_PORT = '',
-  CLICKHOUSE_DB_USER = undefined,
-  CLICKHOUSE_DB_NAME = undefined,
-  CLICKHOUSE_DB_PASS = undefined,
 } = process.env;
-
-const client = createClient({
-  url: `${CLICKHOUSE_DB_HOST}:${CLICKHOUSE_DB_PORT}`,
-  username: CLICKHOUSE_DB_USER,
-  password: CLICKHOUSE_DB_PASS,
-  database: CLICKHOUSE_DB_NAME,
-});
 
 async function testConnection(): Promise<boolean> {
   try {
