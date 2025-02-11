@@ -54,6 +54,6 @@
   },
 
   // if NODE_ENV is "production", we still install dev dependencies to run the dev server
-  "postCreateCommand": "sh ./scripts/create-certs.sh && npm i --include dev",
-  "postStartCommand": "npm run dev"
+  "postCreateCommand": "sh ./scripts/create-certs.sh && npm i --include dev"
+  // "postStartCommand": "npm run dev"
 }

@@ -4,16 +4,11 @@ import http2, { Http2SecureServer } from 'node:http2';
 import Hapi from '@hapi/hapi';
 import logger from './logger';
 
-import db, { init as initDb } from './storage/sqlite3/db/db';
-import initDbSchema from './storage/sqlite3/schema/schema';
-import * as sync from './sync';
-
 import globalPlugins from './plugins';
-import { plugin as liquidityPlugin } from './routes/liquidity';
-import { plugin as timeseriesPlugin } from './routes/timeseries';
-import { plugin as statsPlugin } from './routes/stats';
-import { onStartRoutes, onSyncRoutes } from './routes';
-import { inMs, minutes } from './storage/sqlite3/db/timeseriesUtils';
+import { routes } from './routes';
+import { inMs, minutes } from './utils/time';
+
+import { createClient, SingleDocumentJSONFormat } from '@clickhouse/client';
 
 function safeReadFileText(filename: string) {
   if (filename && fs.existsSync(filename)) {
@@ -23,35 +18,52 @@ function safeReadFileText(filename: string) {
 
 const {
   PORT = '8000',
-  RPC_API = '',
   CORS_ALLOWED_ORIGINS = '',
-  ALLOW_ROUTES_BEFORE_SYNCED = '',
   SSL_PRIVATE_KEY_FILE = 'ssl-key.pem',
   SSL_PUBLIC_KEY_FILE = 'ssl-cert.pem',
   SSL_PRIVATE_KEY = safeReadFileText(SSL_PRIVATE_KEY_FILE) || '',
   SSL_PUBLIC_KEY = safeReadFileText(SSL_PUBLIC_KEY_FILE) || '',
+  CLICKHOUSE_DB_HOST = '',
+  CLICKHOUSE_DB_PORT = '',
+  CLICKHOUSE_DB_USER = undefined,
+  CLICKHOUSE_DB_NAME = undefined,
+  CLICKHOUSE_DB_PASS = undefined,
 } = process.env;
 
-async function testConnection(apiUrl: string): Promise<boolean> {
+const client = createClient({
+  url: `${CLICKHOUSE_DB_HOST}:${CLICKHOUSE_DB_PORT}`,
+  username: CLICKHOUSE_DB_USER,
+  password: CLICKHOUSE_DB_PASS,
+  database: CLICKHOUSE_DB_NAME,
+});
+
+async function testConnection(): Promise<boolean> {
   try {
-    logger.info(`testing connection to API: ${apiUrl}`);
+    logger.info(
+      `testing connection to DB: ${CLICKHOUSE_DB_HOST}:${CLICKHOUSE_DB_PORT}`
+    );
 
-    // fetch the transactions from block 0 (which should be empty)
-    const response = await fetch(`${apiUrl}/tx_search?query="tx.height=0"`);
+    const pingStart = Date.now();
+    const ping = await client.ping();
+    logger.info(
+      `testing connection to DB: ping took ${Date.now() - pingStart}ms`
+    );
 
-    if (response.status !== 200) {
-      throw new Error(`API returned status code: ${response.status}`);
+    if (!ping.success) {
+      throw new Error('DB did not return ping');
     }
 
-    const { result } = (await response.json()) as { result: { txs: [] } };
-    if (result && parseInt(`${result.txs.length}`) >= 0) {
-      logger.info(`connected to API: ${apiUrl}`);
-      return true;
-    } else {
-      throw new Error(`API returned unexpected response: ${result}`);
-    }
+    const queryStart = Date.now();
+    const response = await client.query<SingleDocumentJSONFormat>({
+      query: 'SELECT 1',
+    });
+    logger.info(
+      `testing connection to DB: got response in ${Date.now() - queryStart}ms`
+    );
+    const json = await response.json();
+    return json.rows === 1;
   } catch (err) {
-    logger.error(`connection to API failed: ${err}`);
+    logger.error(`connection to DB failed: ${err}`);
   }
   return false;
 }
@@ -70,7 +82,7 @@ const init = async () => {
   serverTimes.connecting = new Date();
   let connected = false;
   do {
-    connected = await testConnection(RPC_API);
+    connected = await testConnection();
     if (!connected) {
       // exponentially back off the connection test (capped at 1 minute)
       const waitTime = Math.min(
@@ -122,7 +134,7 @@ const init = async () => {
       cors: {
         // CORS origins may be a comma separated list as a string
         // note that "*" may be a wildcard for all origins but may also
-        // be used to whitelist an origin pattern, eg. https://*.duality.xyz
+        // be used to whitelist an origin pattern, eg. https://*.neutron.org
         // docs: https://hapi.dev/api/?v=21.3.3#-routeoptionscors
         origin: CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()),
         headers: ['Accept', 'Content-Type'],
@@ -172,35 +184,17 @@ const init = async () => {
   });
 
   // add "on start" routes
-  server.route(onStartRoutes);
+  server.route(routes);
 
   serverTimes.starting = new Date();
   await server.start();
   logger.info(`Server running on ${server.info.uri}`);
   serverTimes.started = new Date();
-
-  // wait for database to be set up before adding indexer routes
-  await initDb();
-  await initDbSchema();
-  serverTimes.indexing = new Date();
-  // prevent routes from being usable until the indexer is synced with the chain
-  if (ALLOW_ROUTES_BEFORE_SYNCED !== 'true') {
-    await sync.catchUp();
-  }
-  serverTimes.indexed = new Date();
-
-  // and indexer plugin routes
-  server.register([liquidityPlugin, timeseriesPlugin, statsPlugin]);
-
-  // add "on synced" routes
-  server.route(onSyncRoutes);
-
-  await sync.keepUp();
 };
 
 process.on('unhandledRejection', async (err) => {
   logger.error(err);
-  await db.close();
+  await client.close();
   process.exit(1);
 });
 
