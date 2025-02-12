@@ -168,10 +168,8 @@ const debugSSE = {
                 }),
             });
             const json = await response.json();
-            logger.info(JSON.stringify(json, null, 2));
             const height =
               (json.data as { height: string }[]).at(0)?.height ?? '';
-            logger.info(height);
             if (height !== lastHeight) {
               res.write(
                 formatChunk({
