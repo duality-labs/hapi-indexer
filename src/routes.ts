@@ -1,9 +1,50 @@
-import { Request, ResponseToolkit } from '@hapi/hapi';
+import {
+  ReqRefDefaults,
+  Request,
+  ResponseToolkit,
+  ServerRoute,
+} from '@hapi/hapi';
 import logger from './logger';
 import { client } from './client';
 
+const query: ServerRoute<ReqRefDefaults> = {
+  method: 'POST',
+  path: '/query',
+  handler: async (request: Request, h: ResponseToolkit) => {
+    try {
+      const payload = request.payload as {
+        username?: string;
+        password?: string;
+        query?: string;
+      };
+      if (!payload.query) {
+        throw new Error(`query not found in: ${JSON.stringify(payload)}`);
+      }
+      const response = await client.query({
+        query: payload.query,
+        ...(payload['username'] &&
+          payload['password'] && {
+            auth: {
+              username: payload['username'],
+              password: payload['password'],
+            },
+          }),
+      });
+      return await response.json();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        logger.error(err);
+        return h
+          .response(`something happened: ${err.message || '?'}`)
+          .code(500);
+      }
+      return h.response('An unknown error occurred').code(500);
+    }
+  },
+};
+
 // add debug route
-const debugRoute = {
+const debugQuery = {
   method: 'GET',
   path: '/debug/query',
   handler: async (request: Request, h: ResponseToolkit) => {
@@ -186,6 +227,8 @@ const debugSSE = {
 export const routes = [
   // add development only paths
   ...(process.env.NODE_ENV === 'development'
-    ? [debugRoute, debugHeight, debugSSE]
+    ? [debugQuery, debugHeight, debugSSE]
     : []),
+  // add production proxy of query body request to DB
+  query,
 ];
