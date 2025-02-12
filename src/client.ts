@@ -13,4 +13,8 @@ export const client = createClient({
   username: CLICKHOUSE_DB_USER,
   password: CLICKHOUSE_DB_PASS,
   database: CLICKHOUSE_DB_NAME,
+  clickhouse_settings: {
+    // prevent this client from making any write requests
+    readonly: '1',
+  },
 });
