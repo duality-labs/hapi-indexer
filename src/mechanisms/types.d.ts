@@ -1,13 +1,10 @@
 import { Request } from '@hapi/hapi';
 import { PluginContext as CompressResponsePluginContext } from '../plugins/response-compression';
-import {
-  PaginatedRequestQuery,
-  PaginatedResponse,
-} from '../storage/sqlite3/db/paginationUtils';
+import { PaginatedRequestQuery, PaginatedResponse } from '../utils/pagination';
 import {
   BlockRangeRequestQuery,
   BlockRangeResponse,
-} from '../storage/sqlite3/db/blockRangeUtils';
+} from '../utils/block_range';
 
 export type ServerPluginContext = Partial<CompressResponsePluginContext>;
 

@@ -3,20 +3,14 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from '../logger';
 import { getLastBlockHeight, waitForNextBlock } from '../sync';
 import { getCompletedHeightAtTime } from '../storage/sqlite3/db/block/getHeight';
-import {
-  BlockRangeRequestQuery,
-  getBlockRange,
-} from '../storage/sqlite3/db/blockRangeUtils';
+import { BlockRangeRequestQuery, getBlockRange } from '../utils/block_range';
 import {
   FlattenSingularItems,
   GetEndpointData,
   GetEndpointResponse,
   ServerPluginContext,
 } from './types';
-import {
-  PaginatedRequestQuery,
-  decodePagination,
-} from '../storage/sqlite3/db/paginationUtils';
+import { PaginatedRequestQuery, decodePagination } from '../utils/pagination';
 
 export default async function serverSentEventRequest<
   PluginContext,
@@ -148,7 +142,7 @@ export default async function serverSentEventRequest<
                   (acc, page) => Math.max(acc, page.length),
                   0
                 )
-              : page?.length ?? 0;
+              : (page as unknown[])?.length ?? 0;
           const nextOffset = offset + (pageSize ?? 0);
           const total = response?.pagination?.total ?? pageSize;
           res.write(

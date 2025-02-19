@@ -2,12 +2,8 @@ import { Request, ResponseObject, ResponseToolkit } from '@hapi/hapi';
 
 import logger from '../logger';
 import { getLastBlockHeight, waitForNextBlock } from '../sync';
-import {
-  getMsLeft,
-  inMs,
-  minutes,
-} from '../storage/sqlite3/db/timeseriesUtils';
-import { getBlockRange } from '../storage/sqlite3/db/blockRangeUtils';
+import { getMsLeft, inMs, minutes } from '../utils/time';
+import { getBlockRange } from '../utils/block_range';
 
 import {
   EndpointResponse,
