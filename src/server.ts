@@ -10,6 +10,7 @@ import { inMs, minutes } from './utils/time';
 
 import { SingleDocumentJSONFormat } from '@clickhouse/client';
 import { client } from './client';
+import { plugin as swapVolumeRoute } from './routes/swap-volume';
 
 function safeReadFileText(filename: string) {
   if (filename && fs.existsSync(filename)) {
@@ -182,6 +183,8 @@ const init = async () => {
 
   // add "on start" routes
   server.route(routes);
+  // add plugin type queries
+  await server.register(swapVolumeRoute);
 
   serverTimes.starting = new Date();
   await server.start();
