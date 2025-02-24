@@ -1,6 +1,6 @@
 import { ResponseJSON, ResultSet } from '@clickhouse/client';
 import { client } from './client';
-import { hours } from '../utils/time';
+import { hours, inMs } from '../utils/time';
 import { Sql, toClickHouseSQL } from '../utils/sql';
 
 interface CacheEnvelope {
@@ -15,7 +15,7 @@ export interface QueryCacheOptions {
   cacheVersion?: number;
   cacheTime?: number;
 }
-const DEFAULT_CACHE_TIME = 1 * hours;
+const DEFAULT_CACHE_TIME = 1 * hours * inMs;
 
 const requestCache = new Map<string, CacheEnvelope>();
 

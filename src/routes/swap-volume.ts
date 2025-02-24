@@ -2,7 +2,7 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from '../utils/logger';
 
 import { getCachedResponse } from '../utils/cache-query';
-import { hours, seconds } from '../utils/time';
+import { hours, inMs, seconds } from '../utils/time';
 import sql from '../utils/sql';
 import { raw } from 'sql-template-tag';
 
@@ -48,7 +48,7 @@ export const route = {
             SELECT max(height) AS height FROM test.dex_message_event_tick_update WHERE TokenZero = ${denom0} AND TokenOne = ${denom1}
           `,
                 {
-                  cacheTime: 1 * seconds,
+                  cacheTime: 1 * seconds * inMs,
                 }
               )
             : undefined;
@@ -80,7 +80,7 @@ export const route = {
             LIMIT ${LIMIT_ROWS}
           `,
           {
-            cacheTime: 1 * hours,
+            cacheTime: 1 * hours * inMs,
             cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
           }
         );
@@ -102,8 +102,8 @@ export const route = {
           AND TokenOne = ${denom1}
       `,
         {
-          cacheTime: 1 * hours,
-          cacheVersion: Math.floor(Date.now() / (1 * hours)),
+          cacheTime: 1 * hours * inMs,
+          cacheVersion: Math.floor(Date.now() / (1 * hours * inMs)),
         }
       );
     } catch (err: unknown) {
