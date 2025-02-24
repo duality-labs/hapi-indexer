@@ -2,8 +2,9 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from '../logger';
 
 import { getCachedResponse } from '../utils/cache-query';
-import { hours } from '../utils/time';
+import { hours, seconds } from '../utils/time';
 import sql from '../utils/sql';
+import { raw } from 'sql-template-tag';
 
 // define known USDC denoms for easy approximate USD price response
 const denomsUSDC = {
@@ -11,12 +12,16 @@ const denomsUSDC = {
   axl: 'ibc/F082B65C88E4B6D5EF1DB243CDA1D331D002759E938A0F5CD3FFDC5D53B3E349',
 };
 
-// add debug route
+const periods = ['day', 'hour', 'minute', 'seconds'] as const;
+const LIMIT_ROWS = 1000;
 export const route = {
   method: 'GET',
-  path: '/swap-volume/24h/{denomA}/{denomB}',
+  path: '/swap-volume/{denomA}/{denomB}',
   handler: async (
-    request: Request<{ Params: { denomA: string; denomB: string } }>,
+    request: Request<{
+      Params: { denomA: string; denomB: string };
+      Query: { from?: number; to?: number; period?: (typeof periods)[number] };
+    }>,
     h: ResponseToolkit
   ) => {
     try {
@@ -28,7 +33,62 @@ export const route = {
         Array.from(Object.values(denomsUSDC)).find((denom) => {
           return [denom0, denom1].includes(denom);
         }) || request.params.denomA;
-      const query = sql`
+
+      // default to bounds far in the future and in the past
+      const unixFrom = Number(request.query.from) || 0;
+      const unixTo = Number(request.query.to) || 0;
+
+      // get timeseries query
+      if (request.query.period && periods.includes(request.query.period)) {
+        const currentHeight =
+          unixTo === 0 || unixTo * 1000 >= Date.now()
+            ? // for a "now-bound" request use the slightly-cached relevant data height
+              await getCachedResponse<{ height: string }>(
+                sql`
+            SELECT max(height) AS height FROM test.dex_message_event_tick_update WHERE TokenZero = ${denom0} AND TokenOne = ${denom1}
+          `,
+                {
+                  cacheTime: 1 * seconds,
+                }
+              )
+            : undefined;
+
+        return await getCachedResponse<{
+          time: string;
+          volume: string;
+          denom: string;
+        }>(
+          sql`
+            ${withTableDexTickUpdateEventsIndexed}
+            SELECT * FROM (
+              SELECT
+                toStartOfInterval(timestamp, INTERVAL 1 ${raw(
+                  `${request.query.period}`
+                )}) AS time,
+                sumIf(SwapAmountIn, TokenIn != ${denomReporting}) +
+                sumIf(SwapAmountOut, TokenIn = ${denomReporting}) as volume,
+                ${denomReporting} as denom
+              FROM dex_tick_update_events_extended
+              WHERE timestamp >= ${unixFrom}
+                AND timestamp < ${unixTo || raw('NOW()')}
+                AND TokenZero = ${denom0}
+                AND TokenOne = ${denom1}
+              GROUP BY time
+              ORDER BY time ASC
+            )
+            WHERE volume > 0
+            LIMIT ${LIMIT_ROWS}
+          `,
+          {
+            cacheTime: 1 * hours,
+            cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+          }
+        );
+      }
+
+      // get 24 hour volume cached to "beginning of the hour" version
+      return await getCachedResponse<{ volume: string; denom: string }>(
+        sql`
         ${withTableDexTickUpdateEventsIndexed}
         -- if pair contains USDC token then we can report the USDC value
         SELECT
@@ -40,12 +100,12 @@ export const route = {
           AND timestamp < toStartOfHour(NOW())
           AND TokenZero = ${denom0}
           AND TokenOne = ${denom1}
-      `;
-
-      return await getCachedResponse<{ volume: string; denom: string }>(query, {
-        cacheTime: 1 * hours,
-        cacheVersion: Math.floor(Date.now() / (1 * hours)),
-      });
+      `,
+        {
+          cacheTime: 1 * hours,
+          cacheVersion: Math.floor(Date.now() / (1 * hours)),
+        }
+      );
     } catch (err: unknown) {
       if (err instanceof Error) {
         logger.error(err);

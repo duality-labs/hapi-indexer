@@ -37,7 +37,7 @@ export async function getCachedResponse<T>(
     // item is not older than new query cache time
     cachedResponse.created + cacheTime > now &&
     // item is at least the requested version
-    cachedResponse.version >= cacheVersion
+    cachedResponse.version >= (cacheVersion || 0)
   ) {
     const response = await cachedResponse.value;
     return await response.json<T>();
@@ -50,7 +50,7 @@ export async function getCachedResponse<T>(
   // create a new request to cache
   const newResponse = {
     value: client.query(toClickHouseSQL(query)),
-    version: cacheVersion,
+    version: cacheVersion || 0,
     created: now,
     expires: now + cacheTime,
   };
