@@ -50,8 +50,8 @@ export async function getCachedResponse<T>(
   // create a new request to cache
   const newResponse = {
     value: client.query(toClickHouseSQL(query)),
-    created: now,
     version: cacheVersion,
+    created: now,
     expires: now + cacheTime,
   };
   requestCache.set(cacheKey, newResponse);
