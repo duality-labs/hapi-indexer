@@ -4,7 +4,6 @@ import http2, { Http2SecureServer } from 'node:http2';
 import Hapi from '@hapi/hapi';
 import logger from './logger';
 
-import globalPlugins from './plugins';
 import { routes } from './routes';
 import { inMs, minutes } from './utils/time';
 
@@ -142,8 +141,6 @@ const init = async () => {
     listener: rawServer as Server,
     tls: isSecure,
   });
-
-  await server.register(globalPlugins);
 
   // add status route
   server.route({
