@@ -5,6 +5,12 @@ import { getCachedResponse } from '../utils/cache-query';
 import { hours } from '../utils/time';
 import sql from '../utils/sql';
 
+// define known USDC denoms for easy approximate USD price response
+const denomsUSDC = {
+  noble: 'ibc/B559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E4F81',
+  axl: 'ibc/F082B65C88E4B6D5EF1DB243CDA1D331D002759E938A0F5CD3FFDC5D53B3E349',
+};
+
 // add debug route
 export const route = {
   method: 'GET',
@@ -18,13 +24,17 @@ export const route = {
         request.params.denomA,
         request.params.denomB,
       ].sort();
+      const denomReporting =
+        Array.from(Object.values(denomsUSDC)).find((denom) => {
+          return [denom0, denom1].includes(denom);
+        }) || request.params.denomA;
       const query = sql`
         ${withTableDexTickUpdateEventsIndexed}
         -- if pair contains USDC token then we can report the USDC value
         SELECT
-          sumIf(SwapAmountIn, TokenIn != 'ibc/B559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E4F81') +
-          sumIf(SwapAmountOut, TokenIn = 'ibc/B559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E4F81') as volume,
-          'ibc/B559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E4F81' as denom
+          sumIf(SwapAmountIn, TokenIn != ${denomReporting}) +
+          sumIf(SwapAmountOut, TokenIn = ${denomReporting}) as volume,
+          ${denomReporting} as denom
         FROM dex_tick_update_events_extended
         WHERE timestamp >= toStartOfHour(addDays(NOW(), -1))
           AND timestamp < toStartOfHour(NOW())
