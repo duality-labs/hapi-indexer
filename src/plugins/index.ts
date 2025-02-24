@@ -1,5 +1,5 @@
-import * as ResponseCompressionPlugin from './response-compression';
+import * as RequestCachePlugin from './cached-query';
 
-export type GlobalPlugins = ResponseCompressionPlugin.PluginContext;
+export type GlobalPlugins = RequestCachePlugin.PluginContext;
 
-export default [ResponseCompressionPlugin.plugin];
+export default [RequestCachePlugin.plugin];
