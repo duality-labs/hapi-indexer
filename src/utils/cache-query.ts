@@ -1,10 +1,10 @@
-import { ResponseJSON, ResultSet } from '@clickhouse/client';
+import { ResponseJSON } from '@clickhouse/client';
 import { client } from './client';
 import { hours, inMs } from '../utils/time';
 import { Sql, toClickHouseSQL } from '../utils/sql';
 
 interface CacheEnvelope {
-  value: Promise<ResultSet<'JSON'>>;
+  value: Promise<ResponseJSON>;
   version: number;
   created: number;
   expires: number;
@@ -39,8 +39,7 @@ export async function getCachedResponse<T>(
     // item is at least the requested version
     cachedResponse.version >= (cacheVersion || 0)
   ) {
-    const response = await cachedResponse.value;
-    return await response.json<T>();
+    return (await cachedResponse.value) as ResponseJSON<T>;
   }
   // remove the old version request from the cache
   if (cachedResponse) {
@@ -49,12 +48,17 @@ export async function getCachedResponse<T>(
 
   // create a new request to cache
   const newResponse = {
-    value: client.query(toClickHouseSQL(query)),
+    value: new Promise<ResponseJSON<T>>((resolve, reject) => {
+      client
+        .query(toClickHouseSQL(query))
+        .then((response) => response.json<T>())
+        .then((result) => resolve(result))
+        .catch(reject);
+    }),
     version: cacheVersion || 0,
     created: now,
     expires: now + cacheTime,
   };
   requestCache.set(cacheKey, newResponse);
-  const response = await newResponse.value;
-  return await response.json<T>();
+  return await newResponse.value;
 }
