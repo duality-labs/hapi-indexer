@@ -6,7 +6,7 @@ import {
 } from '@hapi/hapi';
 import { mediaTypes } from '@hapi/accept';
 import logger from '../logger';
-import { client } from '../client';
+import { client } from '../utils/client';
 
 function formatChunk({
   event,

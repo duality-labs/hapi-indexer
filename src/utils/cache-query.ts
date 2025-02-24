@@ -1,5 +1,5 @@
 import { ResponseJSON, ResultSet } from '@clickhouse/client';
-import { client } from '../client';
+import { client } from './client';
 import { hours } from '../utils/time';
 import { Sql, toClickHouseSQL } from '../utils/sql';
 

@@ -7,7 +7,7 @@ import logger from './logger';
 import { inMs, minutes } from './utils/time';
 
 import { SingleDocumentJSONFormat } from '@clickhouse/client';
-import { client } from './client';
+import { client } from './utils/client';
 import { routes as debugRoutes } from './routes/_debug';
 import { route as queryRoute } from './routes/query';
 import { route as swapVolumeRoute } from './routes/swap-volume';
