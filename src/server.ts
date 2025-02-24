@@ -25,6 +25,7 @@ const {
   SSL_PUBLIC_KEY_FILE = 'ssl-cert.pem',
   SSL_PRIVATE_KEY = safeReadFileText(SSL_PRIVATE_KEY_FILE) || '',
   SSL_PUBLIC_KEY = safeReadFileText(SSL_PUBLIC_KEY_FILE) || '',
+  ALLOW_HTTP_1 = '',
   CLICKHOUSE_DB_HOST = '',
   CLICKHOUSE_DB_PORT = '',
   CLICKHOUSE_DB_PASS = '',
@@ -107,6 +108,7 @@ const init = async () => {
     rawServer = http2.createSecureServer({
       key: SSL_PRIVATE_KEY,
       cert: SSL_PUBLIC_KEY,
+      allowHTTP1: ALLOW_HTTP_1 === 'true',
     }) as Http2SecureServer & Partial<Server>;
     rawServer.maxHeadersCount = null;
     rawServer.maxRequestsPerSocket = null;
