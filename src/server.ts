@@ -4,11 +4,12 @@ import http2, { Http2SecureServer } from 'node:http2';
 import Hapi from '@hapi/hapi';
 import logger from './logger';
 
-import { routes } from './routes';
 import { inMs, minutes } from './utils/time';
 
 import { SingleDocumentJSONFormat } from '@clickhouse/client';
 import { client } from './client';
+import { routes as debugRoutes } from './routes/_debug';
+import { route as queryRoute } from './routes/query';
 import { route as swapVolumeRoute } from './routes/swap-volume';
 
 function safeReadFileText(filename: string) {
@@ -179,8 +180,8 @@ const init = async () => {
   });
 
   // add "on start" routes
-  server.route(routes);
-  // add plugin type queries
+  server.route(debugRoutes);
+  server.route(queryRoute);
   server.route(swapVolumeRoute);
 
   serverTimes.starting = new Date();
