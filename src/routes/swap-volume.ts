@@ -1,5 +1,5 @@
 import { Request, ResponseToolkit } from '@hapi/hapi';
-import logger from '../logger';
+import logger from '../utils/logger';
 
 import { getCachedResponse } from '../utils/cache-query';
 import { hours, seconds } from '../utils/time';

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import http, { Server } from 'node:http';
 import http2, { Http2SecureServer } from 'node:http2';
 import Hapi from '@hapi/hapi';
-import logger from './logger';
+import logger from './utils/logger';
 
 import { inMs, minutes } from './utils/time';
 

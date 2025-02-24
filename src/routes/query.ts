@@ -5,7 +5,7 @@ import {
   ServerRoute,
 } from '@hapi/hapi';
 import { mediaTypes } from '@hapi/accept';
-import logger from '../logger';
+import logger from '../utils/logger';
 import { client } from '../utils/client';
 
 function formatChunk({
