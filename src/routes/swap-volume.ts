@@ -74,7 +74,7 @@ export const route = {
                 AND TokenZero = ${denom0}
                 AND TokenOne = ${denom1}
               GROUP BY time
-              ORDER BY time ASC
+              ORDER BY time DESC
             )
             WHERE volume > 0
             LIMIT ${LIMIT_ROWS}
