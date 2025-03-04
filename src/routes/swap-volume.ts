@@ -49,6 +49,7 @@ export const route = {
                   FROM spacebox."dex_event_tick_update"
                   WHERE "TokenZero" = ${denom0}
                     AND "TokenOne" = ${denom1}
+                    AND "is_swap" = 1
                 `,
                 {
                   cacheTime: 0.1 * seconds * inMs,
