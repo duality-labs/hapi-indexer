@@ -63,7 +63,6 @@ export const route = {
           denom: string;
         }>(
           sql`
-            WITH "dex_tick_update_events_extended" as (${selectDexTickUpdates})
             SELECT
               toStartOfInterval("timestamp", INTERVAL 1 ${raw(
                 `${request.query.period}`
@@ -71,7 +70,7 @@ export const route = {
               sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
               sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
               ${denomReporting} as "denom"
-            FROM "dex_tick_update_events_extended"
+            FROM (${selectDexTickUpdates})
             WHERE "is_swap" = 1
               AND "timestamp" >= ${unixFrom}
               AND "timestamp" < ${unixTo || raw('NOW()')}
@@ -91,13 +90,11 @@ export const route = {
       // get 24 hour volume cached to "beginning of the hour" version
       return await getCachedResponse<{ volume: string; denom: string }>(
         sql`
-        WITH "dex_tick_update_events_extended" as (${selectDexTickUpdates})
-        -- if pair contains USDC token then we can report the USDC value
         SELECT
           sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
           sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
           ${denomReporting} as "denom"
-        FROM "dex_tick_update_events_extended"
+        FROM (${selectDexTickUpdates})
         WHERE "is_swap" = 1
           AND "timestamp" >= toStartOfHour(addDays(NOW(), -1))
           AND "timestamp" < toStartOfHour(NOW())
