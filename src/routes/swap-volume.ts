@@ -45,7 +45,10 @@ export const route = {
             ? // for a "now-bound" request use the slightly-cached relevant data height
               await getCachedResponse<{ height: string }>(
                 sql`
-                  SELECT max(height) AS height FROM spacebox.dex_event_tick_update WHERE TokenZero = ${denom0} AND TokenOne = ${denom1}
+                  SELECT max(height) AS height
+                  FROM spacebox.dex_event_tick_update
+                  WHERE TokenZero = ${denom0}
+                    AND TokenOne = ${denom1}
                 `,
                 {
                   cacheTime: 1 * seconds * inMs,
@@ -142,9 +145,17 @@ const selectDexTickUpdates = sql`
     -- get difference from last Reserves value
     (current_state.Reserves - previous_state.Reserves) as ReservesDiff,
     -- note: all swap TickUpdate events should be DEX decrements (ReservesDiff < 0)
-    if(is_swap AND ReservesDiff < 0, toUInt128(abs(ReservesDiff)), 0) as SwapAmountOut,
+    if (
+      is_swap AND ReservesDiff < 0,
+      toUInt128(abs(ReservesDiff)),
+      0
+    ) as SwapAmountOut,
     -- note: SwapAmountIn may have rounding errors (but this very small in practice)
-    if(is_swap AND ReservesDiff < 0, toUInt128(ceiling(multiply(toFloat64(abs(ReservesDiff)), pow(1.0001, TickIndex)))), 0) as SwapAmountIn
+    if (
+      is_swap AND ReservesDiff < 0,
+      toUInt128(ceiling(multiply(toFloat64(abs(ReservesDiff)), pow(1.0001, TickIndex)))),
+      0
+    ) as SwapAmountIn
   FROM dex_tick_update_events_indexed as current_state
   -- join on same tick pool, but on the previous update
   LEFT JOIN dex_tick_update_events_indexed as previous_state ON (
