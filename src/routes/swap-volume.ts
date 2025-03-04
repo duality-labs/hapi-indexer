@@ -64,23 +64,21 @@ export const route = {
         }>(
           sql`
             WITH "dex_tick_update_events_extended" as (${selectDexTickUpdates})
-            SELECT * FROM (
-              SELECT
-                toStartOfInterval("timestamp", INTERVAL 1 ${raw(
-                  `${request.query.period}`
-                )}) AS "time",
-                sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
-                sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
-                ${denomReporting} as "denom"
-              FROM "dex_tick_update_events_extended"
-              WHERE "timestamp" >= ${unixFrom}
-                AND "timestamp" < ${unixTo || raw('NOW()')}
-                AND "TokenZero" = ${denom0}
-                AND "TokenOne" = ${denom1}
-              GROUP BY "time"
-              ORDER BY "time" DESC
-            )
-            WHERE "volume" > 0
+            SELECT
+              toStartOfInterval("timestamp", INTERVAL 1 ${raw(
+                `${request.query.period}`
+              )}) AS "time",
+              sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
+              sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
+              ${denomReporting} as "denom"
+            FROM "dex_tick_update_events_extended"
+            WHERE "is_swap" = 1
+              AND "timestamp" >= ${unixFrom}
+              AND "timestamp" < ${unixTo || raw('NOW()')}
+              AND "TokenZero" = ${denom0}
+              AND "TokenOne" = ${denom1}
+            GROUP BY "time"
+            ORDER BY "time" DESC
             LIMIT ${LIMIT_ROWS}
           `,
           {
@@ -100,7 +98,8 @@ export const route = {
           sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
           ${denomReporting} as "denom"
         FROM "dex_tick_update_events_extended"
-        WHERE "timestamp" >= toStartOfHour(addDays(NOW(), -1))
+        WHERE "is_swap" = 1
+          AND "timestamp" >= toStartOfHour(addDays(NOW(), -1))
           AND "timestamp" < toStartOfHour(NOW())
           AND "TokenZero" = ${denom0}
           AND "TokenOne" = ${denom1}
