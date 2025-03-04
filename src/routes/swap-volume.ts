@@ -148,13 +148,13 @@ const selectDexTickUpdates = sql`
     if (
       is_swap AND ReservesDiff < 0,
       toUInt128(abs(ReservesDiff)),
-      0
+      current_state.SwapAmountOut
     ) as SwapAmountOut,
     -- note: SwapAmountIn may have rounding errors (but this very small in practice)
     if (
       is_swap AND ReservesDiff < 0,
       toUInt128(ceiling(multiply(toFloat64(abs(ReservesDiff)), pow(1.0001, TickIndex)))),
-      0
+      current_state.SwapAmountIn
     ) as SwapAmountIn
   FROM dex_tick_update_events_indexed as current_state
   -- join on same tick pool, but on the previous update
