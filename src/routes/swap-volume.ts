@@ -59,7 +59,7 @@ export const route = {
           denom: string;
         }>(
           sql`
-            ${withTableDexTickUpdateEventsIndexed}
+            WITH dex_tick_update_events_extended as (${selectDexTickUpdates})
             SELECT * FROM (
               SELECT
                 toStartOfInterval(timestamp, INTERVAL 1 ${raw(
@@ -89,7 +89,7 @@ export const route = {
       // get 24 hour volume cached to "beginning of the hour" version
       return await getCachedResponse<{ volume: string; denom: string }>(
         sql`
-        ${withTableDexTickUpdateEventsIndexed}
+        WITH dex_tick_update_events_extended as (${selectDexTickUpdates})
         -- if pair contains USDC token then we can report the USDC value
         SELECT
           sumIf(SwapAmountIn, TokenIn != ${denomReporting}) +
@@ -118,7 +118,9 @@ export const route = {
   },
 };
 
-const withTableDexTickUpdateEventsIndexed = sql`
+// this select statement applies the "swap volume fix" to recreate
+// SwapAmountIn/SwapAmountOut for events in Neutron <= v5 that do not have them
+const selectDexTickUpdates = sql`
   -- get indexed updates in order with an update_index field
   -- to help determine the ReservesDiff field: the current - previous Reserves value
   WITH dex_tick_update_events_indexed AS (
@@ -132,28 +134,26 @@ const withTableDexTickUpdateEventsIndexed = sql`
         ORDER BY height ASC, block_part_index ASC, tx_index ASC, event_index ASC
       ) AS update_index
     FROM test.dex_message_event_tick_update
-  ),
+  )
   -- combine ordered updates to get relative state (ReservesDiff) and
   -- use the already derived is_swap field to compute new SwapAmountIn and SwapAmountOut attributes
-  dex_tick_update_events_extended AS (
-    SELECT
-      current_state.*,
-      -- get difference from last Reserves value
-      (current_state.Reserves - previous_state.Reserves) as ReservesDiff,
-      -- note: all swap TickUpdate events should be DEX decrements (ReservesDiff < 0)
-      if(is_swap AND ReservesDiff < 0, toUInt128(abs(ReservesDiff)), 0) as SwapAmountOut,
-      -- note: SwapAmountIn may have rounding errors (but this very small in practice)
-      if(is_swap AND ReservesDiff < 0, toUInt128(ceiling(multiply(toFloat64(abs(ReservesDiff)), pow(1.0001, TickIndex)))), 0) as SwapAmountIn
-    FROM dex_tick_update_events_indexed as current_state
-    -- join on same tick pool, but on the previous update
-    LEFT JOIN dex_tick_update_events_indexed as previous_state ON (
-      current_state.TokenZero = previous_state.TokenZero AND
-      current_state.TokenOne = previous_state.TokenOne AND
-      current_state.TokenIn = previous_state.TokenIn AND
-      current_state.TickIndex = previous_state.TickIndex AND
-      current_state.Fee = previous_state.Fee AND
-      current_state.TrancheKey = previous_state.TrancheKey AND
-      current_state.update_index = previous_state.update_index + 1
-    )
+  SELECT
+    current_state.*,
+    -- get difference from last Reserves value
+    (current_state.Reserves - previous_state.Reserves) as ReservesDiff,
+    -- note: all swap TickUpdate events should be DEX decrements (ReservesDiff < 0)
+    if(is_swap AND ReservesDiff < 0, toUInt128(abs(ReservesDiff)), 0) as SwapAmountOut,
+    -- note: SwapAmountIn may have rounding errors (but this very small in practice)
+    if(is_swap AND ReservesDiff < 0, toUInt128(ceiling(multiply(toFloat64(abs(ReservesDiff)), pow(1.0001, TickIndex)))), 0) as SwapAmountIn
+  FROM dex_tick_update_events_indexed as current_state
+  -- join on same tick pool, but on the previous update
+  LEFT JOIN dex_tick_update_events_indexed as previous_state ON (
+    current_state.TokenZero = previous_state.TokenZero AND
+    current_state.TokenOne = previous_state.TokenOne AND
+    current_state.TokenIn = previous_state.TokenIn AND
+    current_state.TickIndex = previous_state.TickIndex AND
+    current_state.Fee = previous_state.Fee AND
+    current_state.TrancheKey = previous_state.TrancheKey AND
+    current_state.update_index = previous_state.update_index + 1
   )
 `;
