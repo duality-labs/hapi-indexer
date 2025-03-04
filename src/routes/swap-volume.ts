@@ -45,8 +45,8 @@ export const route = {
             ? // for a "now-bound" request use the slightly-cached relevant data height
               await getCachedResponse<{ height: string }>(
                 sql`
-            SELECT max(height) AS height FROM test.dex_message_event_tick_update WHERE TokenZero = ${denom0} AND TokenOne = ${denom1}
-          `,
+                  SELECT max(height) AS height FROM spacebox.dex_event_tick_update WHERE TokenZero = ${denom0} AND TokenOne = ${denom1}
+                `,
                 {
                   cacheTime: 1 * seconds * inMs,
                 }
@@ -133,7 +133,7 @@ const selectDexTickUpdates = sql`
         -- within the pool index partition, sort by event order
         ORDER BY height ASC, block_part_index ASC, tx_index ASC, event_index ASC
       ) AS update_index
-    FROM test.dex_message_event_tick_update
+    FROM spacebox.dex_event_tick_update
   )
   -- combine ordered updates to get relative state (ReservesDiff) and
   -- use the already derived is_swap field to compute new SwapAmountIn and SwapAmountOut attributes
