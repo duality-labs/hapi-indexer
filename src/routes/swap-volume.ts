@@ -51,7 +51,7 @@ export const route = {
                     AND "TokenOne" = ${denom1}
                 `,
                 {
-                  cacheTime: 1 * seconds * inMs,
+                  cacheTime: 0.1 * seconds * inMs,
                 }
               )
             : undefined;
