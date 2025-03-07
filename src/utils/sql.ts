@@ -33,6 +33,11 @@ export function toClickHouseSQL({
         return {
           query: result.query + string + `{${label}: ${field.type}}`,
           query_params: { ...result.query_params, [label]: field.value },
+          // enforce read only setting on query level
+          // (so that non read-only settings can be applied at client level)
+          clickhouse_settings: {
+            readonly: '1',
+          },
         };
       } else {
         return {
