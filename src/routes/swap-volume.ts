@@ -42,24 +42,30 @@ export const route = {
       const unixFrom = Number(request.query.from) || 0;
       const unixTo = Number(request.query.to) || 0;
 
+      const sourceTableHeight = await getCachedResponse<{ height: string }>(
+        sql`
+          SELECT max("height") AS "height"
+          FROM spacebox."raw_block_results"
+        `
+      );
+
       // get timeseries query
       if (request.query.period && periods.includes(request.query.period)) {
-        const currentHeight =
-          unixTo === 0 || unixTo * 1000 >= Date.now()
-            ? // for a "now-bound" request use the slightly-cached relevant data height
-              await getCachedResponse<{ height: string }>(
-                sql`
-                  SELECT max("height") AS "height"
-                  FROM spacebox."dex_message_event_tick_update"
-                  WHERE "TokenZero" = ${denom0}
-                    AND "TokenOne" = ${denom1}
-                    AND "is_swap" = 1
-                `,
-                {
-                  cacheTime: 0.1 * seconds * inMs,
-                }
-              )
-            : undefined;
+        const currentHeight = await getCachedResponse<{ height: string }>(
+          sql`
+            SELECT max("height") AS "height"
+            FROM spacebox."dex_message_event_tick_update"
+            WHERE "timestamp" < ${unixTo || raw('NOW()')}
+              AND "TokenZero" = ${denom0}
+              AND "TokenOne" = ${denom1}
+              AND "is_swap" = 1
+          `,
+          {
+            cacheTime: 0.1 * seconds * inMs,
+            cacheVersion:
+              Number(sourceTableHeight.data.at(0)?.height) ?? undefined,
+          }
+        );
 
         return await getCachedResponse<{
           time: string;
@@ -99,7 +105,11 @@ export const route = {
           SELECT
             toUnixTimestamp64Milli(toDateTime64(toStartOfInterval(NOW(), INTERVAL 1 MINUTE), 0)) AS "_cache_version",
             100000 AS "_cache_ms"
-        `
+        `,
+        {
+          cacheTime: 60 * seconds * inMs,
+          cacheVersion: Number(sourceTableHeight.data.at(0)?.height),
+        }
       );
 
       // get 24 hour volume cached to "beginning of the hour" version

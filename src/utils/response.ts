@@ -83,7 +83,7 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
               lastResult = newResultData;
             }
             // wait a bit
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            await new Promise((resolve) => setTimeout(resolve, 100));
           } catch (err) {
             defaultLogger.error(`SSE update error: ${err}`);
             // send error event to user
