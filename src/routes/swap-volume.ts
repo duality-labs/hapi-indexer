@@ -14,6 +14,7 @@ const denomsUSDC = {
 
 const periods = ['day', 'hour', 'minute', 'seconds'] as const;
 const LIMIT_ROWS = 1000;
+
 export const route = {
   method: 'GET',
   path: '/swap-volume/{denomA}/{denomB}',
@@ -25,87 +26,7 @@ export const route = {
     h: ResponseToolkit
   ) => {
     try {
-      const [denom0, denom1] = [
-        request.params.denomA,
-        request.params.denomB,
-      ].sort();
-      const denomReporting =
-        Array.from(Object.values(denomsUSDC)).find((denom) => {
-          return [denom0, denom1].includes(denom);
-        }) || request.params.denomA;
-
-      // default to bounds far in the future and in the past
-      const unixFrom = Number(request.query.from) || 0;
-      const unixTo = Number(request.query.to) || 0;
-
-      // get timeseries query
-      if (request.query.period && periods.includes(request.query.period)) {
-        const currentHeight =
-          unixTo === 0 || unixTo * 1000 >= Date.now()
-            ? // for a "now-bound" request use the slightly-cached relevant data height
-              await getCachedResponse<{ height: string }>(
-                sql`
-                  SELECT max("height") AS "height"
-                  FROM spacebox."dex_message_event_tick_update"
-                  WHERE "TokenZero" = ${denom0}
-                    AND "TokenOne" = ${denom1}
-                    AND "is_swap" = 1
-                `,
-                {
-                  cacheTime: 0.1 * seconds * inMs,
-                }
-              )
-            : undefined;
-
-        return await getCachedResponse<{
-          time: string;
-          volume: string;
-          denom: string;
-        }>(
-          sql`
-            SELECT
-              toStartOfInterval("timestamp", INTERVAL 1 ${raw(
-                `${request.query.period}`
-              )}) AS "time",
-              sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
-              sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
-              ${denomReporting} as "denom"
-            FROM (${selectDexTickUpdates})
-            WHERE "is_swap" = 1
-              AND "timestamp" >= ${unixFrom}
-              AND "timestamp" < ${unixTo || raw('NOW()')}
-              AND "TokenZero" = ${denom0}
-              AND "TokenOne" = ${denom1}
-            GROUP BY "time"
-            ORDER BY "time" DESC
-            LIMIT ${LIMIT_ROWS}
-          `,
-          {
-            cacheTime: 1 * hours * inMs,
-            cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
-          }
-        );
-      }
-
-      // get 24 hour volume cached to "beginning of the hour" version
-      return await getCachedResponse<{ volume: string; denom: string }>(
-        sql`
-        SELECT
-          sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
-          sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
-          ${denomReporting} as "denom"
-        FROM (${selectDexTickUpdates})
-        WHERE "is_swap" = 1
-          AND "timestamp" >= toStartOfHour(addDays(NOW(), -1))
-          AND "timestamp" < toStartOfHour(NOW())
-          AND "TokenZero" = ${denom0}
-          AND "TokenOne" = ${denom1}
-      `,
-        {
-          cacheTime: 1 * hours * inMs,
-          cacheVersion: Math.floor(Date.now() / (1 * hours * inMs)),
-        }
-      );
+      return getData(request);
     } catch (err: unknown) {
       if (err instanceof Error) {
         logger.error(err);
@@ -117,6 +38,95 @@ export const route = {
     }
   },
 };
+
+async function getData(
+  request: Request<{
+    Params: { denomA: string; denomB: string };
+    Query: { from?: number; to?: number; period?: (typeof periods)[number] };
+  }>
+) {
+  const [denom0, denom1] = [
+    request.params.denomA,
+    request.params.denomB,
+  ].sort();
+  const denomReporting =
+    Array.from(Object.values(denomsUSDC)).find((denom) => {
+      return [denom0, denom1].includes(denom);
+    }) || request.params.denomA;
+
+  // default to bounds far in the future and in the past
+  const unixFrom = Number(request.query.from) || 0;
+  const unixTo = Number(request.query.to) || 0;
+
+  // get timeseries query
+  if (request.query.period && periods.includes(request.query.period)) {
+    const currentHeight =
+      unixTo === 0 || unixTo * 1000 >= Date.now()
+        ? // for a "now-bound" request use the slightly-cached relevant data height
+          await getCachedResponse<{ height: string }>(
+            sql`
+              SELECT max("height") AS "height"
+              FROM spacebox."dex_message_event_tick_update"
+              WHERE "TokenZero" = ${denom0}
+                AND "TokenOne" = ${denom1}
+                AND "is_swap" = 1
+            `,
+            {
+              cacheTime: 0.1 * seconds * inMs,
+            }
+          )
+        : undefined;
+
+    return await getCachedResponse<{
+      time: string;
+      volume: string;
+      denom: string;
+    }>(
+      sql`
+        SELECT
+          toStartOfInterval("timestamp", INTERVAL 1 ${raw(
+            `${request.query.period}`
+          )}) AS "time",
+          sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
+          sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
+          ${denomReporting} as "denom"
+        FROM (${selectDexTickUpdates})
+        WHERE "is_swap" = 1
+          AND "timestamp" >= ${unixFrom}
+          AND "timestamp" < ${unixTo || raw('NOW()')}
+          AND "TokenZero" = ${denom0}
+          AND "TokenOne" = ${denom1}
+        GROUP BY "time"
+        ORDER BY "time" DESC
+        LIMIT ${LIMIT_ROWS}
+      `,
+      {
+        cacheTime: 1 * hours * inMs,
+        cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+      }
+    );
+  }
+
+  // get 24 hour volume cached to "beginning of the hour" version
+  return await getCachedResponse<{ volume: string; denom: string }>(
+    sql`
+    SELECT
+      sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
+      sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
+      ${denomReporting} as "denom"
+    FROM (${selectDexTickUpdates})
+    WHERE "is_swap" = 1
+      AND "timestamp" >= toStartOfHour(addDays(NOW(), -1))
+      AND "timestamp" < toStartOfHour(NOW())
+      AND "TokenZero" = ${denom0}
+      AND "TokenOne" = ${denom1}
+  `,
+    {
+      cacheTime: 1 * hours * inMs,
+      cacheVersion: Math.floor(Date.now() / (1 * hours * inMs)),
+    }
+  );
+}
 
 // this select statement applies the "swap volume fix" to recreate
 // SwapAmountIn/SwapAmountOut for events in Neutron <= v5 that do not have them
