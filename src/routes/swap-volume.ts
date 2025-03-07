@@ -2,7 +2,7 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from '../utils/logger';
 
 import { getCachedResponse } from '../utils/cache-query';
-import { hours, inMs, seconds } from '../utils/time';
+import { hours, inMs, minutes, seconds } from '../utils/time';
 import sql from '../utils/sql';
 import { raw } from 'sql-template-tag';
 
@@ -116,14 +116,13 @@ async function getData(
       ${denomReporting} as "denom"
     FROM (${selectDexTickUpdates})
     WHERE "is_swap" = 1
-      AND "timestamp" >= toStartOfHour(addDays(NOW(), -1))
-      AND "timestamp" < toStartOfHour(NOW())
+      AND "timestamp" >= toStartOfMinute(addDays(NOW(), -1))
+      AND "timestamp" < toStartOfMinute(NOW())
       AND "TokenZero" = ${denom0}
       AND "TokenOne" = ${denom1}
   `,
     {
-      cacheTime: 1 * hours * inMs,
-      cacheVersion: Math.floor(Date.now() / (1 * hours * inMs)),
+      cacheVersion: Math.floor(Date.now() / (1 * minutes * inMs)),
     }
   );
 }
