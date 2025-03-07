@@ -5,6 +5,7 @@ import { getCachedResponse } from '../utils/cache-query';
 import { hours, inMs, seconds } from '../utils/time';
 import sql from '../utils/sql';
 import { raw } from 'sql-template-tag';
+import { handleServerSentEvents } from '../utils/server-sent-events';
 
 // define known USDC denoms for easy approximate USD price response
 const denomsUSDC = {
@@ -21,11 +22,21 @@ export const route = {
   handler: async (
     request: Request<{
       Params: { denomA: string; denomB: string };
-      Query: { from?: number; to?: number; period?: (typeof periods)[number] };
+      Query: {
+        from?: number;
+        to?: number;
+        period?: (typeof periods)[number];
+        stream?: string;
+      };
     }>,
     h: ResponseToolkit
   ) => {
     try {
+      const sse = await handleServerSentEvents(request, getData);
+      if (sse) {
+        return sse;
+      }
+
       return getData(request);
     } catch (err: unknown) {
       if (err instanceof Error) {
