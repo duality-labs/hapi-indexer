@@ -95,7 +95,11 @@ export const route = {
         _cache_version?: string;
         _cache_ms?: string;
       }>(
-        sql`SELECT toUnixTimestamp64Milli(toDateTime64(toStartOfInterval(NOW(), INTERVAL 1 MINUTE), 0)) AS "_cache_version", 1000 AS "_cache_ms"`
+        sql`
+          SELECT
+            toUnixTimestamp64Milli(toDateTime64(toStartOfInterval(NOW(), INTERVAL 1 MINUTE), 0)) AS "_cache_version",
+            100000 AS "_cache_ms"
+        `
       );
 
       // get 24 hour volume cached to "beginning of the hour" version
