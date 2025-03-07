@@ -21,11 +21,13 @@
     "@hapi/accept": "^6.0.3",
     "@hapi/hapi": "^21.3.1",
     "esbuild": "^0.17.18",
+    "lodash-es": "^4.17.21",
     "sql-template-tag": "^5.1.0",
     "winston": "^3.8.2"
   },
   "devDependencies": {
     "@types/hapi": "^18.0.8",
+    "@types/lodash-es": "^4.17.12",
     "@types/node": "^18.16.3",
     "@typescript-eslint/eslint-plugin": "^5.59.2",
     "@typescript-eslint/parser": "^5.59.2",
