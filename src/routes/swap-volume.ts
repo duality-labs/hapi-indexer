@@ -2,7 +2,7 @@ import { Request, ResponseToolkit } from '@hapi/hapi';
 import logger from '../utils/logger';
 
 import { getCachedResponse } from '../utils/cache-query';
-import { hours, inMs, minutes, seconds } from '../utils/time';
+import { hours, inMs, seconds } from '../utils/time';
 import sql from '../utils/sql';
 import { raw } from 'sql-template-tag';
 
@@ -107,6 +107,13 @@ async function getData(
     );
   }
 
+  const currentTime = await getCachedResponse<{
+    _cache_version?: string;
+    _cache_ms?: string;
+  }>(
+    sql`SELECT toUnixTimestamp64Milli(toDateTime64(toStartOfInterval(NOW(), INTERVAL 1 MINUTE), 0)) AS "_cache_version", 1000 AS "_cache_ms"`
+  );
+
   // get 24 hour volume cached to "beginning of the hour" version
   return await getCachedResponse<{ volume: string; denom: string }>(
     sql`
@@ -122,7 +129,8 @@ async function getData(
       AND "TokenOne" = ${denom1}
   `,
     {
-      cacheVersion: Math.floor(Date.now() / (1 * minutes * inMs)),
+      cacheTime: Number(currentTime.data.at(0)?._cache_ms) ?? undefined,
+      cacheVersion: Number(currentTime.data.at(0)?._cache_version) ?? undefined,
     }
   );
 }
