@@ -50,7 +50,7 @@ export async function getCachedResponse<T>(
   const newResponse = {
     value: new Promise<ResponseJSON<T>>((resolve, reject) => {
       client
-        .query(toClickHouseSQL(query))
+        .query<'JSON'>(toClickHouseSQL(query))
         .then((response) => response.json<T>())
         .then((result) => resolve(result))
         .catch(reject);

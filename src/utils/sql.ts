@@ -1,4 +1,5 @@
 import { SimpleColumnType } from '@clickhouse/client';
+import { QueryParamsWithFormat } from '@clickhouse/client-common';
 import originalSQL, { Sql as OriginalSQL } from 'sql-template-tag';
 
 type ExplicitFieldValue = { type: SimpleColumnType; value: unknown };
@@ -13,16 +14,13 @@ export default function sql(
   return originalSQL(strings, ...values) as Sql;
 }
 
-export function toClickHouseSQL({ sql, values }: OriginalSQL): {
-  query: string;
-  query_params: Record<string, unknown>;
-} {
+export function toClickHouseSQL({
+  sql,
+  values,
+}: OriginalSQL): QueryParamsWithFormat<'JSON'> {
   // assume that question marks aren't part of valid SQL
   const strings = sql.split('?');
-  return Array.from(strings).reduce<{
-    query: string;
-    query_params: Record<string, unknown>;
-  }>(
+  return Array.from(strings).reduce<QueryParamsWithFormat<'JSON'>>(
     (result, string, i) => {
       const field: ExplicitFieldValue | { type: 'sql'; value: Sql } =
         typeof values[i] === 'object'
