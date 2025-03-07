@@ -7,7 +7,7 @@ import defaultLogger from './logger';
 export function formatChunk({
   event,
   id,
-  data = '',
+  data = !event && !id ? '' : undefined,
 }: {
   event?: string;
   id?: string | number;
@@ -62,7 +62,8 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
         const initialData = await getData(request);
         res.write(
           formatChunk({
-            event: 'initial data',
+            event: 'data',
+            id: `height: ${initialData.query_id}`,
             data: JSON.stringify(initialData.data),
           })
         );
@@ -75,15 +76,16 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
             if (!isEqual(lastResult.data, newResultData.data)) {
               res.write(
                 formatChunk({
-                  event: 'new data',
+                  event: 'data',
+                  id: `height: ${newResultData.query_id}`,
                   data: JSON.stringify(newResultData.data),
                 })
               );
             } else if (!isEqual(lastResult.query_id, newResultData.query_id)) {
               res.write(
                 formatChunk({
-                  event: 'new height',
-                  data: newResultData.query_id,
+                  event: 'heartbeat',
+                  id: `height: ${newResultData.query_id}`,
                 })
               );
             }
