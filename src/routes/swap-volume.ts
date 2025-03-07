@@ -68,12 +68,14 @@ export const route = {
         );
 
         return await getCachedResponse<{
+          height?: string;
           time: string;
           volume: string;
           denom: string;
         }>(
           sql`
             SELECT
+              max(height) as "height", -- add as query ID
               toStartOfInterval("timestamp", INTERVAL 1 ${raw(
                 `${request.query.period}`
               )}) AS "time",
@@ -91,10 +93,12 @@ export const route = {
             LIMIT ${LIMIT_ROWS}
           `,
           {
+            height: Number(sourceTableHeight.data.at(0)?.height),
+            getRow: ({ time, volume, denom }) => ({ time, volume, denom }),
+            getHeight: (data) => data.at(0)?.height,
             cacheTime: 1 * hours * inMs,
             cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
-          },
-          Number(sourceTableHeight.data.at(0)?.height)
+          }
         );
       }
 
@@ -114,9 +118,14 @@ export const route = {
       );
 
       // get 24 hour volume cached to "beginning of the hour" version
-      return await getCachedResponse<{ volume: string; denom: string }>(
+      return await getCachedResponse<{
+        height?: string;
+        volume: string;
+        denom: string;
+      }>(
         sql`
         SELECT
+          max(height) as "height", -- add as query ID
           sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
           sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
           ${denomReporting} as "denom"
@@ -128,11 +137,13 @@ export const route = {
           AND "TokenOne" = ${denom1}
       `,
         {
+          height: Number(sourceTableHeight.data.at(0)?.height),
+          getRow: ({ volume, denom }) => ({ volume, denom }),
+          getHeight: (data) => data.at(0)?.height,
           cacheTime: Number(currentTime.data.at(0)?._cache_ms) ?? undefined,
           cacheVersion:
             Number(currentTime.data.at(0)?._cache_version) ?? undefined,
-        },
-        Number(sourceTableHeight.data.at(0)?.height)
+        }
       );
     }
   ),

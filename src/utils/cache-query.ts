@@ -10,7 +10,10 @@ interface CacheEnvelope {
   expires: number;
 }
 
-export interface QueryCacheOptions {
+export interface QueryCacheOptions<T> {
+  height?: number;
+  getHeight?: (array: T[]) => string | undefined;
+  getRow?: (value: T, index: number, array: T[]) => T;
   cacheKey?: string;
   cacheVersion?: number;
   cacheTime?: number;
@@ -22,11 +25,13 @@ const requestCache = new Map<string, CacheEnvelope>();
 export async function getCachedResponse<T>(
   query: Sql,
   {
+    height,
+    getHeight,
+    getRow,
     cacheKey = JSON.stringify([query.sql, query.values]),
     cacheVersion = 0,
     cacheTime = DEFAULT_CACHE_TIME,
-  }: QueryCacheOptions = {},
-  queryHeight?: number
+  }: QueryCacheOptions<T> = {}
 ): Promise<ResponseJSON<T>> {
   const cachedResponse = requestCache.get(cacheKey);
   const now = Date.now();
@@ -41,7 +46,7 @@ export async function getCachedResponse<T>(
     cachedResponse.version >= (cacheVersion || 0)
   ) {
     const value = (await cachedResponse.value) as ResponseJSON<T>;
-    return queryHeight ? { query_id: queryHeight.toFixed(0), ...value } : value;
+    return height ? { ...value, query_id: height.toFixed(0) } : value;
   }
   // remove the old version request from the cache
   if (cachedResponse) {
@@ -54,7 +59,13 @@ export async function getCachedResponse<T>(
       client
         .query<'JSON'>(toClickHouseSQL(query))
         .then((response) => response.json<T>())
-        .then((result) => resolve(result))
+        .then((result) =>
+          resolve({
+            ...result,
+            data: getRow ? result.data.map(getRow) : result.data,
+            query_id: getHeight?.(result.data) ?? result.query_id,
+          })
+        )
         .catch(reject);
     }),
     version: cacheVersion || 0,
@@ -63,5 +74,5 @@ export async function getCachedResponse<T>(
   };
   requestCache.set(cacheKey, newResponse);
   const value = await newResponse.value;
-  return queryHeight ? { query_id: queryHeight.toFixed(0), ...value } : value;
+  return height ? { ...value, query_id: height.toFixed(0) } : value;
 }
