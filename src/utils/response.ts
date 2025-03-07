@@ -79,9 +79,16 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
                   data: JSON.stringify(newResultData.data),
                 })
               );
-              // save new data to compare against
-              lastResult = newResultData;
+            } else if (!isEqual(lastResult.query_id, newResultData.query_id)) {
+              res.write(
+                formatChunk({
+                  event: 'new height',
+                  data: newResultData.query_id,
+                })
+              );
             }
+            // save new data to compare against
+            lastResult = newResultData;
             // wait a bit
             await new Promise((resolve) => setTimeout(resolve, 100));
           } catch (err) {

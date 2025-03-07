@@ -93,7 +93,8 @@ export const route = {
           {
             cacheTime: 1 * hours * inMs,
             cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
-          }
+          },
+          Number(sourceTableHeight.data.at(0)?.height)
         );
       }
 
@@ -130,7 +131,8 @@ export const route = {
           cacheTime: Number(currentTime.data.at(0)?._cache_ms) ?? undefined,
           cacheVersion:
             Number(currentTime.data.at(0)?._cache_version) ?? undefined,
-        }
+        },
+        Number(sourceTableHeight.data.at(0)?.height)
       );
     }
   ),

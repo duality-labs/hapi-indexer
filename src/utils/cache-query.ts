@@ -25,7 +25,8 @@ export async function getCachedResponse<T>(
     cacheKey = JSON.stringify([query.sql, query.values]),
     cacheVersion = 0,
     cacheTime = DEFAULT_CACHE_TIME,
-  }: QueryCacheOptions = {}
+  }: QueryCacheOptions = {},
+  queryHeight?: number
 ): Promise<ResponseJSON<T>> {
   const cachedResponse = requestCache.get(cacheKey);
   const now = Date.now();
@@ -39,7 +40,8 @@ export async function getCachedResponse<T>(
     // item is at least the requested version
     cachedResponse.version >= (cacheVersion || 0)
   ) {
-    return (await cachedResponse.value) as ResponseJSON<T>;
+    const value = (await cachedResponse.value) as ResponseJSON<T>;
+    return queryHeight ? { query_id: queryHeight.toFixed(0), ...value } : value;
   }
   // remove the old version request from the cache
   if (cachedResponse) {
@@ -60,5 +62,6 @@ export async function getCachedResponse<T>(
     expires: now + cacheTime,
   };
   requestCache.set(cacheKey, newResponse);
-  return await newResponse.value;
+  const value = await newResponse.value;
+  return queryHeight ? { query_id: queryHeight.toFixed(0), ...value } : value;
 }
