@@ -65,7 +65,7 @@ export const route = {
           abortSignal,
           undefined,
           {
-            cacheTime: 0.1 * seconds * inMs,
+            cacheTime: 10 * seconds * inMs,
             cacheVersion:
               Number(sourceTableHeight.data.at(0)?.height) ?? undefined,
           }
