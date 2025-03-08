@@ -79,9 +79,14 @@ export const route = {
           sql`
             SELECT
               max(height) as "height",
-              toStartOfInterval("timestamp", INTERVAL 1 ${raw(
-                `${request.query.period}`
-              )}) AS "time",
+              toUnixTimestamp64Milli(
+                toDateTime64(
+                  toStartOfInterval("timestamp", INTERVAL 1 ${raw(
+                    `${request.query.period}`
+                  )}),
+                  0
+                )
+              ) AS "time",
               sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
               sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
             FROM (${selectDexTickUpdates})
@@ -103,11 +108,17 @@ export const route = {
               return (
                 metadata
                   // remove height field
-                  ?.filter(({ name }) => ['volume'].includes(name))
+                  ?.filter(({ name }) => ['time', 'volume'].includes(name))
                   // add volume units
                   ?.map((row) =>
                     row.name === 'volume'
                       ? { ...row, units: denomReporting }
+                      : row
+                  )
+                  // add time units
+                  ?.map((row) =>
+                    row.name === 'time'
+                      ? { ...row, units: 'unixMilliseconds' }
                       : row
                   )
               );
