@@ -1,33 +1,37 @@
 import { SimpleColumnType } from '@clickhouse/client';
 import { QueryParamsWithFormat } from '@clickhouse/client-common';
-import originalSQL, { Sql as OriginalSQL } from 'sql-template-tag';
+import { Sql } from 'sql-template-tag';
 
 type ExplicitFieldValue = { type: SimpleColumnType; value: unknown };
-type FieldValue = number | string | ExplicitFieldValue;
-export type Sql = Omit<OriginalSQL, 'values'> & {
-  values: FieldValue[];
-};
-export default function sql(
-  strings: TemplateStringsArray,
-  ...values: (FieldValue | OriginalSQL)[]
-): Sql {
-  return originalSQL(strings, ...values) as Sql;
-}
 
+/**
+ * transform sql-template-tag sql object to ClickHouse sql object
+ * @param sql output of sql function (from 'sql-template-tag')
+ * @returns query in ClickHouse client.query(query) form
+ * @example
+ * // returns {
+ * //     query: 'SELECT plus({val1: Int32}, {val2: Int32})',
+ * //     query_params: { val1: 1, val2: 2 }
+ * // }
+ * toClickHouseSQL(sql`SELECT plus(${1},${{ type: 'Int32', value: 2 }})`)
+ * @see https://clickhouse.com/docs/integrations/javascript#queries-with-parameters
+ */
 export function toClickHouseSQL({
   sql,
   values,
-}: OriginalSQL): QueryParamsWithFormat<'JSON'> {
+}: Sql): QueryParamsWithFormat<'JSON'> {
   // assume that question marks aren't part of valid SQL
   const strings = sql.split('?');
   return Array.from(strings).reduce<QueryParamsWithFormat<'JSON'>>(
     (result, string, i) => {
-      const field: ExplicitFieldValue | { type: 'sql'; value: Sql } =
+      const field: ExplicitFieldValue =
         typeof values[i] === 'object'
           ? (values[i] as ExplicitFieldValue)
           : typeof values[i] === 'number'
-          ? { type: 'Int32', value: values[i] }
-          : { type: 'String', value: values[i] };
+          ? // ensure numbers are not quoted
+            { type: 'Int32', value: values[i] }
+          : // treat everything else as strings (this also catches `undefined`)
+            { type: 'String', value: values[i] };
       if (field.value !== undefined) {
         const label = `val${i + 1}`;
         return {

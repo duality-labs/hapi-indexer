@@ -1,7 +1,9 @@
 import { ResponseJSON } from '@clickhouse/client';
+import { Sql } from 'sql-template-tag';
+
 import { client } from './client';
 import { inMs, seconds } from './units';
-import { Sql, toClickHouseSQL } from '../utils/sql';
+import { toClickHouseSQL } from '../utils/sql';
 
 interface CacheEnvelope {
   value: Promise<ResponseJSON>;

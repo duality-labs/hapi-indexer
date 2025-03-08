@@ -1,4 +1,5 @@
 import { Request } from '@hapi/hapi';
+import sql, { raw } from 'sql-template-tag';
 
 import { getCachedResponse } from '../utils/cache-query';
 import {
@@ -8,8 +9,6 @@ import {
   seconds,
   TimePeriod,
 } from '../utils/units';
-import sql from '../utils/sql';
-import { raw } from 'sql-template-tag';
 import { handleResponse } from '../utils/response';
 import { config } from '../config';
 
