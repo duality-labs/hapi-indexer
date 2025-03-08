@@ -4,7 +4,7 @@ import http2, { Http2SecureServer } from 'node:http2';
 import Hapi from '@hapi/hapi';
 import logger from './utils/logger';
 
-import { inMs, minutes } from './utils/time';
+import { inMs, minutes } from './utils/units';
 
 import { SingleDocumentJSONFormat } from '@clickhouse/client';
 import { client } from './utils/client';

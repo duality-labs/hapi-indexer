@@ -1,6 +1,6 @@
 import { ResponseJSON } from '@clickhouse/client';
 import { client } from './client';
-import { inMs, seconds } from '../utils/time';
+import { inMs, seconds } from './units';
 import { Sql, toClickHouseSQL } from '../utils/sql';
 
 interface CacheEnvelope {

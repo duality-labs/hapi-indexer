@@ -1,7 +1,13 @@
 import { Request } from '@hapi/hapi';
 
 import { getCachedResponse } from '../utils/cache-query';
-import { hours, inMs, seconds } from '../utils/time';
+import {
+  getTimePeriod,
+  hours,
+  inMs,
+  seconds,
+  TimePeriod,
+} from '../utils/units';
 import sql from '../utils/sql';
 import { raw } from 'sql-template-tag';
 import { handleResponse } from '../utils/response';
@@ -12,7 +18,6 @@ const denomsUSDC = {
   axl: 'ibc/F082B65C88E4B6D5EF1DB243CDA1D331D002759E938A0F5CD3FFDC5D53B3E349',
 };
 
-const periods = ['day', 'hour', 'minute', 'seconds'] as const;
 const LIMIT_ROWS = 1000;
 
 export const route = {
@@ -25,7 +30,7 @@ export const route = {
         Query: {
           from?: number;
           to?: number;
-          period?: (typeof periods)[number];
+          period?: TimePeriod;
         };
       }>,
       abortSignal: AbortSignal
@@ -52,7 +57,8 @@ export const route = {
       );
 
       // get timeseries query
-      if (request.query.period && periods.includes(request.query.period)) {
+      const timePeriod = getTimePeriod(request.query.period);
+      if (timePeriod) {
         const currentHeight = await getCachedResponse<{ height: string }>(
           sql`
             SELECT max("height") AS "height"
@@ -79,7 +85,7 @@ export const route = {
             SELECT
               max(height) as "height",
               toStartOfInterval("timestamp", INTERVAL 1 ${raw(
-                `${request.query.period}`
+                timePeriod
               )}) AS "time",
               sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
               sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
