@@ -23,7 +23,7 @@ function formatChunk({
 }
 
 // add debug route
-const debugQuery = {
+export const debugQuery = {
   method: 'GET',
   path: '/debug/query',
   handler: async (request: Request, h: ResponseToolkit) => {
@@ -53,7 +53,7 @@ const debugQuery = {
 };
 
 // add debug route
-const debugHeight = {
+export const debugHeight = {
   method: 'GET',
   path: '/debug/height',
   handler: async (request: Request, h: ResponseToolkit) => {
@@ -83,7 +83,7 @@ const debugHeight = {
 };
 
 // add debug route
-const debugSSE = {
+export const debugSSE = {
   method: 'GET',
   path: '/debug/sse',
   handler: async (request: Request, h: ResponseToolkit) => {
@@ -180,5 +180,3 @@ const debugSSE = {
     }
   },
 };
-
-export const routes = [debugQuery, debugHeight, debugSSE];

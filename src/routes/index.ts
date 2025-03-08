@@ -1,8 +1,8 @@
-import { routes as debugRoutes } from './_debug';
+import * as debugRoutes from './_debug';
 import { route as queryRoute } from './query';
 import { route as swapVolumeRoute } from './swap-volume';
 
-const developmentRoutes = debugRoutes;
+const developmentRoutes = [...Object.values(debugRoutes)];
 const productionRoutes = [queryRoute, swapVolumeRoute];
 
 export const routes = [
