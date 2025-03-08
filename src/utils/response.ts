@@ -60,6 +60,14 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
 
         // get initial data
         const initialData = await getData(request);
+        if (initialData.meta) {
+          res.write(
+            formatChunk({
+              event: 'metadata',
+              data: JSON.stringify(initialData.meta),
+            })
+          );
+        }
         res.write(
           formatChunk({
             event: 'data',
