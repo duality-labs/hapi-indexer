@@ -181,9 +181,4 @@ const debugSSE = {
   },
 };
 
-export const routes = [
-  // add development only paths
-  ...(process.env.NODE_ENV === 'development'
-    ? [debugQuery, debugHeight, debugSSE]
-    : []),
-];
+export const routes = [debugQuery, debugHeight, debugSSE];

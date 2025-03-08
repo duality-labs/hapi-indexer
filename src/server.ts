@@ -8,9 +8,7 @@ import { inMs, minutes } from './utils/units';
 
 import { SingleDocumentJSONFormat } from '@clickhouse/client';
 import { client } from './utils/client';
-import { routes as debugRoutes } from './routes/_debug';
-import { route as queryRoute } from './routes/query';
-import { route as swapVolumeRoute } from './routes/swap-volume';
+import { routes } from './routes';
 
 function safeReadFileText(filename: string) {
   if (filename && fs.existsSync(filename)) {
@@ -182,9 +180,7 @@ const init = async () => {
   });
 
   // add "on start" routes
-  server.route(debugRoutes);
-  server.route(queryRoute);
-  server.route(swapVolumeRoute);
+  server.route(routes);
 
   serverTimes.starting = new Date();
   await server.start();
