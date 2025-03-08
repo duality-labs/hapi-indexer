@@ -140,7 +140,12 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
         // exit
         return res.destroy();
       }
-      return getData(request, abortController.signal);
+      const result = await getData(request, abortController.signal);
+      return {
+        data: result.data,
+        meta: result.meta,
+        height: result.height,
+      };
     } catch (err: unknown) {
       if (err instanceof Error) {
         defaultLogger.error(err);
