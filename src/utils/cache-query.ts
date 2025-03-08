@@ -25,6 +25,7 @@ const requestCache = new Map<string, CacheEnvelope>();
 
 export async function getCachedResponse<T>(
   query: Sql,
+  abortSignal: AbortSignal,
   {
     height,
     getHeight,
@@ -59,7 +60,11 @@ export async function getCachedResponse<T>(
   const newResponse = {
     value: new Promise<ResponseJSON<T>>((resolve, reject) => {
       client
-        .query<'JSON'>(toClickHouseSQL(query))
+        .query<'JSON'>({
+          ...toClickHouseSQL(query),
+          // allow query to be cancelled
+          abort_signal: abortSignal,
+        })
         .then((response) => response.json<T>())
         .then((result) =>
           resolve({

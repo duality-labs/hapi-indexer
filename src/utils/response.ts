@@ -25,10 +25,16 @@ export function formatChunk({
 }
 
 export function handleResponse<T extends ReqRef = ReqRefDefaults>(
-  getData: (request: Request<T>) => Promise<ResponseJSON>
+  getData: (
+    request: Request<T>,
+    abortController: AbortSignal
+  ) => Promise<ResponseJSON>
 ) {
   return async (request: Request<T>, h: ResponseToolkit) => {
     try {
+      // detect user abortion of request
+      const abortController = new AbortController();
+      request.raw.req.once('close', () => abortController.abort());
       // do SSE streaming if requested
       if (
         request.raw.req.httpVersionMajor === 2 &&
@@ -36,7 +42,7 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
         (mediaTypes(request.headers['accept']).includes('text/event-stream') ||
           Object.hasOwn(request.query, 'stream'))
       ) {
-        const { req, res } = request.raw;
+        const res = request.raw.res;
         // establish SSE content through headers
         res.setHeader('Content-Type', 'text/event-stream');
         if (request.info.cors.isOriginMatch && request.headers['origin']) {
@@ -55,11 +61,8 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
           })
         );
 
-        let aborted = false;
-        req.once('close', () => (aborted = true));
-
         // get initial data
-        const initialData = await getData(request);
+        const initialData = await getData(request, abortController.signal);
         if (initialData.meta) {
           res.write(
             formatChunk({
@@ -77,10 +80,13 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
         );
 
         let lastResult = initialData;
-        while (!aborted) {
+        while (!abortController.signal.aborted) {
           // wait for next update data change
           try {
-            const newResultData = await getData(request);
+            const newResultData = await getData(
+              request,
+              abortController.signal
+            );
             if (!isEqual(lastResult.data, newResultData.data)) {
               res.write(
                 formatChunk({
@@ -134,7 +140,7 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
         // exit
         return res.destroy();
       }
-      return getData(request);
+      return getData(request, abortController.signal);
     } catch (err: unknown) {
       if (err instanceof Error) {
         defaultLogger.error(err);

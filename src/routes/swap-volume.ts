@@ -27,7 +27,8 @@ export const route = {
           to?: number;
           period?: (typeof periods)[number];
         };
-      }>
+      }>,
+      abortSignal: AbortSignal
     ) => {
       const [denom0, denom1] = [
         request.params.denomA,
@@ -46,7 +47,8 @@ export const route = {
         sql`
           SELECT max("height") AS "height"
           FROM spacebox."raw_block_results"
-        `
+        `,
+        abortSignal
       );
 
       // get timeseries query
@@ -60,6 +62,7 @@ export const route = {
               AND "TokenOne" = ${denom1}
               AND "is_swap" = 1
           `,
+          abortSignal,
           {
             cacheTime: 0.1 * seconds * inMs,
             cacheVersion:
@@ -92,6 +95,7 @@ export const route = {
             ORDER BY "time" DESC
             LIMIT ${LIMIT_ROWS}
           `,
+          abortSignal,
           {
             height: Number(sourceTableHeight.data.at(0)?.height),
             getRow: ({ time, volume, denom }) => ({ time, volume, denom }),
@@ -115,6 +119,7 @@ export const route = {
             toUnixTimestamp64Milli(toDateTime64(toStartOfInterval(NOW(), INTERVAL 1 MINUTE), 0)) AS "_cache_version",
             100000 AS "_cache_ms"
         `,
+        abortSignal,
         {
           cacheTime: 60 * seconds * inMs,
           cacheVersion: Number(sourceTableHeight.data.at(0)?.height),
@@ -140,6 +145,7 @@ export const route = {
           AND "TokenZero" = ${denom0}
           AND "TokenOne" = ${denom1}
       `,
+        abortSignal,
         {
           height: Number(sourceTableHeight.data.at(0)?.height),
           getRow: ({ volume, denom }) => ({ volume, denom }),
