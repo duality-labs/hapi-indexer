@@ -12,17 +12,17 @@ interface CacheEnvelope {
   expires: number;
 }
 
-export interface QueryCacheOptions<T> {
+export interface QueryCacheOptions<T, U> {
   heartbeat?: number;
   getHeight?: (array: T[]) => number;
-  getRow?: (value: T, index: number, array: T[]) => T;
-  getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<T>['meta'];
+  getRow?: (value: T, index: number, array: T[]) => U;
+  getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<U>['meta'];
   cacheKey?: string;
   cacheVersion?: number;
   cacheTime?: number;
 }
 export interface ExtendedResponseJSON<T = unknown>
-  extends Omit<ResponseJSON<T>, 'meta'> {
+  extends Pick<ResponseJSON<T>, 'data'> {
   // modification: add more keys to metadata: 'units'
   //   (eg. [{ name: 'volume', 'type': 'number', 'units': 'untrn' }])
   meta?: Array<{ name: string; type: string; units?: string }>;
@@ -38,21 +38,21 @@ const DEFAULT_CACHE_TIME = 0.2 * seconds * inMs;
 const requestCache = new Map<string, CacheEnvelope>();
 
 // add overload type: passing "height" is required to return  "height" property
-export async function getCachedResponse<T>(
+export async function getCachedResponse<Row, RowResponse = Row>(
   query: Sql,
   abortSignal: AbortSignal,
   // require both heartbeat and getHeight() to return data frame data height
-  options: QueryCacheOptions<T> & {
+  options: QueryCacheOptions<Row, RowResponse> & {
     heartbeat: number;
-    getHeight: (array: T[]) => number;
+    getHeight: (array: Row[]) => number;
   }
-): Promise<ExtendedResponseJSON<T>>;
-export async function getCachedResponse<T>(
+): Promise<ExtendedResponseJSON<RowResponse>>;
+export async function getCachedResponse<Row, RowResponse = Row>(
   query: Sql,
   abortSignal: AbortSignal,
-  options?: QueryCacheOptions<T>
-): Promise<Omit<ExtendedResponseJSON<T>, 'height' | 'heartbeat'>>;
-export async function getCachedResponse<T>(
+  options?: QueryCacheOptions<Row, RowResponse>
+): Promise<Omit<ExtendedResponseJSON<RowResponse>, 'height' | 'heartbeat'>>;
+export async function getCachedResponse<Row, RowResponse extends Row = Row>(
   query: Sql,
   abortSignal: AbortSignal,
   {
@@ -63,8 +63,8 @@ export async function getCachedResponse<T>(
     cacheKey = JSON.stringify([query.sql, query.values]),
     cacheVersion = 0,
     cacheTime = DEFAULT_CACHE_TIME,
-  }: QueryCacheOptions<T> = {}
-): Promise<ExtendedResponseJSON<T> | ResponseJSON<T>> {
+  }: QueryCacheOptions<Row, RowResponse> = {}
+): Promise<ExtendedResponseJSON<RowResponse> | ResponseJSON<RowResponse>> {
   const cachedResponse = requestCache.get(cacheKey);
   const now = Date.now();
   // return matching cache request/response
@@ -78,7 +78,7 @@ export async function getCachedResponse<T>(
     cachedResponse.version >= (cacheVersion || 0)
   ) {
     const value = (await cachedResponse.value) as Omit<
-      ExtendedResponseJSON<T>,
+      ExtendedResponseJSON<RowResponse>,
       'height'
     >;
     // add heartbeat data to cached response (may not show data to user)
@@ -92,8 +92,8 @@ export async function getCachedResponse<T>(
   // create a new request to cache
   const newResponse = {
     value: new Promise<
-      | ExtendedResponseJSON<T>
-      | Omit<ExtendedResponseJSON<T>, 'height' | 'heartbeat'>
+      | ExtendedResponseJSON<RowResponse>
+      | Omit<ExtendedResponseJSON<RowResponse>, 'height' | 'heartbeat'>
     >((resolve, reject) => {
       client
         .query({
@@ -101,12 +101,15 @@ export async function getCachedResponse<T>(
           // allow query to be cancelled
           abort_signal: abortSignal,
         })
-        .then((response) => response.json<T>())
+        .then((response) => response.json<Row>())
         .then((result) =>
           resolve({
             ...result,
             meta: getMetadata ? getMetadata(result.meta) : result.meta,
-            data: getRow ? result.data.map(getRow) : result.data,
+            data: getRow
+              ? result.data.map(getRow)
+              : // note: return type may be wrong when RowResponse != Row
+                (result.data as RowResponse[]),
             height: getHeight?.(result.data),
           })
         )

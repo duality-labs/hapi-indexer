@@ -70,11 +70,10 @@ export const route = {
           }
         );
 
-        return await getCachedResponse<{
-          height?: string;
-          time: string;
-          volume: string;
-        }>(
+        return await getCachedResponse<
+          { time: string; volume: string; height: string },
+          { time: string; volume: string }
+        >(
           sql`
             SELECT
               max(height) as "height",
@@ -145,11 +144,10 @@ export const route = {
       );
 
       // get 24 hour volume cached to "beginning of the hour" version
-      return await getCachedResponse<{
-        height?: string;
-        time: string;
-        volume: string;
-      }>(
+      return await getCachedResponse<
+        { time: string; volume: string; height: string },
+        { time: string; volume: string }
+      >(
         sql`
         SELECT
           max(height) as "height",
