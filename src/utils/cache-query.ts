@@ -120,5 +120,7 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
     expires: now + cacheTime,
   };
   requestCache.set(cacheKey, newResponse);
-  return newResponse.value;
+  const value = await newResponse.value;
+  // add heartbeat data to cached response (may not show data to user)
+  return heartbeat ? { ...value, heartbeat } : value;
 }
