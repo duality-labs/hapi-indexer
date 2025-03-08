@@ -78,7 +78,14 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
                 formatChunk({
                   event: 'data',
                   id: `height: ${newResultData.query_id}`,
-                  data: JSON.stringify(newResultData.data),
+                  // send unsent rows only
+                  data: JSON.stringify(
+                    newResultData.data.filter((newRow) => {
+                      return !lastResult.data.some((row) =>
+                        isEqual(row, newRow)
+                      );
+                    })
+                  ),
                 })
               );
             } else if (!isEqual(lastResult.query_id, newResultData.query_id)) {
