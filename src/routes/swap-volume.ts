@@ -75,7 +75,6 @@ export const route = {
           height?: string;
           time: string;
           volume: string;
-          denom: string;
         }>(
           sql`
             SELECT
@@ -84,8 +83,7 @@ export const route = {
                 `${request.query.period}`
               )}) AS "time",
               sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
-              sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
-              ${denomReporting} as "denom"
+              sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
             FROM (${selectDexTickUpdates})
             WHERE "is_swap" = 1
               AND "timestamp" >= ${unixFrom}
@@ -99,12 +97,21 @@ export const route = {
           abortSignal,
           Number(sourceTableHeight.data.at(0)?.height),
           {
-            getRow: ({ time, volume, denom }) => ({ time, volume, denom }),
+            getRow: ({ time, volume }) => ({ time, volume }),
             getHeight: (data) => Number(data.at(0)?.height),
-            getMetadata: (metadata) =>
-              metadata?.filter(({ name }) =>
-                ['volume', 'denom'].includes(name)
-              ),
+            getMetadata: (metadata) => {
+              return (
+                metadata
+                  // remove height field
+                  ?.filter(({ name }) => ['volume'].includes(name))
+                  // add volume units
+                  ?.map((row) =>
+                    row.name === 'volume'
+                      ? { ...row, units: denomReporting }
+                      : row
+                  )
+              );
+            },
             cacheTime: 1 * hours * inMs,
             cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
           }
@@ -132,14 +139,12 @@ export const route = {
       return await getCachedResponse<{
         height?: string;
         volume: string;
-        denom: string;
       }>(
         sql`
         SELECT
           max(height) as "height",
           sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
-          sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
-          ${denomReporting} as "denom"
+          sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
         FROM (${selectDexTickUpdates})
         WHERE "is_swap" = 1
           AND "timestamp" >= toStartOfMinute(addDays(NOW(), -1))
@@ -150,10 +155,21 @@ export const route = {
         abortSignal,
         Number(sourceTableHeight.data.at(0)?.height),
         {
-          getRow: ({ volume, denom }) => ({ volume, denom }),
+          getRow: ({ volume }) => ({ volume }),
           getHeight: (data) => Number(data.at(0)?.height),
-          getMetadata: (metadata) =>
-            metadata?.filter(({ name }) => ['volume', 'denom'].includes(name)),
+          getMetadata: (metadata) => {
+            return (
+              metadata
+                // remove height field
+                ?.filter(({ name }) => ['volume'].includes(name))
+                // add volume units
+                ?.map((row) =>
+                  row.name === 'volume'
+                    ? { ...row, units: denomReporting }
+                    : row
+                )
+            );
+          },
           cacheTime: Number(currentTime.data.at(0)?._cache_ms) ?? undefined,
           cacheVersion:
             Number(currentTime.data.at(0)?._cache_version) ?? undefined,

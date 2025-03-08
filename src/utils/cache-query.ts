@@ -18,7 +18,11 @@ export interface QueryCacheOptions<T> {
   cacheVersion?: number;
   cacheTime?: number;
 }
-export interface ExtendedResponseJSON<T = unknown> extends ResponseJSON<T> {
+export interface ExtendedResponseJSON<T = unknown>
+  extends Omit<ResponseJSON<T>, 'meta'> {
+  // modification: add more keys to metadata: 'units'
+  //   (eg. [{ name: 'volume', 'type': 'number', 'units': 'untrn' }])
+  meta?: Array<{ name: string; type: string; units?: string }>;
   // add special block data "header": block height
   height: number;
 }
@@ -39,7 +43,7 @@ export async function getCachedResponse<T>(
   abortSignal: AbortSignal,
   height?: undefined,
   options?: QueryCacheOptions<T>
-): Promise<ResponseJSON<T>>;
+): Promise<Omit<ExtendedResponseJSON<T>, 'height'>>;
 export async function getCachedResponse<T>(
   query: Sql,
   abortSignal: AbortSignal,
@@ -65,7 +69,10 @@ export async function getCachedResponse<T>(
     // item is at least the requested version
     cachedResponse.version >= (cacheVersion || 0)
   ) {
-    const value = (await cachedResponse.value) as ResponseJSON<T>;
+    const value = (await cachedResponse.value) as Omit<
+      ExtendedResponseJSON<T>,
+      'height'
+    >;
     return height ? { ...value, height } : value;
   }
   // remove the old version request from the cache
@@ -75,26 +82,26 @@ export async function getCachedResponse<T>(
 
   // create a new request to cache
   const newResponse = {
-    value: new Promise<ResponseJSON<T> | ExtendedResponseJSON<T>>(
-      (resolve, reject) => {
-        client
-          .query<'JSON'>({
-            ...toClickHouseSQL(query),
-            // allow query to be cancelled
-            abort_signal: abortSignal,
+    value: new Promise<
+      ExtendedResponseJSON<T> | Omit<ExtendedResponseJSON<T>, 'height'>
+    >((resolve, reject) => {
+      client
+        .query<'JSON'>({
+          ...toClickHouseSQL(query),
+          // allow query to be cancelled
+          abort_signal: abortSignal,
+        })
+        .then((response) => response.json<T>())
+        .then((result) =>
+          resolve({
+            ...result,
+            meta: getMetadata ? getMetadata(result.meta) : result.meta,
+            data: getRow ? result.data.map(getRow) : result.data,
+            height: getHeight?.(result.data),
           })
-          .then((response) => response.json<T>())
-          .then((result) =>
-            resolve({
-              ...result,
-              meta: getMetadata ? getMetadata(result.meta) : result.meta,
-              data: getRow ? result.data.map(getRow) : result.data,
-              height: getHeight?.(result.data),
-            })
-          )
-          .catch(reject);
-      }
-    ),
+        )
+        .catch(reject);
+    }),
     version: cacheVersion || 0,
     created: now,
     expires: now + cacheTime,
