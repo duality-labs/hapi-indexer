@@ -1,7 +1,9 @@
 import { Request } from '@hapi/hapi';
 import sql, { raw } from 'sql-template-tag';
 
+import { handleResponse } from '../utils/response';
 import { getCachedResponse } from '../utils/cache-query';
+import { config } from '../config';
 import {
   getTimePeriod,
   hours,
@@ -9,8 +11,6 @@ import {
   seconds,
   TimePeriod,
 } from '../utils/units';
-import { handleResponse } from '../utils/response';
-import { config } from '../config';
 
 const LIMIT_ROWS = 1000;
 
@@ -129,7 +129,12 @@ export const route = {
       }>(
         sql`
           SELECT
-            toUnixTimestamp64Milli(toDateTime64(toStartOfInterval(NOW(), INTERVAL 1 MINUTE), 0)) AS "_cache_version",
+            toUnixTimestamp64Milli(
+              toDateTime64(
+                toStartOfInterval(NOW(), INTERVAL 1 MINUTE),
+                0
+              )
+            ) AS "_cache_version",
             100000 AS "_cache_ms"
         `,
         abortSignal,
