@@ -96,8 +96,8 @@ export async function getCachedResponse<T>(
       | Omit<ExtendedResponseJSON<T>, 'height' | 'heartbeat'>
     >((resolve, reject) => {
       client
-        .query<'JSON'>({
-          ...toClickHouseSQL(query),
+        .query({
+          ...toClickHouseSQL(query, 'JSON'),
           // allow query to be cancelled
           abort_signal: abortSignal,
         })

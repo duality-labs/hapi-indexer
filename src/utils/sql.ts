@@ -1,5 +1,5 @@
 import { SimpleColumnType } from '@clickhouse/client';
-import { QueryParamsWithFormat } from '@clickhouse/client-common';
+import { DataFormat, QueryParamsWithFormat } from '@clickhouse/client-common';
 import { Sql } from 'sql-template-tag';
 
 type ExplicitFieldValue = { type: SimpleColumnType; value: unknown };
@@ -16,13 +16,13 @@ type ExplicitFieldValue = { type: SimpleColumnType; value: unknown };
  * toClickHouseSQL(sql`SELECT plus(${1},${{ type: 'Int32', value: 2 }})`)
  * @see https://clickhouse.com/docs/integrations/javascript#queries-with-parameters
  */
-export function toClickHouseSQL({
-  sql,
-  values,
-}: Sql): QueryParamsWithFormat<'JSON'> {
+export function toClickHouseSQL<T extends DataFormat>(
+  { sql, values }: Sql,
+  format: T
+): QueryParamsWithFormat<T> {
   // assume that question marks aren't part of valid SQL
   const strings = sql.split('?');
-  return Array.from(strings).reduce<QueryParamsWithFormat<'JSON'>>(
+  return Array.from(strings).reduce<QueryParamsWithFormat<T>>(
     (result, string, i) => {
       const field: ExplicitFieldValue =
         typeof values[i] === 'object'
@@ -35,6 +35,7 @@ export function toClickHouseSQL({
       if (field.value !== undefined) {
         const label = `val${i + 1}`;
         return {
+          ...result,
           query: result.query + string + `{${label}: ${field.type}}`,
           query_params: { ...result.query_params, [label]: field.value },
           // enforce read only setting on query level
@@ -45,11 +46,12 @@ export function toClickHouseSQL({
         };
       } else {
         return {
+          ...result,
           query: result.query + string,
           query_params: result.query_params,
         };
       }
     },
-    { query: '', query_params: {} }
+    { query: '', query_params: {}, format }
   );
 }
