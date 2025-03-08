@@ -96,6 +96,10 @@ export const route = {
             height: Number(sourceTableHeight.data.at(0)?.height),
             getRow: ({ time, volume, denom }) => ({ time, volume, denom }),
             getHeight: (data) => data.at(0)?.height,
+            getMetadata: (metadata) =>
+              metadata?.filter(({ name }) =>
+                ['volume', 'denom'].includes(name)
+              ),
             cacheTime: 1 * hours * inMs,
             cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
           }
@@ -140,6 +144,8 @@ export const route = {
           height: Number(sourceTableHeight.data.at(0)?.height),
           getRow: ({ volume, denom }) => ({ volume, denom }),
           getHeight: (data) => data.at(0)?.height,
+          getMetadata: (metadata) =>
+            metadata?.filter(({ name }) => ['volume', 'denom'].includes(name)),
           cacheTime: Number(currentTime.data.at(0)?._cache_ms) ?? undefined,
           cacheVersion:
             Number(currentTime.data.at(0)?._cache_version) ?? undefined,

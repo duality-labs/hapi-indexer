@@ -14,6 +14,7 @@ export interface QueryCacheOptions<T> {
   height?: number;
   getHeight?: (array: T[]) => string | undefined;
   getRow?: (value: T, index: number, array: T[]) => T;
+  getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<T>['meta'];
   cacheKey?: string;
   cacheVersion?: number;
   cacheTime?: number;
@@ -28,6 +29,7 @@ export async function getCachedResponse<T>(
     height,
     getHeight,
     getRow,
+    getMetadata,
     cacheKey = JSON.stringify([query.sql, query.values]),
     cacheVersion = 0,
     cacheTime = DEFAULT_CACHE_TIME,
@@ -62,6 +64,7 @@ export async function getCachedResponse<T>(
         .then((result) =>
           resolve({
             ...result,
+            meta: getMetadata ? getMetadata(result.meta) : result.meta,
             data: getRow ? result.data.map(getRow) : result.data,
             query_id: getHeight?.(result.data) ?? result.query_id,
           })
