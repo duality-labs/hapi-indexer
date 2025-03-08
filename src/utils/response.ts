@@ -102,11 +102,13 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
                   ),
                 })
               );
-            } else if (!isEqual(lastResult.height, newResultData.height)) {
+            }
+            // send heartbeat data to report changes in source data height
+            else if (!isEqual(lastResult.heartbeat, newResultData.heartbeat)) {
               res.write(
                 formatChunk({
                   event: 'heartbeat',
-                  id: `height: ${newResultData.height}`,
+                  id: `height: ${newResultData.heartbeat}`,
                 })
               );
             }

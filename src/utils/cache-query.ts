@@ -24,8 +24,11 @@ export interface ExtendedResponseJSON<T = unknown>
   // modification: add more keys to metadata: 'units'
   //   (eg. [{ name: 'volume', 'type': 'number', 'units': 'untrn' }])
   meta?: Array<{ name: string; type: string; units?: string }>;
-  // add special block data "header": block height
+  // add special block data information
+  // - "header": block height from queried data table
   height: number;
+  // - "heartbeat": block height from source data table
+  heartbeat: number;
 }
 
 const DEFAULT_CACHE_TIME = 0.2 * seconds * inMs;
@@ -46,7 +49,7 @@ export async function getCachedResponse<T>(
   query: Sql,
   abortSignal: AbortSignal,
   options?: QueryCacheOptions<T>
-): Promise<Omit<ExtendedResponseJSON<T>, 'height'>>;
+): Promise<Omit<ExtendedResponseJSON<T>, 'height' | 'heartbeat'>>;
 export async function getCachedResponse<T>(
   query: Sql,
   abortSignal: AbortSignal,
@@ -76,7 +79,8 @@ export async function getCachedResponse<T>(
       ExtendedResponseJSON<T>,
       'height'
     >;
-    return heartbeat ? { ...value, height: heartbeat } : value;
+    // add heartbeat data to cached response (may not show data to user)
+    return heartbeat ? { ...value, heartbeat } : value;
   }
   // remove the old version request from the cache
   if (cachedResponse) {
@@ -86,7 +90,8 @@ export async function getCachedResponse<T>(
   // create a new request to cache
   const newResponse = {
     value: new Promise<
-      ExtendedResponseJSON<T> | Omit<ExtendedResponseJSON<T>, 'height'>
+      | ExtendedResponseJSON<T>
+      | Omit<ExtendedResponseJSON<T>, 'height' | 'heartbeat'>
     >((resolve, reject) => {
       client
         .query<'JSON'>({
@@ -110,6 +115,5 @@ export async function getCachedResponse<T>(
     expires: now + cacheTime,
   };
   requestCache.set(cacheKey, newResponse);
-  const value = await newResponse.value;
-  return heartbeat ? { ...value, height: heartbeat } : value;
+  return newResponse.value;
 }
