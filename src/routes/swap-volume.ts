@@ -63,7 +63,6 @@ export const route = {
               AND "is_swap" = 1
           `,
           abortSignal,
-          undefined,
           {
             cacheTime: 10 * seconds * inMs,
             cacheVersion:
@@ -100,8 +99,8 @@ export const route = {
             LIMIT ${LIMIT_ROWS}
           `,
           abortSignal,
-          Number(sourceTableHeight.data.at(0)?.height),
           {
+            heartbeat: Number(sourceTableHeight.data.at(0)?.height),
             getRow: ({ time, volume }) => ({ time, volume }),
             getHeight: (data) => Number(data.at(0)?.height),
             getMetadata: (metadata) => {
@@ -139,7 +138,6 @@ export const route = {
             100000 AS "_cache_ms"
         `,
         abortSignal,
-        Number(sourceTableHeight.data.at(0)?.height),
         {
           cacheTime: 60 * seconds * inMs,
           cacheVersion: Number(sourceTableHeight.data.at(0)?.height),
@@ -164,8 +162,8 @@ export const route = {
           AND "TokenOne" = ${denom1}
       `,
         abortSignal,
-        Number(sourceTableHeight.data.at(0)?.height),
         {
+          heartbeat: Number(sourceTableHeight.data.at(0)?.height),
           getRow: ({ volume }) => ({ volume }),
           getHeight: (data) => Number(data.at(0)?.height),
           getMetadata: (metadata) => {

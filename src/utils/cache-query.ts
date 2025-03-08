@@ -11,6 +11,7 @@ interface CacheEnvelope {
 }
 
 export interface QueryCacheOptions<T> {
+  heartbeat?: number;
   getHeight?: (array: T[]) => number;
   getRow?: (value: T, index: number, array: T[]) => T;
   getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<T>['meta'];
@@ -35,20 +36,22 @@ const requestCache = new Map<string, CacheEnvelope>();
 export async function getCachedResponse<T>(
   query: Sql,
   abortSignal: AbortSignal,
-  height: number,
-  options?: QueryCacheOptions<T>
+  // require both heartbeat and getHeight() to return data frame data height
+  options: QueryCacheOptions<T> & {
+    heartbeat: number;
+    getHeight: (array: T[]) => number;
+  }
 ): Promise<ExtendedResponseJSON<T>>;
 export async function getCachedResponse<T>(
   query: Sql,
   abortSignal: AbortSignal,
-  height?: undefined,
   options?: QueryCacheOptions<T>
 ): Promise<Omit<ExtendedResponseJSON<T>, 'height'>>;
 export async function getCachedResponse<T>(
   query: Sql,
   abortSignal: AbortSignal,
-  height: number | undefined,
   {
+    heartbeat,
     getHeight,
     getRow,
     getMetadata,
@@ -73,7 +76,7 @@ export async function getCachedResponse<T>(
       ExtendedResponseJSON<T>,
       'height'
     >;
-    return height ? { ...value, height } : value;
+    return heartbeat ? { ...value, height: heartbeat } : value;
   }
   // remove the old version request from the cache
   if (cachedResponse) {
@@ -108,5 +111,5 @@ export async function getCachedResponse<T>(
   };
   requestCache.set(cacheKey, newResponse);
   const value = await newResponse.value;
-  return height ? { ...value, height } : value;
+  return heartbeat ? { ...value, height: heartbeat } : value;
 }
