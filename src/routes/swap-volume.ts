@@ -63,6 +63,7 @@ export const route = {
               AND "is_swap" = 1
           `,
           abortSignal,
+          undefined,
           {
             cacheTime: 0.1 * seconds * inMs,
             cacheVersion:
@@ -78,7 +79,7 @@ export const route = {
         }>(
           sql`
             SELECT
-              max(height) as "height", -- add as query ID
+              max(height) as "height",
               toStartOfInterval("timestamp", INTERVAL 1 ${raw(
                 `${request.query.period}`
               )}) AS "time",
@@ -96,10 +97,10 @@ export const route = {
             LIMIT ${LIMIT_ROWS}
           `,
           abortSignal,
+          Number(sourceTableHeight.data.at(0)?.height),
           {
-            height: Number(sourceTableHeight.data.at(0)?.height),
             getRow: ({ time, volume, denom }) => ({ time, volume, denom }),
-            getHeight: (data) => data.at(0)?.height,
+            getHeight: (data) => Number(data.at(0)?.height),
             getMetadata: (metadata) =>
               metadata?.filter(({ name }) =>
                 ['volume', 'denom'].includes(name)
@@ -120,6 +121,7 @@ export const route = {
             100000 AS "_cache_ms"
         `,
         abortSignal,
+        Number(sourceTableHeight.data.at(0)?.height),
         {
           cacheTime: 60 * seconds * inMs,
           cacheVersion: Number(sourceTableHeight.data.at(0)?.height),
@@ -134,7 +136,7 @@ export const route = {
       }>(
         sql`
         SELECT
-          max(height) as "height", -- add as query ID
+          max(height) as "height",
           sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
           sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume",
           ${denomReporting} as "denom"
@@ -146,10 +148,10 @@ export const route = {
           AND "TokenOne" = ${denom1}
       `,
         abortSignal,
+        Number(sourceTableHeight.data.at(0)?.height),
         {
-          height: Number(sourceTableHeight.data.at(0)?.height),
           getRow: ({ volume, denom }) => ({ volume, denom }),
-          getHeight: (data) => data.at(0)?.height,
+          getHeight: (data) => Number(data.at(0)?.height),
           getMetadata: (metadata) =>
             metadata?.filter(({ name }) => ['volume', 'denom'].includes(name)),
           cacheTime: Number(currentTime.data.at(0)?._cache_ms) ?? undefined,

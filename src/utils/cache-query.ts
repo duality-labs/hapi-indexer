@@ -11,23 +11,40 @@ interface CacheEnvelope {
 }
 
 export interface QueryCacheOptions<T> {
-  height?: number;
-  getHeight?: (array: T[]) => string | undefined;
+  getHeight?: (array: T[]) => number;
   getRow?: (value: T, index: number, array: T[]) => T;
   getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<T>['meta'];
   cacheKey?: string;
   cacheVersion?: number;
   cacheTime?: number;
 }
+export interface ExtendedResponseJSON<T = unknown> extends ResponseJSON<T> {
+  // add special block data "header": block height
+  height: number;
+}
+
 const DEFAULT_CACHE_TIME = 0.2 * seconds * inMs;
 
 const requestCache = new Map<string, CacheEnvelope>();
 
+// add overload type: passing "height" is required to return  "height" property
 export async function getCachedResponse<T>(
   query: Sql,
   abortSignal: AbortSignal,
+  height: number,
+  options?: QueryCacheOptions<T>
+): Promise<ExtendedResponseJSON<T>>;
+export async function getCachedResponse<T>(
+  query: Sql,
+  abortSignal: AbortSignal,
+  height?: undefined,
+  options?: QueryCacheOptions<T>
+): Promise<ResponseJSON<T>>;
+export async function getCachedResponse<T>(
+  query: Sql,
+  abortSignal: AbortSignal,
+  height: number | undefined,
   {
-    height,
     getHeight,
     getRow,
     getMetadata,
@@ -35,7 +52,7 @@ export async function getCachedResponse<T>(
     cacheVersion = 0,
     cacheTime = DEFAULT_CACHE_TIME,
   }: QueryCacheOptions<T> = {}
-): Promise<ResponseJSON<T>> {
+): Promise<ExtendedResponseJSON<T> | ResponseJSON<T>> {
   const cachedResponse = requestCache.get(cacheKey);
   const now = Date.now();
   // return matching cache request/response
@@ -49,7 +66,7 @@ export async function getCachedResponse<T>(
     cachedResponse.version >= (cacheVersion || 0)
   ) {
     const value = (await cachedResponse.value) as ResponseJSON<T>;
-    return height ? { ...value, query_id: height.toFixed(0) } : value;
+    return height ? { ...value, height } : value;
   }
   // remove the old version request from the cache
   if (cachedResponse) {
@@ -58,29 +75,31 @@ export async function getCachedResponse<T>(
 
   // create a new request to cache
   const newResponse = {
-    value: new Promise<ResponseJSON<T>>((resolve, reject) => {
-      client
-        .query<'JSON'>({
-          ...toClickHouseSQL(query),
-          // allow query to be cancelled
-          abort_signal: abortSignal,
-        })
-        .then((response) => response.json<T>())
-        .then((result) =>
-          resolve({
-            ...result,
-            meta: getMetadata ? getMetadata(result.meta) : result.meta,
-            data: getRow ? result.data.map(getRow) : result.data,
-            query_id: getHeight?.(result.data) ?? result.query_id,
+    value: new Promise<ResponseJSON<T> | ExtendedResponseJSON<T>>(
+      (resolve, reject) => {
+        client
+          .query<'JSON'>({
+            ...toClickHouseSQL(query),
+            // allow query to be cancelled
+            abort_signal: abortSignal,
           })
-        )
-        .catch(reject);
-    }),
+          .then((response) => response.json<T>())
+          .then((result) =>
+            resolve({
+              ...result,
+              meta: getMetadata ? getMetadata(result.meta) : result.meta,
+              data: getRow ? result.data.map(getRow) : result.data,
+              height: getHeight?.(result.data),
+            })
+          )
+          .catch(reject);
+      }
+    ),
     version: cacheVersion || 0,
     created: now,
     expires: now + cacheTime,
   };
   requestCache.set(cacheKey, newResponse);
   const value = await newResponse.value;
-  return height ? { ...value, query_id: height.toFixed(0) } : value;
+  return height ? { ...value, height } : value;
 }

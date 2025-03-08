@@ -1,8 +1,8 @@
-import { ResponseJSON } from '@clickhouse/client';
 import { mediaTypes } from '@hapi/accept';
 import { ReqRef, ReqRefDefaults, Request, ResponseToolkit } from '@hapi/hapi';
 import { isEqual } from 'lodash-es';
 import defaultLogger from './logger';
+import { ExtendedResponseJSON } from './cache-query';
 
 export function formatChunk({
   event,
@@ -28,7 +28,7 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
   getData: (
     request: Request<T>,
     abortController: AbortSignal
-  ) => Promise<ResponseJSON>
+  ) => Promise<ExtendedResponseJSON>
 ) {
   return async (request: Request<T>, h: ResponseToolkit) => {
     try {
@@ -74,7 +74,7 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
         res.write(
           formatChunk({
             event: 'data',
-            id: `height: ${initialData.query_id}`,
+            id: `height: ${initialData.height}`,
             data: JSON.stringify(initialData.data),
           })
         );
@@ -91,7 +91,7 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
               res.write(
                 formatChunk({
                   event: 'data',
-                  id: `height: ${newResultData.query_id}`,
+                  id: `height: ${newResultData.height}`,
                   // send unsent rows only
                   data: JSON.stringify(
                     newResultData.data.filter((newRow) => {
@@ -102,11 +102,11 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
                   ),
                 })
               );
-            } else if (!isEqual(lastResult.query_id, newResultData.query_id)) {
+            } else if (!isEqual(lastResult.height, newResultData.height)) {
               res.write(
                 formatChunk({
                   event: 'heartbeat',
-                  id: `height: ${newResultData.query_id}`,
+                  id: `height: ${newResultData.height}`,
                 })
               );
             }
