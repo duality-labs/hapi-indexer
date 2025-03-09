@@ -84,10 +84,11 @@ export const route = {
               sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
             FROM (${selectDexTickUpdates})
             WHERE "is_swap" = 1
-              AND "timestamp" >= ${unixFrom}
-              AND "timestamp" < ${unixTo || raw('NOW()')}
               AND "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
+              -- add optional timestamp filters only if defined
+              ${unixFrom ? sql`AND "timestamp" >= ${unixFrom}` : raw('')}
+              ${unixTo ? sql`AND "timestamp" < ${unixTo}` : raw('')}
             GROUP BY "time"
             ORDER BY "time" DESC
             LIMIT ${LIMIT_ROWS}
