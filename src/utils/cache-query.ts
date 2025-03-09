@@ -15,7 +15,7 @@ interface CacheEnvelope {
 export interface QueryCacheOptions<T, U> {
   heartbeat?: number;
   getHeight?: (array: T[]) => number;
-  getRow?: (value: T, index: number, array: T[]) => U;
+  getRow?: (value: T, index: number, array: T[]) => U | U[];
   getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<U>['meta'];
   cacheKey?: string;
   cacheVersion?: number;
@@ -107,7 +107,7 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
             ...result,
             meta: getMetadata ? getMetadata(result.meta) : result.meta,
             data: getRow
-              ? result.data.map(getRow)
+              ? result.data.flatMap(getRow)
               : // note: return type may be wrong when RowResponse != Row
                 (result.data as RowResponse[]),
             height: getHeight?.(result.data),

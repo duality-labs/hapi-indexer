@@ -82,7 +82,7 @@ export const route = {
               )}) AS "time",
               sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
               sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
-            FROM (${selectDexTickUpdates})
+            FROM (${selectDexTickUpdatesWithSwapAmountFix})
             WHERE "is_swap" = 1
               AND "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
@@ -155,7 +155,7 @@ export const route = {
           toStartOfMinute(NOW()) as "time",
           sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
           sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
-        FROM (${selectDexTickUpdates})
+        FROM (${selectDexTickUpdatesWithSwapAmountFix})
         WHERE "is_swap" = 1
           AND "timestamp" >= toStartOfMinute(addDays(NOW(), -1))
           AND "timestamp" < toStartOfMinute(NOW())
@@ -197,7 +197,7 @@ export const route = {
 
 // this select statement applies the "swap volume fix" to recreate
 // SwapAmountIn/SwapAmountOut for events in Neutron <= v5 that do not have them
-const selectDexTickUpdates = sql`
+export const selectDexTickUpdatesWithSwapAmountFix = sql`
   -- get indexed updates in order with an update_index field
   -- to help determine the ReservesDiff field: the current - previous Reserves value
   WITH "dex_tick_update_events_indexed" AS (
