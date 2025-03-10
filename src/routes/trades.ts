@@ -166,7 +166,8 @@ export const route = {
           );
         },
         // flag as complete if there will be no data changes after this
-        isComplete: toUnixTime(currentHeight.data.at(0)?.time) > unixTo,
+        isComplete:
+          !!unixTo && toUnixTime(currentHeight.data.at(0)?.time) > unixTo,
         cacheTime: 1 * hours * inMs,
         cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
       }
