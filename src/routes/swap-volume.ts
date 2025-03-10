@@ -10,6 +10,7 @@ import {
   inMs,
   seconds,
   TimePeriod,
+  toUnixTime,
 } from '../utils/units';
 
 const LIMIT_ROWS = 1000;
@@ -54,10 +55,15 @@ export const route = {
       const timePeriod = getTimePeriod(request.query.period);
       if (timePeriod) {
         // get timeseries data height (quick query to determine cache version)
-        const currentHeight = await getCachedResponse<{ height: string }>(
+        const currentHeight = await getCachedResponse<{
+          height: string;
+          time: string;
+        }>(
           sql`
-            SELECT max("height") AS "height"
-            FROM spacebox."dex_message_event_tick_update"
+            SELECT
+              max(t."height") AS "height",
+              argMax("timestamp", t."height") as "time"
+            FROM spacebox."dex_message_event_tick_update" as t
             WHERE "is_swap" = 1
               AND "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
@@ -113,6 +119,8 @@ export const route = {
                   )
               );
             },
+            // flag as complete if there will be no data changes after this
+            isComplete: toUnixTime(currentHeight.data.at(0)?.time) > unixTo,
             cacheTime: 1 * hours * inMs,
             cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
           }

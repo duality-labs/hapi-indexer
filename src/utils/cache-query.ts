@@ -17,6 +17,7 @@ export interface QueryCacheOptions<T, U> {
   getHeight?: (array: T[]) => number;
   getRow?: (value: T, index: number, array: T[]) => U | U[];
   getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<U>['meta'];
+  isComplete?: boolean;
   cacheKey?: string;
   cacheVersion?: number;
   cacheTime?: number;
@@ -31,6 +32,7 @@ export interface ExtendedResponseJSON<T = unknown>
   height: number;
   // - "heartbeat": block height from source data table
   heartbeat: number;
+  isComplete: boolean;
 }
 
 const DEFAULT_CACHE_TIME = 0.2 * seconds * inMs;
@@ -60,6 +62,7 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
     getHeight,
     getRow,
     getMetadata,
+    isComplete = false,
     cacheKey = JSON.stringify([query.sql, query.values]),
     cacheVersion = 0,
     cacheTime = DEFAULT_CACHE_TIME,
@@ -82,7 +85,7 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
       'height'
     >;
     // add heartbeat data to cached response (may not show data to user)
-    return heartbeat ? { ...value, heartbeat } : value;
+    return heartbeat ? { ...value, heartbeat, isComplete } : value;
   }
   // remove the old version request from the cache
   if (cachedResponse) {
@@ -111,6 +114,7 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
               : // note: return type may be wrong when RowResponse != Row
                 (result.data as RowResponse[]),
             height: getHeight?.(result.data),
+            isComplete,
           })
         )
         .catch(reject);
@@ -122,5 +126,5 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
   requestCache.set(cacheKey, newResponse);
   const value = await newResponse.value;
   // add heartbeat data to cached response (may not show data to user)
-  return heartbeat ? { ...value, heartbeat } : value;
+  return heartbeat ? { ...value, heartbeat, isComplete } : value;
 }

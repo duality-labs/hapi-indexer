@@ -3,7 +3,7 @@ import sql, { raw } from 'sql-template-tag';
 
 import { handleResponse } from '../utils/response';
 import { getCachedResponse } from '../utils/cache-query';
-import { hours, inMs } from '../utils/units';
+import { hours, inMs, toUnixTime } from '../utils/units';
 import { selectDexTickUpdatesWithSwapAmountFix } from './swap-volume';
 
 const LIMIT_ROWS = 50;
@@ -42,10 +42,15 @@ export const route = {
       );
 
       // get timeseries data height (quick query to determine cache version)
-      const currentHeight = await getCachedResponse<{ height: string }>(
+      const currentHeight = await getCachedResponse<{
+        height: string;
+        time: string;
+      }>(
         sql`
-          SELECT max("height") AS "height"
-          FROM spacebox."dex_message_event_tick_update"
+          SELECT
+            max("height") AS "height",
+            argMax("timestamp", t."height") as "time"
+          FROM spacebox."dex_message_event_tick_update" as t
           WHERE "is_swap" = 1
             AND "TokenZero" = ${denom0}
             AND "TokenOne" = ${denom1}
@@ -160,6 +165,8 @@ export const route = {
                 )
             );
           },
+          // flag as complete if there will be no data changes after this
+          isComplete: toUnixTime(currentHeight.data.at(0)?.time) > unixTo,
           cacheTime: 1 * hours * inMs,
           cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
         }

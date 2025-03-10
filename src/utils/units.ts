@@ -18,3 +18,13 @@ export function getTimePeriod(
     return timePeriods.find((timePeriod) => timePeriod === timePeriodLowerCase);
   }
 }
+
+/**
+ * Convert ClickHouse DateTime string ("YYYY-MM-DD hh:mm:ss") to unixTime
+ * @param dateTime
+ * @returns unix time in seconds
+ */
+export function toUnixTime(dateTime: string | undefined): number {
+  const date = new Date(`${dateTime}Z`);
+  return date.valueOf() > 0 ? Math.floor(date.valueOf() / 1000) : 0;
+}

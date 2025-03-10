@@ -57,7 +57,7 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
         // add stream start indication
         res.write(
           formatChunk({
-            event: 'start stream',
+            event: 'stream start',
           })
         );
 
@@ -80,7 +80,7 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
         );
 
         let lastResult = initialData;
-        while (!abortController.signal.aborted) {
+        while (!abortController.signal.aborted && !lastResult.isComplete) {
           // wait for next update data change
           try {
             const newResultData = await getData(
@@ -130,6 +130,15 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
             // exit loop, likely getData has failed somehow
             break;
           }
+        }
+
+        // send final message if stream is still open
+        if (!res.destroyed) {
+          res.write(
+            formatChunk({
+              event: 'stream end',
+            })
+          );
         }
 
         // wait a tick to be sure that "end" in in the queue
