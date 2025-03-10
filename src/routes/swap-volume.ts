@@ -53,6 +53,7 @@ export const route = {
       // get timeseries query
       const timePeriod = getTimePeriod(request.query.period);
       if (timePeriod) {
+        // get timeseries data height (quick query to determine cache version)
         const currentHeight = await getCachedResponse<{ height: string }>(
           sql`
             SELECT max("height") AS "height"
@@ -70,6 +71,7 @@ export const route = {
           }
         );
 
+        // get timeseries data
         return await getCachedResponse<
           { time: string; volume: string; height: string },
           { time: string; volume: string }
