@@ -3,7 +3,7 @@ import sql, { raw } from 'sql-template-tag';
 
 import { handleResponse } from '../utils/response';
 import { getCachedResponse } from '../utils/cache-query';
-import { hours, inMs, seconds } from '../utils/units';
+import { hours, inMs } from '../utils/units';
 import { selectDexTickUpdatesWithSwapAmountFix } from './swap-volume';
 
 const LIMIT_ROWS = 50;
@@ -45,16 +45,12 @@ export const route = {
       const currentHeight = await getCachedResponse<{ height: string }>(
         sql`
           SELECT max("height") AS "height"
-          FROM spacebox."dex_message_event_tick_state"
-          WHERE "TokenZero" = ${denom0}
+          FROM spacebox."dex_message_event_tick_update"
+          WHERE "is_swap" = 1
+            AND "TokenZero" = ${denom0}
             AND "TokenOne" = ${denom1}
         `,
-        abortSignal,
-        {
-          cacheTime: 10 * seconds * inMs,
-          cacheVersion:
-            Number(sourceTableHeight.data.at(0)?.height) ?? undefined,
-        }
+        abortSignal
       );
 
       // get timeseries data

@@ -58,17 +58,11 @@ export const route = {
           sql`
             SELECT max("height") AS "height"
             FROM spacebox."dex_message_event_tick_update"
-            WHERE "timestamp" < ${unixTo || raw('NOW()')}
+            WHERE "is_swap" = 1
               AND "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
-              AND "is_swap" = 1
           `,
-          abortSignal,
-          {
-            cacheTime: 10 * seconds * inMs,
-            cacheVersion:
-              Number(sourceTableHeight.data.at(0)?.height) ?? undefined,
-          }
+          abortSignal
         );
 
         // get timeseries data

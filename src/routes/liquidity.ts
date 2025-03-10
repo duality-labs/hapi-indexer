@@ -3,7 +3,7 @@ import sql from 'sql-template-tag';
 
 import { handleResponse } from '../utils/response';
 import { getCachedResponse } from '../utils/cache-query';
-import { hours, inMs, seconds } from '../utils/units';
+import { hours, inMs } from '../utils/units';
 
 export const route = {
   method: 'GET',
@@ -31,16 +31,11 @@ export const route = {
       const currentHeight = await getCachedResponse<{ height: string }>(
         sql`
           SELECT max("height") AS "height"
-          FROM spacebox."dex_message_event_tick_state"
+          FROM spacebox."dex_message_event_tick_update"
           WHERE "TokenZero" = ${denom0}
             AND "TokenOne" = ${denom1}
         `,
-        abortSignal,
-        {
-          cacheTime: 10 * seconds * inMs,
-          cacheVersion:
-            Number(sourceTableHeight.data.at(0)?.height) ?? undefined,
-        }
+        abortSignal
       );
 
       return await getCachedResponse<
