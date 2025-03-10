@@ -1,4 +1,3 @@
-import { Request } from '@hapi/hapi';
 import sql, { raw } from 'sql-template-tag';
 
 import { handleResponse } from '../utils/response';
@@ -12,41 +11,42 @@ const DUST_LEVEL = 25;
 export const route = {
   method: 'GET',
   path: '/trades/{denomA}/{denomB}',
-  handler: handleResponse(
-    async (
-      request: Request<{
-        Params: { denomA: string; denomB: string };
-        Query: {
-          from?: number;
-          to?: number;
-          limit?: number;
-        };
-      }>,
-      abortSignal: AbortSignal
-    ) => {
-      const [denom0, denom1] = [
-        request.params.denomA,
-        request.params.denomB,
-      ].sort();
+  handler: handleResponse<
+    {
+      Params: { denomA: string; denomB: string };
+      Query: {
+        from?: number;
+        to?: number;
+        limit?: number;
+      };
+    },
+    { time: string }
+  >(async (request, abortSignal, previousResponse) => {
+    const [denom0, denom1] = [
+      request.params.denomA,
+      request.params.denomB,
+    ].sort();
 
-      // default to bounds far in the future and in the past
-      const unixFrom = Number(request.query.from) || 0;
-      const unixTo = Number(request.query.to) || 0;
+    // default to bounds far in the future and in the past
+    const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
+    // ClickHouse will compare either native strings or Unix timestamps
+    const unixFrom = timePrevious || Number(request.query.from) || 0;
+    const unixTo = Number(request.query.to) || 0;
 
-      const sourceTableHeight = await getCachedResponse<{ height: string }>(
-        sql`
+    const sourceTableHeight = await getCachedResponse<{ height: string }>(
+      sql`
           SELECT max("height") AS "height"
           FROM spacebox."raw_block_results"
         `,
-        abortSignal
-      );
+      abortSignal
+    );
 
-      // get timeseries data height (quick query to determine cache version)
-      const currentHeight = await getCachedResponse<{
-        height: string;
-        time: string;
-      }>(
-        sql`
+    // get timeseries data height (quick query to determine cache version)
+    const currentHeight = await getCachedResponse<{
+      height: string;
+      time: string;
+    }>(
+      sql`
           SELECT
             max("height") AS "height",
             argMax("timestamp", t."height") as "time"
@@ -55,28 +55,28 @@ export const route = {
             AND "TokenZero" = ${denom0}
             AND "TokenOne" = ${denom1}
         `,
-        abortSignal
-      );
+      abortSignal
+    );
 
-      // get timeseries data
-      return await getCachedResponse<
-        {
-          time: string;
-          height: string;
-          tx?: string;
-          buy_last: boolean;
-          buy: string;
-          sell: string;
-        },
-        {
-          time: string;
-          height: string;
-          tx?: string;
-          buy?: string;
-          sell?: string;
-        }
-      >(
-        sql`
+    // get timeseries data
+    return await getCachedResponse<
+      {
+        time: string;
+        height: string;
+        tx?: string;
+        buy_last: boolean;
+        buy: string;
+        sell: string;
+      },
+      {
+        time: string;
+        height: string;
+        tx?: string;
+        buy?: string;
+        sell?: string;
+      }
+    >(
+      sql`
           WITH recent_trades as (
             SELECT
               "timestamp" as "time",
@@ -114,63 +114,62 @@ export const route = {
             OR "sell" > ${DUST_LEVEL}
           LIMIT ${request.query.limit ?? LIMIT_ROWS}
         `,
-        abortSignal,
-        {
-          heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-          getHeight: (data) => Number(data.at(0)?.height),
-          // transform buy+sell rows (a tx or BeginBlock may have both)
-          // into separate buy and sell rows
-          getRow: ({ tx, buy_last, buy, sell, ...row }) => {
-            const isBuy = !!Number(buy);
-            const isSell = !!Number(sell);
-            // put buy first if buy_last (list is in reverse-chronologial order)
-            if (isBuy && isSell) {
-              return buy_last
-                ? [
-                    { ...row, buy, tx: tx || undefined },
-                    { ...row, sell, tx: tx || undefined },
-                  ]
-                : [
-                    { ...row, sell, tx: tx || undefined },
-                    { ...row, buy, tx: tx || undefined },
-                  ];
-            }
-            // else just put any direction that is found
-            else if (isBuy) {
-              return { ...row, buy, tx: tx || undefined };
-            } else if (isSell) {
-              return { ...row, sell, tx: tx || undefined };
-            } else {
-              return [];
-            }
-          },
-          getMetadata: (metadata) => {
-            return (
-              metadata
-                // remove unneeded column definitions
-                ?.filter((row) =>
-                  ['time', 'height', 'tx', 'buy', 'sell'].includes(row.name)
-                )
-                // add volume units
-                ?.map((row) =>
-                  ['buy', 'sell'].includes(row.name)
-                    ? { ...row, units: request.params.denomA }
-                    : row
-                )
-                // add time units
-                ?.map((row) =>
-                  row.name === 'time'
-                    ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
-                    : row
-                )
-            );
-          },
-          // flag as complete if there will be no data changes after this
-          isComplete: toUnixTime(currentHeight.data.at(0)?.time) > unixTo,
-          cacheTime: 1 * hours * inMs,
-          cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
-        }
-      );
-    }
-  ),
+      abortSignal,
+      {
+        heartbeat: Number(sourceTableHeight.data.at(0)?.height),
+        getHeight: (data) => Number(data.at(0)?.height),
+        // transform buy+sell rows (a tx or BeginBlock may have both)
+        // into separate buy and sell rows
+        getRow: ({ tx, buy_last, buy, sell, ...row }) => {
+          const isBuy = !!Number(buy);
+          const isSell = !!Number(sell);
+          // put buy first if buy_last (list is in reverse-chronologial order)
+          if (isBuy && isSell) {
+            return buy_last
+              ? [
+                  { ...row, buy, tx: tx || undefined },
+                  { ...row, sell, tx: tx || undefined },
+                ]
+              : [
+                  { ...row, sell, tx: tx || undefined },
+                  { ...row, buy, tx: tx || undefined },
+                ];
+          }
+          // else just put any direction that is found
+          else if (isBuy) {
+            return { ...row, buy, tx: tx || undefined };
+          } else if (isSell) {
+            return { ...row, sell, tx: tx || undefined };
+          } else {
+            return [];
+          }
+        },
+        getMetadata: (metadata) => {
+          return (
+            metadata
+              // remove unneeded column definitions
+              ?.filter((row) =>
+                ['time', 'height', 'tx', 'buy', 'sell'].includes(row.name)
+              )
+              // add volume units
+              ?.map((row) =>
+                ['buy', 'sell'].includes(row.name)
+                  ? { ...row, units: request.params.denomA }
+                  : row
+              )
+              // add time units
+              ?.map((row) =>
+                row.name === 'time'
+                  ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
+                  : row
+              )
+          );
+        },
+        // flag as complete if there will be no data changes after this
+        isComplete: toUnixTime(currentHeight.data.at(0)?.time) > unixTo,
+        cacheTime: 1 * hours * inMs,
+        cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+      }
+    );
+  }),
 };

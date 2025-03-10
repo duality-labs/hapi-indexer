@@ -1,5 +1,5 @@
 import { mediaTypes } from '@hapi/accept';
-import { ReqRef, ReqRefDefaults, Request, ResponseToolkit } from '@hapi/hapi';
+import { ReqRef, Request, ResponseToolkit } from '@hapi/hapi';
 import { isEqual } from 'lodash-es';
 import defaultLogger from './logger';
 import { ExtendedResponseJSON } from './cache-query';
@@ -24,13 +24,17 @@ export function formatChunk({
     .join('\n');
 }
 
-export function handleResponse<T extends ReqRef = ReqRefDefaults>(
+export function handleResponse<
+  RequestPayload extends ReqRef,
+  ResponsePayload = unknown
+>(
   getData: (
-    request: Request<T>,
-    abortController: AbortSignal
-  ) => Promise<ExtendedResponseJSON>
+    request: Request<RequestPayload>,
+    abortController: AbortSignal,
+    previousResponse?: ExtendedResponseJSON<ResponsePayload>
+  ) => Promise<ExtendedResponseJSON<ResponsePayload>>
 ) {
-  return async (request: Request<T>, h: ResponseToolkit) => {
+  return async (request: Request<RequestPayload>, h: ResponseToolkit) => {
     try {
       // detect user abortion of request
       const abortController = new AbortController();
@@ -85,21 +89,23 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
           try {
             const newResultData = await getData(
               request,
-              abortController.signal
+              abortController.signal,
+              lastResult
             );
-            if (!isEqual(lastResult.data, newResultData.data)) {
+            // find data updates
+            const newRows =
+              !isEqual(lastResult.data, newResultData.data) &&
+              newResultData.data.filter((newRow) => {
+                return !lastResult.data.some((row) => isEqual(row, newRow));
+              });
+            // write data chunk if updates are found
+            if (newRows && newRows.length > 0) {
               res.write(
                 formatChunk({
                   event: 'data',
                   id: `height: ${newResultData.height}`,
                   // send unsent rows only
-                  data: JSON.stringify(
-                    newResultData.data.filter((newRow) => {
-                      return !lastResult.data.some((row) =>
-                        isEqual(row, newRow)
-                      );
-                    })
-                  ),
+                  data: JSON.stringify(newRows),
                 })
               );
             }
@@ -113,7 +119,12 @@ export function handleResponse<T extends ReqRef = ReqRefDefaults>(
               );
             }
             // save new data to compare against
-            lastResult = newResultData;
+            // note that incremental updates may have 0 rows, in which case
+            // they may have 0 height, so pass the last known height along
+            lastResult = {
+              ...newResultData,
+              height: newResultData.height || lastResult.height,
+            };
             // wait a bit
             await new Promise((resolve) => setTimeout(resolve, 100));
           } catch (err) {
