@@ -153,8 +153,8 @@ export const route = {
                   { ...row, sell, sell_at, tx: tx || undefined },
                 ]
               : [
-                  { ...row, sell, tx: tx || undefined },
-                  { ...row, buy, sell_at, buy_at, tx: tx || undefined },
+                  { ...row, sell, sell_at, tx: tx || undefined },
+                  { ...row, buy, buy_at, tx: tx || undefined },
                 ];
           }
           // else just put any direction that is found
