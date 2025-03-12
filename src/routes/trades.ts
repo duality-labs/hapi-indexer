@@ -67,6 +67,8 @@ export const route = {
         buy_last: boolean;
         buy: string;
         sell: string;
+        buy_at: string;
+        sell_at: string;
       },
       {
         time: string;
@@ -74,6 +76,8 @@ export const route = {
         tx?: string;
         buy?: string;
         sell?: string;
+        buy_at?: string;
+        sell_at?: string;
       }
     >(
       sql`
@@ -85,6 +89,12 @@ export const route = {
               -- the data at rest should be in ascending event_index order
               -- find the last trade direction by selecting last_value
               last_value("TokenIn") = ${request.params.denomA} as "buy_last",
+              avgWeightedIf("TickIndex", "SwapAmountOut", "TokenIn" = ${
+                request.params.denomA
+              }) as "buy_at",
+              avgWeightedIf("TickIndex", "SwapAmountIn", "TokenIn" != ${
+                request.params.denomA
+              }) as "sell_at",
               sumIf("SwapAmountOut", "TokenIn" = ${
                 request.params.denomA
               }) as "buy",
@@ -120,26 +130,26 @@ export const route = {
         getHeight: (data) => Number(data.at(0)?.height),
         // transform buy+sell rows (a tx or BeginBlock may have both)
         // into separate buy and sell rows
-        getRow: ({ tx, buy_last, buy, sell, ...row }) => {
+        getRow: ({ tx, buy_last, buy, sell, buy_at, sell_at, ...row }) => {
           const isBuy = !!Number(buy);
           const isSell = !!Number(sell);
           // put buy first if buy_last (list is in reverse-chronologial order)
           if (isBuy && isSell) {
             return buy_last
               ? [
-                  { ...row, buy, tx: tx || undefined },
-                  { ...row, sell, tx: tx || undefined },
+                  { ...row, buy, buy_at, tx: tx || undefined },
+                  { ...row, sell, sell_at, tx: tx || undefined },
                 ]
               : [
                   { ...row, sell, tx: tx || undefined },
-                  { ...row, buy, tx: tx || undefined },
+                  { ...row, buy, sell_at, buy_at, tx: tx || undefined },
                 ];
           }
           // else just put any direction that is found
           else if (isBuy) {
-            return { ...row, buy, tx: tx || undefined };
+            return { ...row, buy, buy_at, tx: tx || undefined };
           } else if (isSell) {
-            return { ...row, sell, tx: tx || undefined };
+            return { ...row, sell, sell_at, tx: tx || undefined };
           } else {
             return [];
           }
@@ -149,7 +159,15 @@ export const route = {
             metadata
               // remove unneeded column definitions
               ?.filter((row) =>
-                ['time', 'height', 'tx', 'buy', 'sell'].includes(row.name)
+                [
+                  'time',
+                  'height',
+                  'tx',
+                  'buy',
+                  'sell',
+                  'buy_at',
+                  'sell_at',
+                ].includes(row.name)
               )
               // add volume units
               ?.map((row) =>
