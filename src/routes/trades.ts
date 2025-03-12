@@ -6,7 +6,7 @@ import { hours, inMs, toUnixTime } from '../utils/units';
 import { selectDexTickUpdatesWithSwapAmountFix } from './swap-volume';
 
 const LIMIT_ROWS = 50;
-const DUST_LEVEL = 25;
+const DEFAULT_DUST_LEVEL_AMOUNT = 100;
 
 export const route = {
   method: 'GET',
@@ -18,6 +18,7 @@ export const route = {
         from?: number;
         to?: number;
         limit?: number;
+        show_trades_above_amount?: number;
       };
     },
     { time: string }
@@ -26,6 +27,18 @@ export const route = {
       request.params.denomA,
       request.params.denomB,
     ].sort();
+
+    // restrict order of magnitude filters (to not have too many cache versions)
+    const requestAmountFilter = Math.max(
+      0,
+      Math.min(
+        10e18,
+        Number(
+          request.query.show_trades_above_amount ?? DEFAULT_DUST_LEVEL_AMOUNT
+        )
+      )
+    );
+    const amountFilter = requestAmountFilter > 0 ? requestAmountFilter : 0;
 
     // default to bounds far in the future and in the past
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
@@ -120,8 +133,7 @@ export const route = {
           )
           -- from aggregated trade list, remove tiny row amounts
           SELECT * FROM recent_trades
-          WHERE "buy" > ${DUST_LEVEL}
-            OR "sell" > ${DUST_LEVEL}
+          WHERE ("buy" + "sell") > ${amountFilter}
           LIMIT ${request.query.limit ?? LIMIT_ROWS}
         `,
       abortSignal,
