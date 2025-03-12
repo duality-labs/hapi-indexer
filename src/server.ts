@@ -1,14 +1,17 @@
 import fs from 'node:fs';
-import http, { Server } from 'node:http';
+import Router, { ExtendedRequest } from 'router';
+import url from 'url';
+import cors from 'cors';
+import finalhandler from 'finalhandler';
+import http, { IncomingMessage, Server, ServerResponse } from 'node:http';
 import http2, { Http2SecureServer } from 'node:http2';
-import Hapi from '@hapi/hapi';
 import logger from './utils/logger';
 
 import { inMs, minutes } from './utils/units';
 
 import { SingleDocumentJSONFormat } from '@clickhouse/client';
 import { client } from './utils/client';
-import { routes } from './routes';
+import { router as routes } from './routes';
 
 function safeReadFileText(filename: string) {
   if (filename && fs.existsSync(filename)) {
@@ -94,63 +97,40 @@ const init = async () => {
   } while (!connected);
   serverTimes.connected = new Date();
 
-  // setup either a secure HTTP2 server or normal HTTP server
-  // depending on whether SSL keys are available
-  let isSecure = false;
-  let rawServer: (Http2SecureServer & Partial<Server>) | Server | null = null;
-  try {
-    if (!SSL_PUBLIC_KEY || !SSL_PRIVATE_KEY) {
-      throw new Error('Cannot create secure server without keys');
-    }
-    // add HTTP2 server with added properties to bring in line with HTTP server
-    rawServer = http2.createSecureServer({
-      key: SSL_PRIVATE_KEY,
-      cert: SSL_PUBLIC_KEY,
-      allowHTTP1: ALLOW_HTTP_1 === 'true',
-    }) as Http2SecureServer & Partial<Server>;
-    rawServer.maxHeadersCount = null;
-    rawServer.maxRequestsPerSocket = null;
-    rawServer.timeout = 5 * minutes * inMs;
-    rawServer.headersTimeout = 1 * minutes * inMs;
-    rawServer.keepAliveTimeout = 1 * minutes * inMs;
-    rawServer.requestTimeout = 5 * minutes * inMs;
-    rawServer.closeAllConnections = () => undefined;
-    rawServer.closeIdleConnections = () => undefined;
-    isSecure = true;
-  } catch (e) {
-    logger.info(`Could not create secure server: ${(e as Error)?.message}`);
-    rawServer = http.createServer();
-  }
+  const router = Router();
 
-  // start server before adding in indexer routes
-  // (so that the server may report the indexing status)
-  const server = Hapi.server({
-    port: PORT,
-    // host: 0.0.0.0 resolves better than host: localhost in a Docker container
-    host: '0.0.0.0',
-    routes: {
-      cors: {
-        // CORS origins may be a comma separated list as a string
-        // note that "*" may be a wildcard for all origins but may also
-        // be used to whitelist an origin pattern, eg. https://*.neutron.org
-        // docs: https://hapi.dev/api/?v=21.3.3#-routeoptionscors
-        origin: CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()),
-        headers: ['Accept', 'Content-Type'],
-        additionalHeaders: ['X-Requested-With'],
-      },
-    },
-    listener: rawServer as Server,
-    tls: isSecure,
+  // use CORS middleware
+  router.use(
+    cors({
+      origin: CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()),
+      methods: ['GET', 'POST'],
+      allowedHeaders: ['Accept', 'Content-Type'],
+    })
+  );
+
+  // adde query property into req
+  router.use((req, _, next) => {
+    const query = url.parse(req.url ?? '').query;
+    (req as ExtendedRequest).query = query
+      ? Array.from(new URLSearchParams(query).entries()).reduce<
+          Record<string, string>
+        >((acc, [key, value]) => {
+          acc[key] = value;
+          return acc;
+        }, {})
+      : {};
+    next();
   });
 
+  router.use(routes);
+
   // add status route
-  server.route({
-    method: 'GET',
-    path: '/',
-    handler: () => {
-      return {
+  router.get('/', (req, res) => {
+    res.setHeader('content-type', 'application/json');
+    res.end(
+      JSON.stringify({
         status: 'OK',
-        http2Available: isSecure,
+        http2Available: req.httpVersionMajor >= 2,
         server: {
           status: serverTimes.started
             ? 'OK'
@@ -175,17 +155,48 @@ const init = async () => {
             : 'OFFLINE',
           since: serverTimes.indexed?.toISOString(),
         },
-      };
-    },
+      })
+    );
   });
 
-  // add "on start" routes
-  server.route(routes);
+  const handler = (req: IncomingMessage, res: ServerResponse) => {
+    router(req, res, finalhandler(req, res));
+  };
 
+  // setup either a secure HTTP2 server or normal HTTP server
+  // depending on whether SSL keys are available
   serverTimes.starting = new Date();
-  await server.start();
-  logger.info(`Server running on ${server.info.uri}`);
-  serverTimes.started = new Date();
+  let rawServer: (Http2SecureServer & Partial<Server>) | Server | null = null;
+  try {
+    if (!SSL_PUBLIC_KEY || !SSL_PRIVATE_KEY) {
+      throw new Error('Cannot create secure server without keys');
+    }
+    // add HTTP2 server with added properties to bring in line with HTTP server
+    rawServer = http2.createSecureServer(
+      {
+        key: SSL_PRIVATE_KEY,
+        cert: SSL_PUBLIC_KEY,
+        allowHTTP1: ALLOW_HTTP_1 === 'true',
+      },
+      handler as unknown as undefined
+    ) as Http2SecureServer & Partial<Server>;
+    rawServer.maxHeadersCount = null;
+    rawServer.maxRequestsPerSocket = null;
+    rawServer.timeout = 5 * minutes * inMs;
+    rawServer.headersTimeout = 1 * minutes * inMs;
+    rawServer.keepAliveTimeout = 1 * minutes * inMs;
+    rawServer.requestTimeout = 5 * minutes * inMs;
+    rawServer.closeAllConnections = () => undefined;
+    rawServer.closeIdleConnections = () => undefined;
+  } catch (e) {
+    logger.info(`Could not create secure server: ${(e as Error)?.message}`);
+    rawServer = http.createServer(handler);
+  }
+
+  rawServer.listen(PORT, () => {
+    logger.info(`Server running on ${JSON.stringify(rawServer.address())}`);
+    serverTimes.started = new Date();
+  });
 };
 
 process.on('unhandledRejection', async (err) => {

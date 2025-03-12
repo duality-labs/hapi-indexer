@@ -1,8 +1,12 @@
+// import { Request, Response } from 'express';
 import { mediaTypes } from '@hapi/accept';
-import { ReqRef, Request, ResponseToolkit } from '@hapi/hapi';
-import { isEqual } from 'lodash-es';
-import defaultLogger from './logger';
+import { isEqual, reject } from 'lodash-es';
+import logger from './logger';
 import { ExtendedResponseJSON } from './cache-query';
+import { ExtendedRequest } from 'router';
+import { ServerResponse } from 'node:http';
+
+const { NODE_ENV = 'development' } = process.env;
 
 export function formatChunk({
   event,
@@ -25,36 +29,41 @@ export function formatChunk({
 }
 
 export function handleResponse<
-  RequestPayload extends ReqRef,
+  RequestPayload extends {
+    Params?: Record<string, string>;
+    Query?: Record<string, string>;
+  },
   ResponsePayload = unknown
 >(
   getData: (
-    request: Request<RequestPayload>,
+    request: ExtendedRequest<RequestPayload['Params'], RequestPayload['Query']>,
     abortController: AbortSignal,
     previousResponse?: ExtendedResponseJSON<ResponsePayload>
   ) => Promise<ExtendedResponseJSON<ResponsePayload>>
 ) {
-  return async (request: Request<RequestPayload>, h: ResponseToolkit) => {
+  return async (
+    req: ExtendedRequest,
+    res: ServerResponse,
+    next: (err?: Error) => void
+  ) => {
     try {
       // detect user abortion of request
       const abortController = new AbortController();
-      request.raw.req.once('close', () => abortController.abort());
+      req.once('close', (reason: unknown) => {
+        if (!abortController.signal.aborted) {
+          abortController.abort(reason);
+        }
+      });
       // do SSE streaming if requested
       if (
-        request.raw.req.httpVersionMajor === 2 &&
+        // allow HTTP1 streaming in non-production (helps local development)
+        (req.httpVersionMajor === 2 || NODE_ENV !== 'production') &&
         // respond to browser `new EventSource()` requests with SSE event streams
-        (mediaTypes(request.headers['accept']).includes('text/event-stream') ||
-          Object.hasOwn(request.query, 'stream'))
+        (mediaTypes(req.headers['accept']).includes('text/event-stream') ||
+          Object.hasOwn(req.query || {}, 'stream'))
       ) {
-        const res = request.raw.res;
         // establish SSE content through headers
         res.setHeader('Content-Type', 'text/event-stream');
-        if (request.info.cors.isOriginMatch && request.headers['origin']) {
-          res.setHeader(
-            'Access-Control-Allow-Origin',
-            request.headers['origin']
-          );
-        }
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
         res.flushHeaders();
@@ -66,7 +75,7 @@ export function handleResponse<
         );
 
         // get initial data
-        const initialData = await getData(request, abortController.signal);
+        const initialData = await getData(req, abortController.signal);
         if (initialData.meta) {
           res.write(
             formatChunk({
@@ -88,7 +97,7 @@ export function handleResponse<
           // wait for next update data change
           try {
             const newResultData = await getData(
-              request,
+              req,
               abortController.signal,
               lastResult
             );
@@ -128,7 +137,7 @@ export function handleResponse<
             // wait a bit
             await new Promise((resolve) => setTimeout(resolve, 100));
           } catch (err) {
-            defaultLogger.error(`SSE update error: ${err}`);
+            logger.error(`SSE update error: ${err}`);
             // send error event to user
             if (res.writable) {
               res.write(
@@ -142,40 +151,75 @@ export function handleResponse<
             break;
           }
         }
+        // cancel request to DB if not yet cancelled
+        if (!abortController.signal.aborted) {
+          abortController.abort();
+        }
+
+        // if the stream has ended there is nothing left to send
+        if (res.closed) {
+          return;
+        }
 
         // send final message if stream is still open
-        if (!res.destroyed) {
+        if (res.writable) {
           res.write(
             formatChunk({
               event: 'stream end',
             })
           );
         }
+        // if data needs to drain then wait for it to drain
+        if (res.writableNeedDrain) {
+          await new Promise<void>((resolve) => {
+            // set timeout
+            const timeout = setTimeout(() => {
+              logger.error('Was not able to drain SSE data within timeout');
+              resolve();
+            }, 10000);
+            // wait for drain
+            res.once('drain', () => {
+              clearTimeout(timeout);
+              resolve();
+            });
+          });
+        }
 
-        // wait a tick to be sure that "end" in in the queue
-        await new Promise<void>((resolve) =>
-          setTimeout(() => {
-            !res.destroyed && res.destroy();
-            resolve();
-          }, 0)
+        await new Promise<void>((resolve) => {
+          try {
+            if (res.writable) {
+              const timeout = setTimeout(() => {
+                reject(new Error('Could not end connection within timeout'));
+              }, 3000);
+              res.end(() => {
+                clearTimeout(timeout);
+                resolve();
+              });
+            } else {
+              resolve();
+            }
+          } catch (e) {
+            logger.error('Could not end connection', e);
+            return resolve();
+          }
+        });
+      } else {
+        const result = await getData(req, abortController.signal);
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            data: result.data,
+            meta: result.meta,
+            height: result.height,
+          })
         );
-        // exit
-        return res.destroy();
       }
-      const result = await getData(request, abortController.signal);
-      return {
-        data: result.data,
-        meta: result.meta,
-        height: result.height,
-      };
+      next();
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        defaultLogger.error(err);
-        return h
-          .response(`something happened: ${err.message || '?'}`)
-          .code(500);
-      }
-      return h.response('An unknown error occurred').code(500);
+      // res.status(500);
+      // res.send('An unknown error occurred');
+      logger.error(err);
+      next(new Error('An unknown error occurred', { cause: err }));
     }
   };
 }

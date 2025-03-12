@@ -10,15 +10,15 @@ const DEFAULT_DUST_LEVEL_AMOUNT = 100;
 
 export const route = {
   method: 'GET',
-  path: '/trades/{denomA}/{denomB}',
+  path: '/trades/:denomA/:denomB',
   handler: handleResponse<
     {
       Params: { denomA: string; denomB: string };
       Query: {
-        from?: number;
-        to?: number;
-        limit?: number;
-        show_trades_above_amount?: number;
+        from?: string;
+        to?: string;
+        limit?: string;
+        show_trades_above_amount?: string;
       };
     },
     { time: string }

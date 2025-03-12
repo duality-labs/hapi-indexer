@@ -6,7 +6,7 @@ import { hours, inMs } from '../utils/units';
 
 export const route = {
   method: 'GET',
-  path: '/liquidity/{denomA}/{denomB}',
+  path: '/liquidity/:denomA/:denomB',
   handler: handleResponse<{
     Params: { denomA: string; denomB: string };
   }>(async (request, abortSignal, previousResponse) => {
@@ -53,6 +53,8 @@ export const route = {
               : // if this is an initial request, ignore unhelpful zero reserve rows
                 sql`not("ReservesZero")`
           }
+        -- important rows first (closest to current price from token direction)
+        ORDER BY "index" ASC
       `,
       abortSignal,
       {

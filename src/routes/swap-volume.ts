@@ -16,13 +16,13 @@ const LIMIT_ROWS = 1000;
 
 export const route = {
   method: 'GET',
-  path: '/swap-volume/{denomA}/{denomB}',
+  path: '/swap-volume/:denomA/:denomB',
   handler: handleResponse<
     {
       Params: { denomA: string; denomB: string };
       Query: {
-        from?: number;
-        to?: number;
+        from?: string;
+        to?: string;
         period?: TimePeriod;
       };
     },
@@ -52,7 +52,7 @@ export const route = {
     );
 
     // get timeseries query
-    const timePeriod = getTimePeriod(request.query.period);
+    const timePeriod = getTimePeriod(request.query.period as string);
     if (timePeriod) {
       // get timeseries data height (quick query to determine cache version)
       const currentHeight = await getCachedResponse<{
