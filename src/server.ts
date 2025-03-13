@@ -211,10 +211,42 @@ const init = async () => {
   });
 };
 
+async function shutdown() {
+  try {
+    await new Promise((resolve, reject) => {
+      // close DB connection
+      client
+        .close()
+        .then(() => {
+          clearTimeout(timeout);
+          resolve(undefined);
+        })
+        .catch((e) => {
+          clearTimeout(timeout);
+          reject(e);
+        });
+      // or timeout
+      const timeout = setTimeout(
+        () => reject(new Error('DB close timeout')),
+        3000
+      );
+    });
+    logger.info('exited cleanly');
+    process.exit(0);
+  } catch (e) {
+    logger.error('did not exited cleanly', e);
+    process.exit(1);
+  }
+}
+
 process.on('unhandledRejection', async (err) => {
-  logger.error(err);
-  await client.close();
-  process.exit(1);
+  logger.error('got unhandledRejection', err);
+  shutdown();
+});
+
+process.on('SIGINT', async (err) => {
+  logger.error('got SIGINT', err);
+  shutdown();
 });
 
 init();
