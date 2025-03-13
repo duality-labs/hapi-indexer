@@ -216,9 +216,9 @@ export function handleResponse<
       }
       next();
     } catch (err: unknown) {
-      // res.status(500);
-      // res.send('An unknown error occurred');
-      logger.error(err);
+      logger.error('handle response error', err);
+      res.statusCode = 500;
+      res.end('An unknown error occurred');
       next(new Error('An unknown error occurred', { cause: err }));
     }
   };
