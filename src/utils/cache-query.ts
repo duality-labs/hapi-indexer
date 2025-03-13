@@ -4,6 +4,7 @@ import { Sql } from 'sql-template-tag';
 import { client } from './client';
 import { inMs, seconds } from './units';
 import { toClickHouseSQL } from '../utils/sql';
+import logger from './logger';
 
 interface CacheEnvelope {
   value: Promise<ResponseJSON>;
@@ -38,6 +39,10 @@ export interface ExtendedResponseJSON<T = unknown>
 const DEFAULT_CACHE_TIME = 0.2 * seconds * inMs;
 
 const requestCache = new Map<string, CacheEnvelope>();
+
+setInterval(() => {
+  logger.debug(`Cache size at ${new Date().toISOString()}: ${requestCache.size}`);
+}, 60000);
 
 // add overload type: passing "height" is required to return  "height" property
 export async function getCachedResponse<Row, RowResponse = Row>(
