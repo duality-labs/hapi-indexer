@@ -208,6 +208,8 @@ const init = async () => {
   rawServer.listen(PORT, () => {
     logger.info(`Server running on ${JSON.stringify(rawServer.address())}`);
     serverTimes.started = new Date();
+    // send ready signal to PM2
+    process.send?.('ready');
   });
 };
 

@@ -59,4 +59,4 @@ ARG SSL_FILES_DIRECTORY=/
 COPY --from=build-env /usr/workspace$SSL_FILES_DIRECTORY*.pem /usr/workspace$SSL_FILES_DIRECTORY
 
 # start node
-CMD pm2 start dist/server.js && pm2 monit
+CMD pm2 start dist/server.js --wait-ready && pm2 monit
