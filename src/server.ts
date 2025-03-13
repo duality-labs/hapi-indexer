@@ -193,6 +193,18 @@ const init = async () => {
     rawServer = http.createServer(handler);
   }
 
+  // Handle TLS errors gracefully
+  rawServer.on('tlsClientError', (err, socket) => {
+    logger.error('Server encountered TLS Error:', err.message);
+    // Terminate the bad connection
+    try {
+      socket?.destroy();
+      logger.info('Dropped socket connection', socket?.destroyed);
+    } catch (e) {
+      logger.warn('Could not drop socket connection', (e as Error)?.message);
+    }
+  });
+
   rawServer.listen(PORT, () => {
     logger.info(`Server running on ${JSON.stringify(rawServer.address())}`);
     serverTimes.started = new Date();
