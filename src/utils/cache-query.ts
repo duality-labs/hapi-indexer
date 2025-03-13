@@ -54,7 +54,7 @@ function checkCache() {
     },
     0
   );
-  logger.info(
+  logger.debug(
     `Cache size at ${new Date().toISOString()}: ${requestCache.size
       .toFixed(0)
       .padEnd(7, ' ')} (cleared ${clearedKeys} values)`
