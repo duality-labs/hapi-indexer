@@ -49,7 +49,7 @@ FROM node:18.19-alpine
 WORKDIR /usr/workspace
 
 # add dependencies not covered by esbuild process
-RUN npm i --no-save sqlite3
+RUN npm i -g pm2
 
 # Copy over build files from build-env
 COPY --from=build-env /usr/workspace/dist /usr/workspace/dist
@@ -59,4 +59,4 @@ ARG SSL_FILES_DIRECTORY=/
 COPY --from=build-env /usr/workspace$SSL_FILES_DIRECTORY*.pem /usr/workspace$SSL_FILES_DIRECTORY
 
 # start node
-CMD node dist/server.js
+CMD pm2 start dist/server.js && pm2 monit
