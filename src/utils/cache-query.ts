@@ -37,12 +37,29 @@ export interface ExtendedResponseJSON<T = unknown>
 }
 
 const DEFAULT_CACHE_TIME = 0.2 * seconds * inMs;
+const DEFAULT_CACHE_CLEAN_TIME = 5 * seconds * inMs;
 
 const requestCache = new Map<string, CacheEnvelope>();
+let requestCacheNextClearTime = Date.now() + DEFAULT_CACHE_CLEAN_TIME;
 
-setInterval(() => {
-  logger.debug(`Cache size at ${new Date().toISOString()}: ${requestCache.size}`);
-}, 60000);
+function checkCache() {
+  const now = Date.now();
+  const clearedKeys = Array.from(requestCache.entries()).reduce(
+    (count, [key, value]) => {
+      if (now > value.expires) {
+        requestCache.delete(key);
+        return count + 1;
+      }
+      return count;
+    },
+    0
+  );
+  logger.info(
+    `Cache size at ${new Date().toISOString()}: ${requestCache.size
+      .toFixed(0)
+      .padEnd(7, ' ')} (cleared ${clearedKeys} values)`
+  );
+}
 
 // add overload type: passing "height" is required to return  "height" property
 export async function getCachedResponse<Row, RowResponse = Row>(
@@ -73,8 +90,14 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
     cacheTime = DEFAULT_CACHE_TIME,
   }: QueryCacheOptions<Row, RowResponse> = {}
 ): Promise<ExtendedResponseJSON<RowResponse> | ResponseJSON<RowResponse>> {
+  // get cached value now
   const cachedResponse = requestCache.get(cacheKey);
   const now = Date.now();
+  // check cache later if some time has passed since last cleaning
+  if (requestCacheNextClearTime < now) {
+    requestCacheNextClearTime = now + DEFAULT_CACHE_CLEAN_TIME;
+    setTimeout(checkCache, DEFAULT_CACHE_CLEAN_TIME);
+  }
   // return matching cache request/response
   if (
     cachedResponse &&
