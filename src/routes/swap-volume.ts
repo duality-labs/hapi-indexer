@@ -40,7 +40,7 @@ export const route = {
     // default to bounds far in the future and in the past
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // ClickHouse will compare either native strings or Unix timestamps
-    const unixFrom = timePrevious || Number(request.query.from) || 0;
+    const unixFrom = Number(request.query.from) || 0;
     const unixTo = Number(request.query.to) || 0;
 
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
@@ -89,7 +89,11 @@ export const route = {
               AND "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
               -- add optional timestamp filters only if defined
-              ${unixFrom ? sql`AND "timestamp" >= ${unixFrom}` : raw('')}
+              ${
+                unixFrom || timePrevious
+                  ? sql`AND "timestamp" >= ${unixFrom || timePrevious}`
+                  : raw('')
+              }
               ${unixTo ? sql`AND "timestamp" < ${unixTo}` : raw('')}
             GROUP BY "time"
             ORDER BY "time" DESC
@@ -162,8 +166,10 @@ export const route = {
           sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
         FROM (${selectDexTickUpdatesWithSwapAmountFix})
         WHERE "is_swap" = 1
-          AND "timestamp" >= toStartOfMinute(addDays(NOW(), -1))
-          AND "timestamp" < toStartOfMinute(NOW())
+          AND "timestamp" >= ${
+            unixFrom || sql`toStartOfMinute(addDays(NOW(), -1))`
+          }
+          AND "timestamp" < ${unixTo || sql`toStartOfMinute(NOW())`}
           AND "TokenZero" = ${denom0}
           AND "TokenOne" = ${denom1}
       `,
