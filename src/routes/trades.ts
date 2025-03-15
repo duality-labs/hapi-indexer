@@ -133,7 +133,7 @@ export const route = {
           )
           -- from aggregated trade list, remove tiny row amounts
           SELECT * FROM recent_trades
-          WHERE ("buy" + "sell") > ${amountFilter}
+          WHERE ("buy" + "sell") >= ${amountFilter}
           LIMIT ${request.query.limit ?? LIMIT_ROWS}
         `,
       abortSignal,
