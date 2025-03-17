@@ -10,7 +10,7 @@ import {
   toUnixTime,
 } from '../utils/units';
 
-const LIMIT_ROWS = 1000;
+const LIMIT_ROWS = 10000;
 
 export const route = {
   method: 'GET',
@@ -22,10 +22,12 @@ export const route = {
         from?: string;
         to?: string;
         period?: TimePeriod;
+        limit?: string;
       };
     },
     { time: string }
   >(async (request, abortSignal, previousResponse) => {
+    const limit = Number(request.query.limit) || LIMIT_ROWS;
     const [denom0, denom1] = [
       request.params.denomA,
       request.params.denomB,
@@ -152,7 +154,7 @@ export const route = {
         LIMIT ${
           // if user did not request a time period (default to last 24h)
           // then return only last 3 rows for recent 24h changes
-          request.query.period ? LIMIT_ROWS : 3
+          request.query.period ? Math.min(limit, LIMIT_ROWS) : 3
         }
       `,
       abortSignal,
