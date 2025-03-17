@@ -90,69 +90,60 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
     cacheTime = DEFAULT_CACHE_TIME,
   }: QueryCacheOptions<Row, RowResponse> = {}
 ): Promise<ExtendedResponseJSON<RowResponse> | ResponseJSON<RowResponse>> {
-  // get cached value now
-  const cachedResponse = requestCache.get(cacheKey);
   const now = Date.now();
   // check cache later if some time has passed since last cleaning
   if (requestCacheNextClearTime < now) {
     requestCacheNextClearTime = now + DEFAULT_CACHE_CLEAN_TIME;
     setTimeout(checkCache, DEFAULT_CACHE_CLEAN_TIME);
   }
-  // return matching cache request/response
-  if (
-    cachedResponse &&
-    // item is not expired
-    cachedResponse.expires > now &&
-    // item is not older than new query cache time
-    cachedResponse.created + cacheTime > now &&
-    // item is at least the requested version
-    cachedResponse.version >= (cacheVersion || 0)
-  ) {
-    const value = (await cachedResponse.value) as Omit<
-      ExtendedResponseJSON<RowResponse>,
-      'height'
-    >;
-    // add heartbeat data to cached response (may not show data to user)
-    return heartbeat ? { ...value, heartbeat, isComplete } : value;
-  }
-  // remove the old version request from the cache
-  if (cachedResponse) {
-    requestCache.delete(cacheKey);
-  }
-
-  // create a new request to cache
-  const newResponse = {
-    value: new Promise<
-      | ExtendedResponseJSON<RowResponse>
-      | Omit<ExtendedResponseJSON<RowResponse>, 'height' | 'heartbeat'>
-    >((resolve, reject) => {
-      client
-        .query({
-          ...toClickHouseSQL(query, 'JSON'),
-          // allow query to be cancelled
-          abort_signal: abortSignal,
-        })
-        .then((response) => response.json<Row>())
-        .then((result) =>
-          resolve({
-            ...result,
-            meta: getMetadata ? getMetadata(result.meta) : result.meta,
-            data: getRow
-              ? result.data.flatMap(getRow)
-              : // note: return type may be wrong when RowResponse != Row
-                (result.data as RowResponse[]),
-            height: getHeight?.(result.data),
-            isComplete,
-          })
-        )
-        .catch(reject);
-    }),
-    version: cacheVersion || 0,
-    created: now,
-    expires: now + cacheTime,
-  };
-  requestCache.set(cacheKey, newResponse);
-  const value = await newResponse.value;
+  // get cached value now
+  const cachedResponse = requestCache.get(cacheKey);
+  // return matching cache request/response or fetch new value
+  const value = await (cachedResponse &&
+  // item is not expired
+  cachedResponse.expires > now &&
+  // item is not older than new query cache time
+  cachedResponse.created + cacheTime > now &&
+  // item is at least the requested version
+  cachedResponse.version >= (cacheVersion || 0)
+    ? (cachedResponse.value as Promise<
+        Omit<ExtendedResponseJSON<RowResponse>, 'height'>
+      >)
+    : (function getNewResponse() {
+        // create a new request to cache
+        const newResponse = {
+          value: new Promise<
+            | ExtendedResponseJSON<RowResponse>
+            | Omit<ExtendedResponseJSON<RowResponse>, 'height' | 'heartbeat'>
+          >((resolve, reject) => {
+            client
+              .query({
+                ...toClickHouseSQL(query, 'JSON'),
+                // allow query to be cancelled
+                abort_signal: abortSignal,
+              })
+              .then((response) => response.json<Row>())
+              .then((result) =>
+                resolve({
+                  ...result,
+                  meta: getMetadata ? getMetadata(result.meta) : result.meta,
+                  data: getRow
+                    ? result.data.flatMap(getRow)
+                    : // note: return type may be wrong when RowResponse != Row
+                      (result.data as RowResponse[]),
+                  height: getHeight?.(result.data),
+                  isComplete,
+                })
+              )
+              .catch(reject);
+          }),
+          version: cacheVersion || 0,
+          created: now,
+          expires: now + cacheTime,
+        };
+        requestCache.set(cacheKey, newResponse);
+        return newResponse.value;
+      })());
   // add heartbeat data to cached response (may not show data to user)
   return heartbeat ? { ...value, heartbeat, isComplete } : value;
 }
