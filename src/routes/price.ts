@@ -21,6 +21,7 @@ export const route = {
       Query: {
         from?: string;
         to?: string;
+        periods?: string;
         period?: TimePeriod;
         limit?: string;
       };
@@ -60,6 +61,7 @@ export const route = {
     );
 
     // get requested time period or default
+    const timePeriods = Number(request.query.periods) || 1;
     const timePeriod = getTimePeriod(request.query.period as string) || 'day';
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
@@ -101,9 +103,9 @@ export const route = {
             ) AS "price"
           SELECT
             max(height) OVER interval_window AS "last_height",
-            toStartOfInterval("timestamp" - "time_offset", INTERVAL 1 ${raw(
-              timePeriod
-            )}) AS "time",
+            toStartOfInterval("timestamp" - "time_offset", INTERVAL ${raw(
+              timePeriods.toFixed(0)
+            )} ${raw(timePeriod)}) AS "time",
             first_value("price") OVER interval_window AS "open",
             last_value("price") OVER interval_window AS "close",
             min("price") OVER interval_window AS "low",
@@ -117,7 +119,7 @@ export const route = {
               unixFrom || timePrevious
                 ? sql`AND "timestamp" - "time_offset" >= toStartOfInterval(
                     toDateTime(${unixFrom || timePrevious}),
-                    INTERVAL 1 ${raw(timePeriod)}
+                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                   )`
                 : raw('')
             }
@@ -125,7 +127,7 @@ export const route = {
               unixTo
                 ? sql`AND "timestamp" - "time_offset" < toStartOfInterval(
                     toDateTime(${unixTo}),
-                    INTERVAL 1 ${raw(timePeriod)}
+                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                   )`
                 : raw('')
             }
