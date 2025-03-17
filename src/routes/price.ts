@@ -74,7 +74,7 @@ export const route = {
         close: string;
         height: string;
       },
-      { time: string; open: string; high: string; low: string; close: string }
+      { time: string; open: number; high: number; low: number; close: number }
     >(
       sql`
         WITH windowed_table AS (
@@ -145,10 +145,13 @@ export const route = {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
         getRow: ({ time, open, high, low, close }) => ({
           time,
-          open,
-          high,
-          low,
-          close,
+          // convert known integers to numbers
+          // note: DB type is 64 bit integer but actual limit is -559680->559680
+          //  see: https://github.com/neutron-org/neutron/blob/v4.0.1/x/dex/types/price.go#L17-L22
+          open: Number(open),
+          high: Number(high),
+          low: Number(low),
+          close: Number(close),
         }),
         getHeight: (data) => Number(data.at(0)?.height),
         getMetadata: (metadata) => {
@@ -156,11 +159,11 @@ export const route = {
             metadata
               // remove height field
               ?.filter(({ name }) => name !== 'height')
-              // add time units
+              // add time units, convert tick index units
               ?.map((row) =>
                 row.name === 'time'
                   ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
-                  : row
+                  : { ...row, type: 'Int32' }
               )
           );
         },
