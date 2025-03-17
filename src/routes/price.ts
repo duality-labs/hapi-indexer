@@ -78,17 +78,27 @@ export const route = {
     >(
       sql`
         WITH windowed_table AS (
-          -- get price in the same direction: Token1 = 1.0001^price * Token0
-          WITH (
-            if (
-              "TokenIn" = "TokenZero",
-              "TickIndex" * -1,
-              "TickIndex"
-            )
-          ) AS "price"
+          WITH
+            -- get time period offset
+            (
+              ${
+                // if user did not request a time period, default to "last 24h"
+                request.query.period
+                  ? sql`NOW() - toStartOfInterval(NOW(), INTERVAL 1 DAY)`
+                  : raw('0')
+              }
+            ) AS "time_offset",
+            -- get price in the same direction: Token1 = 1.0001^price * Token0
+            (
+              if (
+                "TokenIn" = "TokenZero",
+                "TickIndex" * -1,
+                "TickIndex"
+              )
+            ) AS "price"
           SELECT
             max(height) OVER interval_window AS "last_height",
-            toStartOfInterval("timestamp", INTERVAL 1 ${raw(
+            toStartOfInterval("timestamp" - "time_offset", INTERVAL 1 ${raw(
               timePeriod
             )}) AS "time",
             first_value("price") OVER interval_window AS "open",
@@ -102,7 +112,7 @@ export const route = {
             -- add optional timestamp filters only if defined
             ${
               unixFrom || timePrevious
-                ? sql`AND "timestamp" >= toStartOfInterval(
+                ? sql`AND "timestamp" - "time_offset" >= toStartOfInterval(
                     toDateTime(${unixFrom || timePrevious}),
                     INTERVAL 1 ${raw(timePeriod)}
                   )`
@@ -110,7 +120,7 @@ export const route = {
             }
             ${
               unixTo
-                ? sql`AND "timestamp" < toStartOfInterval(
+                ? sql`AND "timestamp" - "time_offset" < toStartOfInterval(
                     toDateTime(${unixTo}),
                     INTERVAL 1 ${raw(timePeriod)}
                   )`
@@ -138,7 +148,11 @@ export const route = {
         FROM windowed_table
         GROUP BY "time"
         ORDER BY "time" DESC
-        LIMIT ${LIMIT_ROWS}
+        LIMIT ${
+          // if user did not request a time period (default to last 24h)
+          // then return only last 3 rows for recent 24h changes
+          request.query.period ? LIMIT_ROWS : 3
+        }
       `,
       abortSignal,
       {
