@@ -140,12 +140,15 @@ export function handleResponse<
             logger.error(`SSE update error: ${err}`);
             // send error event to user
             if (res.writable) {
-              res.write(
-                formatChunk({
-                  event: 'error',
-                  data: (err as Error)?.message ?? `${err}`,
-                })
-              );
+              // send error only if it wasn't an aborted request
+              if (!abortController.signal.aborted) {
+                res.write(
+                  formatChunk({
+                    event: 'error',
+                    data: (err as Error)?.message ?? `${err}`,
+                  })
+                );
+              }
             }
             // exit loop, likely getData has failed somehow
             break;
