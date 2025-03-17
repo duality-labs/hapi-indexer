@@ -13,12 +13,14 @@ interface CacheEnvelope {
   expires: number;
 }
 
-export interface QueryCacheOptions<T, U> {
+interface ResponseOptions<T, U> extends QueryCacheOptions {
   heartbeat?: number;
   getHeight?: (array: T[]) => number;
   getRow?: (value: T, index: number, array: T[]) => U | U[];
   getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<U>['meta'];
   isComplete?: boolean;
+}
+interface QueryCacheOptions {
   cacheKey?: string;
   cacheVersion?: number;
   cacheTime?: number;
@@ -66,7 +68,7 @@ export async function getCachedResponse<Row, RowResponse = Row>(
   query: Sql,
   abortSignal: AbortSignal,
   // require both heartbeat and getHeight() to return data frame data height
-  options: QueryCacheOptions<Row, RowResponse> & {
+  options: ResponseOptions<Row, RowResponse> & {
     heartbeat: number;
     getHeight: (array: Row[]) => number;
   }
@@ -74,7 +76,7 @@ export async function getCachedResponse<Row, RowResponse = Row>(
 export async function getCachedResponse<Row, RowResponse = Row>(
   query: Sql,
   abortSignal: AbortSignal,
-  options?: QueryCacheOptions<Row, RowResponse>
+  options?: ResponseOptions<Row, RowResponse>
 ): Promise<Omit<ExtendedResponseJSON<RowResponse>, 'height' | 'heartbeat'>>;
 export async function getCachedResponse<Row, RowResponse extends Row = Row>(
   query: Sql,
@@ -88,7 +90,7 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
     cacheKey = JSON.stringify([query.sql, query.values]),
     cacheVersion = 0,
     cacheTime = DEFAULT_CACHE_TIME,
-  }: QueryCacheOptions<Row, RowResponse> = {}
+  }: ResponseOptions<Row, RowResponse> = {}
 ): Promise<ExtendedResponseJSON<RowResponse> | ResponseJSON<RowResponse>> {
   const now = Date.now();
   // check cache later if some time has passed since last cleaning
