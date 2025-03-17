@@ -101,23 +101,19 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
   // get cached value now
   const cachedResponse = requestCache.get(cacheKey);
   // return matching cache request/response or fetch new value
-  const value = await (cachedResponse &&
+  const response = await (cachedResponse &&
   // item is not expired
   cachedResponse.expires > now &&
   // item is not older than new query cache time
   cachedResponse.created + cacheTime > now &&
   // item is at least the requested version
   cachedResponse.version >= (cacheVersion || 0)
-    ? (cachedResponse.value as Promise<
-        Omit<ExtendedResponseJSON<RowResponse>, 'height'>
-      >)
+    ? // note: only the query is cached all transformations are applied post-cache
+      (cachedResponse.value as Promise<ResponseJSON<Row>>)
     : (function getNewResponse() {
         // create a new request to cache
         const newResponse = {
-          value: new Promise<
-            | ExtendedResponseJSON<RowResponse>
-            | Omit<ExtendedResponseJSON<RowResponse>, 'height' | 'heartbeat'>
-          >((resolve, reject) => {
+          value: new Promise<ResponseJSON<Row>>((resolve, reject) => {
             client
               .query({
                 ...toClickHouseSQL(query, 'JSON'),
@@ -125,18 +121,7 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
                 abort_signal: abortSignal,
               })
               .then((response) => response.json<Row>())
-              .then((result) =>
-                resolve({
-                  ...result,
-                  meta: getMetadata ? getMetadata(result.meta) : result.meta,
-                  data: getRow
-                    ? result.data.flatMap(getRow)
-                    : // note: return type may be wrong when RowResponse != Row
-                      (result.data as RowResponse[]),
-                  height: getHeight?.(result.data),
-                  isComplete,
-                })
-              )
+              .then(resolve)
               .catch(reject);
           }),
           version: cacheVersion || 0,
@@ -147,5 +132,14 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
         return newResponse.value;
       })());
   // add heartbeat data to cached response (may not show data to user)
-  return heartbeat ? { ...value, heartbeat, isComplete } : value;
+  return {
+    heartbeat,
+    meta: getMetadata ? getMetadata(response.meta) : response.meta,
+    data: getRow
+      ? response.data.flatMap(getRow)
+      : // note: return type may be wrong when RowResponse != Row
+        (response.data as RowResponse[]),
+    height: getHeight?.(response.data),
+    isComplete,
+  };
 }
