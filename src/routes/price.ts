@@ -33,7 +33,8 @@ export const route = {
       request.params.denomA,
       request.params.denomB,
     ].sort();
-    const isPairDenomReversed = denom0 !== request.params.denomA;
+    // expect pair price in BtoA direction
+    const isPairDenomReversed = denom0 === request.params.denomA;
 
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`
