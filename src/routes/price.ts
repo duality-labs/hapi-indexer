@@ -33,7 +33,7 @@ export const route = {
       request.params.denomA,
       request.params.denomB,
     ].sort();
-    const factorDenomReversed = denom0 !== request.params.denomA ? -1 : 1;
+    const isPairDenomReversed = denom0 !== request.params.denomA;
 
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`
@@ -167,10 +167,10 @@ export const route = {
           // convert known integers to numbers
           // note: DB type is 64 bit integer but actual limit is -559680->559680
           //  see: https://github.com/neutron-org/neutron/blob/v4.0.1/x/dex/types/price.go#L17-L22
-          open: factorDenomReversed * Number(open),
-          high: factorDenomReversed * Number(high),
-          low: factorDenomReversed * Number(low),
-          close: factorDenomReversed * Number(close),
+          open: isPairDenomReversed ? -1 * Number(open) : Number(open),
+          high: isPairDenomReversed ? -1 * Number(low) : Number(high),
+          low: isPairDenomReversed ? -1 * Number(high) : Number(low),
+          close: isPairDenomReversed ? -1 * Number(close) : Number(close),
         }),
         getHeight: (data) => Number(data.at(0)?.height),
         getMetadata: (metadata) => {
