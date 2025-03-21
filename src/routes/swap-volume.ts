@@ -206,47 +206,34 @@ export const route = {
 // this select statement applies the "swap volume fix" to recreate
 // SwapAmountIn/SwapAmountOut for events in Neutron <= v5 that do not have them
 export const selectDexTickUpdatesWithSwapAmountFix = sql`
-  -- get indexed updates in order with an update_index field
+  -- get previous reserves value by using an ordered window to select previous (by order) row data
   -- to help determine the ReservesDiff field: the current - previous Reserves value
-  WITH "dex_tick_update_events_indexed" AS (
-    SELECT
-      *,
-      ROW_NUMBER() OVER (
-        -- partition by "pools" of reserves (they are separate per tick + fee/tranche combination)
-        -- "partition by" pool index (tick_index+fee or tick_index+tranche_key for each pair side)
-        PARTITION BY "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee", "TrancheKey"
-        -- within the pool index partition, sort by event order
-        ORDER BY "height" ASC, "block_part_index" ASC, "tx_index" ASC, "event_index" ASC
-      ) AS "update_index"
-    FROM spacebox."dex_message_event_tick_update"
-  )
-  -- combine ordered updates to get relative state (ReservesDiff) and
+  WITH first_value("Reserves") OVER (
+    -- partition by "pools" of reserves (they are separate per tick + fee/tranche combination)
+    -- "partition by" pool index (tick_index+fee or tick_index+tranche_key for each pair side)
+    PARTITION BY "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee", "TrancheKey"
+    -- within the pool index partition, sort by event order
+    ORDER BY "height" ASC, "block_part_index" ASC, "tx_index" ASC, "event_index" ASC
+    -- use this window of the previous row "range" to get the previous reserves
+    ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING
+  ) as "PreviousReserves"
+  -- compare this to current row data to get relative state (ReservesDiff) and
   -- use the already derived is_swap field to compute new SwapAmountIn and SwapAmountOut attributes
   SELECT
-    "current_state".*,
+    *,
     -- get difference from last Reserves value
-    ("current_state"."Reserves" - "previous_state"."Reserves") as "ReservesDiff",
+    ("Reserves" - "PreviousReserves") as "ReservesDiff",
     -- note: all swap TickUpdate events should be DEX decrements (ReservesDiff < 0)
     if (
       "is_swap" AND "ReservesDiff" < 0,
       toUInt128(abs("ReservesDiff")),
-      "current_state"."SwapAmountOut"
+      "SwapAmountOut"
     ) as "SwapAmountOut",
     -- note: SwapAmountIn may have rounding errors (but this very small in practice)
     if (
       "is_swap" AND "ReservesDiff" < 0,
       toUInt128(ceiling(multiply(toFloat64(abs("ReservesDiff")), pow(1.0001, "TickIndex")))),
-      "current_state"."SwapAmountIn"
+      "SwapAmountIn"
     ) as "SwapAmountIn"
-  FROM "dex_tick_update_events_indexed" as "current_state"
-  -- join on same tick pool, but on the previous update
-  LEFT JOIN "dex_tick_update_events_indexed" as "previous_state" ON (
-    "current_state"."TokenZero" = "previous_state"."TokenZero" AND
-    "current_state"."TokenOne" = "previous_state"."TokenOne" AND
-    "current_state"."TokenIn" = "previous_state"."TokenIn" AND
-    "current_state"."TickIndex" = "previous_state"."TickIndex" AND
-    "current_state"."Fee" = "previous_state"."Fee" AND
-    "current_state"."TrancheKey" = "previous_state"."TrancheKey" AND
-    "current_state"."update_index" = "previous_state"."update_index" + 1
-  )
+  FROM spacebox."dex_message_event_tick_update"
 `;
