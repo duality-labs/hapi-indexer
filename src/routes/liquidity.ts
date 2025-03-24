@@ -34,15 +34,15 @@ export const route = {
     );
 
     return await getCachedResponse<
-      { token: boolean; index: string; reserves: string; height: string },
+      { token: boolean; index: string; reserves: string; max_height: string },
       { index: string; reserves_0?: string; reserves_1?: string }
     >(
       sql`
         SELECT
-          "height",
+          max("height") as "max_height",
           "TokenIn" = "TokenOne" as "token",
           "TickIndex" as "index",
-          "Reserves" as "reserves"
+          sum("Reserves") as "reserves"
         FROM (${selectLatestTickState})
         WHERE "TokenZero" = ${denom0}
           AND "TokenOne" = ${denom1}
@@ -53,6 +53,12 @@ export const route = {
               : // if this is an initial request, ignore unhelpful zero reserve rows
                 sql`not("ReservesZero")`
           }
+        -- group reserves from all tick index fees and tranche keys together
+        GROUP BY
+          "TokenZero",
+          "TokenOne",
+          "TokenIn",
+          "TickIndex"
         -- important rows first (closest to current price from token direction)
         ORDER BY "index" ASC
       `,
@@ -64,9 +70,7 @@ export const route = {
           [token ? 'reserves_1' : 'reserves_0']: reserves,
         }),
         getHeight: (data) =>
-          Number(
-            data.reduce((acc, row) => Math.max(acc, Number(row.height) || 0), 0)
-          ),
+          Math.max(0, ...data.map((row) => Number(row.max_height) || 0)),
         getMetadata: (metadata) => {
           return (
             metadata
@@ -96,12 +100,14 @@ export const route = {
 // @see: https://clickhouse.com/docs/engines/table-engines/mergetree-family/replacingmergetree#query-time-de-duplication--final
 const selectLatestTickState = sql`
   SELECT
-  argMax("timestamp", "version") as "timestamp",
-  argMax("height", "version") as "height",
-  "TokenZero",
+    argMax("timestamp", "version") as "timestamp",
+    argMax("height", "version") as "height",
+    "TokenZero",
     "TokenOne",
     "TokenIn",
     "TickIndex",
+    "Fee",
+    "TrancheKey",
     argMax("Reserves", "version") as "Reserves",
     argMax("ReservesZero", "version") as "ReservesZero"
   FROM spacebox.dex_message_event_tick_state
