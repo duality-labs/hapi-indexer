@@ -89,7 +89,7 @@ export const route = {
             (
               ${
                 // if user did not request a time period, default to "last 24h"
-                request.query.period
+                !request.query.period
                   ? sql`NOW() - toStartOfInterval(NOW(), INTERVAL 1 DAY)`
                   : raw('0')
               }
