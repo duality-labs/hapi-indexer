@@ -4,6 +4,7 @@ import { route as liquidityRoute } from './liquidity';
 import { route as priceRoute } from './price';
 import { route as swapVolumeRoute } from './swap-volume';
 import { route as tradesRoute } from './trades';
+import { route as tvlRoute } from './tvl';
 
 const { NODE_ENV = '' } = process.env;
 
@@ -13,6 +14,7 @@ const productionRoutes = [
   priceRoute,
   swapVolumeRoute,
   tradesRoute,
+  tvlRoute,
 ];
 
 export const routes = [
