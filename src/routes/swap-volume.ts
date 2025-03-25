@@ -208,14 +208,11 @@ export const route = {
 export const selectDexTickUpdatesWithSwapAmountFix = sql`
   -- get previous reserves value by using an ordered window to select previous (by order) row data
   -- to help determine the ReservesDiff field: the current - previous Reserves value
-  WITH first_value("Reserves") OVER (
+  WITH lagInFrame("Reserves", 1, 0) OVER (
     -- partition by "pools" of reserves (they are separate per tick + fee/tranche combination)
-    -- "partition by" pool index (tick_index+fee or tick_index+tranche_key for each pair side)
     PARTITION BY "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee", "TrancheKey"
     -- within the pool index partition, sort by event order
     ORDER BY "height" ASC, "block_part_index" ASC, "tx_index" ASC, "event_index" ASC
-    -- use this window of the previous row "range" to get the previous reserves
-    ROWS BETWEEN 1 PRECEDING AND 1 PRECEDING
   ) as "PreviousReserves"
   -- compare this to current row data to get relative state (ReservesDiff) and
   -- use the already derived is_swap field to compute new SwapAmountIn and SwapAmountOut attributes
