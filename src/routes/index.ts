@@ -3,13 +3,14 @@ import * as debugRoutes from './_debug';
 import { route as liquidityRoute } from './liquidity';
 import { route as priceRoute } from './price';
 import { route as vaultsTvlRoute } from './vaults/tvl';
+import { route as slinkyRoute } from './slinky';
 import { route as swapVolumeRoute } from './swap-volume';
 import { route as tradesRoute } from './trades';
 import { route as tvlRoute } from './tvl';
 
 const { NODE_ENV = '' } = process.env;
 
-const developmentRoutes = [...Object.values(debugRoutes)];
+const developmentRoutes = [...Object.values(debugRoutes), slinkyRoute];
 const productionRoutes = [
   liquidityRoute,
   priceRoute,
