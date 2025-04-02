@@ -193,6 +193,8 @@ export const route = {
                   ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
                   : row
               )
+            // flag as complete if there will be no data changes after this
+            // isComplete: (data) => !!unixTo && toUnixTime(data.at(0)?.time) > unixTo,
           );
         },
         cacheTime: Number(currentTime.data.at(0)?._cache_ms) ?? undefined,

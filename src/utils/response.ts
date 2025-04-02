@@ -211,6 +211,7 @@ export function handleResponse<
         res.setHeader('content-type', 'application/json');
         res.end(
           JSON.stringify({
+            ...result,
             data: result.data,
             meta: result.meta,
             height: result.height,

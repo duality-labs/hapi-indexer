@@ -119,3 +119,39 @@ const selectLatestTickState = sql`
     "Fee",
     "TrancheKey"
 `;
+
+
+// note: it is important to user argMax() to query the latest version number
+//       because the table is likely to have multiple version rows at query time
+//       this is an inherent part of ClickHouse MergeTree engines
+// @see: https://clickhouse.com/docs/engines/table-engines/mergetree-family/replacingmergetree#query-time-de-duplication--final
+const selectLatestTickState2 = sql`
+  SELECT
+    "timestamp",
+    "height",
+    "TokenZero",
+    "TokenOne",
+    "TokenIn",
+    "TickIndex",
+    last_value("Reserves") OVER ordered_pools_window AS "Reserves",
+    last_value("ReservesZero") OVER ordered_pools_window AS "ReservesZero"
+  FROM spacebox.dex_message_event_tick_state
+  WINDOW ordered_pools_window AS (
+    -- partition to each pool
+    PARTITION BY
+      "TokenZero",
+      "TokenOne",
+      "TokenIn",
+      "TickIndex",
+      "Fee",
+      "TrancheKey"
+    -- order by events
+    ORDER BY
+      "height" ASC,
+      "block_part_index" ASC,
+      "tx_index" ASC,
+      "event_index" ASC
+    -- select the last known value
+    ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING 
+  )
+`; //s
