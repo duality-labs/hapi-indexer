@@ -6,6 +6,8 @@ import { inMs, seconds } from './units';
 import { toClickHouseSQL } from '../utils/sql';
 import logger from './logger';
 
+const { SHOW_STATISTICS = '' } = process.env;
+
 interface CacheEnvelope {
   value: Promise<ResponseJSON>;
   version: number;
@@ -26,7 +28,7 @@ interface QueryCacheOptions {
   cacheTime?: number;
 }
 export interface ExtendedResponseJSON<T = unknown>
-  extends Pick<ResponseJSON<T>, 'data'> {
+  extends Pick<ResponseJSON<T>, 'data' | 'statistics'> {
   // modification: add more keys to metadata: 'units'
   //   (eg. [{ name: 'volume', 'type': 'number', 'units': 'untrn' }])
   meta?: Array<{ name: string; type: string; units?: string }>;
@@ -140,6 +142,7 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
       : // note: return type may be wrong when RowResponse != Row
         (response.data as RowResponse[]),
     height: getHeight?.(response.data),
+    statistics: SHOW_STATISTICS === 'true' ? response.statistics : undefined,
     isComplete,
   };
 }

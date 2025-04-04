@@ -91,6 +91,16 @@ export function handleResponse<
             data: JSON.stringify(initialData.data),
           })
         );
+        // add stats info if available
+        if (initialData.statistics) {
+          res.write(
+            formatChunk({
+              event: 'statistics',
+              id: `height: ${initialData.height}`,
+              data: JSON.stringify(initialData.statistics),
+            })
+          );
+        }
 
         let lastResult = initialData;
         while (!abortController.signal.aborted && !lastResult.isComplete) {
@@ -117,6 +127,16 @@ export function handleResponse<
                   data: JSON.stringify(newRows),
                 })
               );
+              // add stats info if available
+              if (newResultData.statistics) {
+                res.write(
+                  formatChunk({
+                    event: 'statistics',
+                    id: `height: ${newResultData.height}`,
+                    data: JSON.stringify(newResultData.statistics),
+                  })
+                );
+              }
             }
             // send heartbeat data to report changes in source data height
             else if (!isEqual(lastResult.heartbeat, newResultData.heartbeat)) {
@@ -126,6 +146,16 @@ export function handleResponse<
                   id: `height: ${newResultData.heartbeat}`,
                 })
               );
+              // add stats info if available
+              if (newResultData.statistics) {
+                res.write(
+                  formatChunk({
+                    event: 'statistics',
+                    id: `height: ${newResultData.height}`,
+                    data: JSON.stringify(newResultData.statistics),
+                  })
+                );
+              }
             }
             // save new data to compare against
             // note that incremental updates may have 0 rows, in which case
@@ -214,6 +244,7 @@ export function handleResponse<
             data: result.data,
             meta: result.meta,
             height: result.height,
+            statistics: result.statistics,
           })
         );
       }
