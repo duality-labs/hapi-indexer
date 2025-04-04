@@ -469,14 +469,9 @@ export const route = {
               "ReservesOne" AS "ReservesOne"
             )
         ),
-        -- pre-filtering the join tables somehow is enough to hint ClickHouse to join the prices efficiently
-        token_zero_prices AS (
-          SELECT "pair_id", "timestamp", "price", "decimals"
-          FROM spacebox.raw_slinky_prices
-          WHERE "pair_id" = "quote_pair_zero"
-        ),
-        -- pre-aggregate prices to time periods
-        grouped_token_zero_prices AS (
+        -- pre-aggregate specific pair prices to output time periods
+        -- note: this dramatically reduces the ASOF join times
+        grouped_prices AS (
           SELECT
             "pair_id",
             toStartOfInterval(t."timestamp", INTERVAL ${raw(
@@ -486,44 +481,7 @@ export const route = {
             argMax("decimals", t."timestamp") AS "decimals"
           FROM spacebox.raw_slinky_prices as t
           -- filter to symbol and contract start time
-          WHERE "pair_id" = "quote_pair_zero"
-          ${
-            unixFrom || timePrevious
-              ? sql`AND "timestamp" >= toStartOfInterval(
-                  toDateTime(${unixFrom || timePrevious}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          ${
-            unixTo
-              ? sql`AND "timestamp" < toStartOfInterval(
-                  toDateTime(${unixTo}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          GROUP BY "pair_id", "timestamp"
-          ORDER BY "timestamp" ASC
-        ),
-        -- pre-filtering the join tables somehow is enough to hint ClickHouse to join the prices efficiently
-        token_one_prices AS (
-          SELECT "pair_id", "timestamp", "price", "decimals"
-          FROM spacebox.raw_slinky_prices
-          WHERE "pair_id" = "quote_pair_one"
-        ),
-        -- pre-aggregate prices to time periods
-        grouped_token_one_prices AS (
-          SELECT
-            "pair_id",
-            toStartOfInterval(t."timestamp", INTERVAL ${raw(
-              timePeriods.toFixed(0)
-            )} ${raw(timePeriod)}) AS "timestamp",
-            argMax("price", t."timestamp") AS "price",
-            argMax("decimals", t."timestamp") AS "decimals"
-          FROM spacebox.raw_slinky_prices as t
-          -- filter to symbol and contract start time
-          WHERE "pair_id" = "quote_pair_one"
+          WHERE ("pair_id" = "quote_pair_zero" OR "pair_id" = "quote_pair_one")
           ${
             unixFrom || timePrevious
               ? sql`AND "timestamp" >= toStartOfInterval(
@@ -554,12 +512,12 @@ export const route = {
             toFloat64(p1."price") * exp10(-p1."decimals") * ("ReservesOne" + "BalanceOne") as "tvl_1"
           FROM filled_amount_timeseries_of_period as amounts
           -- join to closest available price or token zero
-          ASOF LEFT JOIN grouped_token_zero_prices as p0
+          ASOF LEFT JOIN grouped_prices as p0
             ON (amounts."ReservesZero" > 0 OR amounts."BalanceZero" > 0)
             AND p0."pair_id" = amounts."PairZero"
             AND p0."timestamp" <= amounts."timestamp"
           -- join to closest available price or token one
-          ASOF LEFT JOIN grouped_token_one_prices as p1
+          ASOF LEFT JOIN grouped_prices as p1
             ON (amounts."ReservesOne" > 0 OR amounts."BalanceOne" > 0)
             AND p1."pair_id" = amounts."PairOne"
             AND p1."timestamp" <= amounts."timestamp"
