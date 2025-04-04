@@ -71,22 +71,67 @@ export const route = {
       }
       const denom0 = data.token_0_denom;
       const denom1 = data.token_1_denom;
+      const pair0 = `${data.token_0_symbol}-${data.token_0_quote_currency}`;
+      const pair1 = `${data.token_1_symbol}-${data.token_1_quote_currency}`;
 
       // get timeseries data height (quick query to determine cache version)
-      const currentHeight = await getCachedResponse<{
-        height: string;
-        time: string;
-      }>(
-        sql`
-        SELECT
-          max(t."height") AS "height",
-          argMax("timestamp", t."height") as "time"
-        FROM spacebox."dex_message_event_tick_update" as t
-        WHERE "TokenZero" = ${denom0}
-          AND "TokenOne" = ${denom1}
-      `,
-        abortSignal
-      );
+      const allUpdateHeights = await Promise.all([
+        getCachedResponse<{
+          height: string;
+          time: string;
+        }>(
+          sql`
+            SELECT
+              max(t."height") AS "height",
+              argMax("timestamp", t."height") as "time"
+            FROM spacebox."dex_message_event_tick_update" as t
+            WHERE "TokenZero" = ${denom0}
+              AND "TokenOne" = ${denom1}
+        `,
+          abortSignal
+        ),
+        getCachedResponse<{
+          height: string;
+          time: string;
+        }>(
+          sql`
+            SELECT
+              max(t."height") AS "height",
+              argMax("timestamp", t."height") as "time"
+            FROM spacebox.bank_transfer as t
+            WHERE "address" = ${request.params.contract}
+              AND ("denom" = ${denom0} OR "denom" = ${denom1})
+        `,
+          abortSignal
+        ),
+        getCachedResponse<{
+          height: string;
+          time: string;
+        }>(
+          sql`
+            SELECT
+              max(t."height") AS "height",
+              argMax("timestamp", t."height") as "time"
+            FROM spacebox."raw_slinky_prices" as t
+            WHERE "pair_id" = ${pair0}
+              OR "pair_id" = ${pair1}
+        `,
+          abortSignal
+        ),
+      ]);
+
+      const currentHeight = allUpdateHeights
+        .slice()
+        .sort((a, b) => {
+          const rowA = a.data.at(0);
+          const rowB = b.data.at(0);
+          return rowA && rowB
+            ? Number(rowB.height) - Number(rowA.height)
+            : rowA
+            ? -1
+            : 1;
+        })
+        .at(0);
 
       // get requested time period or default
       const timePeriods = Number(request.query.periods) || 1;
@@ -109,12 +154,8 @@ export const route = {
         -- add fake columns to join the price data across
         -- without some specific ID rows ClickHouse will complain: "ASOF join needs at least one equi-join column"
         -- but we alread filter to the required IDs in the following CTEs
-        concat(${data.token_0_symbol}, '-', ${
-          data.token_0_quote_currency
-        }) as "quote_pair_zero",
-        concat(${data.token_1_symbol}, '-', ${
-          data.token_1_quote_currency
-        }) as "quote_pair_one",
+        ${pair0} as "quote_pair_zero",
+        ${pair1} as "quote_pair_one",
         bank_balance_token_zero_deltas AS (
           SELECT
             "timestamp",
@@ -567,7 +608,7 @@ export const route = {
           },
           // flag as complete if there will be no data changes after this
           isComplete:
-            !!unixTo && toUnixTime(currentHeight.data.at(0)?.time) > unixTo,
+            !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
           cacheTime: 1 * hours * inMs,
           cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
         }
