@@ -474,6 +474,7 @@ export const route = {
             "PairZero",
             "PairOne",
             -- get last known reserves values within group
+            argMax("height", t."timestamp") AS "height",
             argMax("BalanceZero", t."timestamp") AS "BalanceZero",
             argMax("BalanceOne", t."timestamp") AS "BalanceOne",
             argMax("ReservesZero", t."timestamp") AS "ReservesZero",
@@ -504,6 +505,7 @@ export const route = {
             FILL TO NOW()
             STEP INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
             INTERPOLATE (
+              "height" AS "height",
               "BalanceZero" AS "BalanceZero",
               "BalanceOne" AS "BalanceOne",
               "ReservesZero" AS "ReservesZero",
@@ -545,6 +547,7 @@ export const route = {
         tvl_amount_timeseries AS (
           SELECT
             amounts."timestamp" as "timestamp",
+            amounts."height" as "height",
             toFloat64(amounts."BalanceZero") as "BalanceZero",
             toFloat64(amounts."BalanceOne") as "BalanceOne",
             amounts."ReservesZero" as "ReservesZero",
@@ -566,11 +569,12 @@ export const route = {
         -- return renamed fields of rows where liquidity value exists
         SELECT
           "timestamp" as "time",
-            "tvl_0",
-            "tvl_1"
-          FROM tvl_amount_timeseries
-          WHERE "tvl_0" > 0
-             OR "tvl_1" > 0
+          "height",
+          "tvl_0",
+          "tvl_1"
+        FROM tvl_amount_timeseries
+        WHERE "tvl_0" > 0
+            OR "tvl_1" > 0
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined
