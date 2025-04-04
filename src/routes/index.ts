@@ -9,10 +9,11 @@ import { route as tvlRoute } from './tvl';
 
 const { NODE_ENV = '' } = process.env;
 
-const developmentRoutes = [...Object.values(debugRoutes), slinkyRoute];
+const developmentRoutes = [...Object.values(debugRoutes)];
 const productionRoutes = [
   liquidityRoute,
   priceRoute,
+  slinkyRoute,
   swapVolumeRoute,
   tradesRoute,
   tvlRoute,
