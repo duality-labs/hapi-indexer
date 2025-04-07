@@ -12,8 +12,8 @@ import {
 
 const LIMIT_ROWS = 10000;
 interface Request {
-  Params: { base: string; quote?: string };
-  Query: {
+  params: { base: string; quote?: string };
+  query: {
     from?: string;
     to?: string;
     periods?: string;

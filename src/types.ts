@@ -1,8 +1,8 @@
 import { GetData } from './utils/response';
 
 interface BaseRequestPayload {
-  Params?: Record<string, string>;
-  Query?: Record<string, string>;
+  params?: Record<string, string>;
+  query?: Record<string, string>;
 }
 type BaseResponsePayload = object;
 

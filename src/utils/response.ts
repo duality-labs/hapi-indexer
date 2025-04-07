@@ -8,8 +8,8 @@ import { ServerResponse } from 'node:http';
 const { NODE_ENV = 'development' } = process.env;
 
 interface BaseRequestPayload {
-  Params?: Record<string, string>;
-  Query?: Record<string, string>;
+  params?: Record<string, string>;
+  query?: Record<string, string>;
 }
 type BaseResponsePayload = object;
 
@@ -17,7 +17,7 @@ export type GetData<
   RequestPayload extends BaseRequestPayload,
   ResponsePayload extends BaseResponsePayload
 > = (
-  request: ExtendedRequest<RequestPayload['Params'], RequestPayload['Query']>,
+  request: RequestPayload,
   abortController: AbortSignal,
   previousResponse?: ExtendedResponseJSON<ResponsePayload>
 ) => Promise<ExtendedResponseJSON<ResponsePayload>>;
@@ -47,10 +47,15 @@ export function handleResponse<
   ResponsePayload extends BaseResponsePayload
 >(getData: GetData<RequestPayload, ResponsePayload>) {
   return async (
-    req: ExtendedRequest,
+    req: ExtendedRequest<RequestPayload['params'], RequestPayload['query']>,
     res: ServerResponse,
     next: (err?: Error) => void
   ) => {
+    // construct simple payload of request to pass to handlers
+    const reqPayload: RequestPayload = {
+      params: { ...req.params },
+      query: { ...req.query },
+    } as RequestPayload;
     try {
       // detect user abortion of request
       const abortController = new AbortController();
@@ -80,7 +85,7 @@ export function handleResponse<
         );
 
         // get initial data
-        const initialData = await getData(req, abortController.signal);
+        const initialData = await getData(reqPayload, abortController.signal);
         if (initialData.meta) {
           res.write(
             formatChunk({
@@ -112,7 +117,7 @@ export function handleResponse<
           // wait for next update data change
           try {
             const newResultData = await getData(
-              req,
+              reqPayload,
               abortController.signal,
               lastResult
             );
@@ -242,7 +247,7 @@ export function handleResponse<
           }
         });
       } else {
-        const result = await getData(req, abortController.signal);
+        const result = await getData(reqPayload, abortController.signal);
         res.setHeader('content-type', 'application/json');
         res.end(
           JSON.stringify({

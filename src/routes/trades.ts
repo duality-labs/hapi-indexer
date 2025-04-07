@@ -9,8 +9,8 @@ const LIMIT_ROWS = 50;
 const DEFAULT_DUST_LEVEL_AMOUNT = 100;
 
 interface Request {
-  Params: { denomA: string; denomB: string };
-  Query: {
+  params: { denomA: string; denomB: string };
+  query: {
     from?: string;
     to?: string;
     limit?: string;

@@ -5,7 +5,7 @@ import { getCachedResponse } from '../utils/cache-query';
 import { hours, inMs } from '../utils/units';
 
 interface Request {
-  Params: { denomA: string; denomB: string };
+  params: { denomA: string; denomB: string };
 }
 interface Response {
   index: string;

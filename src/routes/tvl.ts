@@ -11,8 +11,8 @@ import {
 } from '../utils/units';
 
 interface Request {
-  Params: { denomA: string; denomB: string };
-  Query: {
+  params: { denomA: string; denomB: string };
+  query: {
     from?: string;
     to?: string;
     periods?: string;

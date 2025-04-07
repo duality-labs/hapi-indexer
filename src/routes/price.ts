@@ -13,8 +13,8 @@ import {
 const LIMIT_ROWS = 10000;
 
 interface Request {
-  Params: { denomA: string; denomB: string };
-  Query: {
+  params: { denomA: string; denomB: string };
+  query: {
     from?: string;
     to?: string;
     periods?: string;

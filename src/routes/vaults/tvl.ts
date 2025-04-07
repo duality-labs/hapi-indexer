@@ -12,8 +12,8 @@ import {
 } from '../../utils/units';
 
 interface Request {
-  Params: { contract: string };
-  Query: {
+  params: { contract: string };
+  query: {
     from?: string;
     to?: string;
     periods?: string;
