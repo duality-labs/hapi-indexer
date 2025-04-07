@@ -10,6 +10,8 @@ import {
   WithFillTimePeriod,
   toUnixTime,
 } from '../../utils/units';
+import dexReservesTimeseries from '../../common-table-expressions/dexReservesTimeseries';
+import bankReservesTimeseries from '../../common-table-expressions/bankReservesTimeseries';
 
 interface Request {
   params: { contract: string };
@@ -155,73 +157,21 @@ export const route: Route<Request, Response> = {
         -- but we alread filter to the required IDs in the following CTEs
         ${pair0} as "quote_pair_zero",
         ${pair1} as "quote_pair_one",
-        bank_balance_token_zero_deltas AS (
-          SELECT
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            ${denom0} as "TokenZero",
-            ${denom1} as "TokenOne",
-            -- choose side as TokenZero
-            "TokenZero" as "TokenIn",
-            -- Reserves
-            "amount" AS "BalanceDelta"
-          FROM spacebox.bank_transfer
-          WHERE "address" = ${request.params.contract}
-            AND "denom" = ${denom0}
-        ),
-        bank_balance_token_one_deltas AS (
-          SELECT
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            ${denom0} as "TokenZero",
-            ${denom1} as "TokenOne",
-            -- choose side as TokenOne
-            "TokenOne" as "TokenIn",
-            -- Reserves
-            "amount" AS "BalanceDelta"
-          FROM spacebox.bank_transfer
-          WHERE "address" = ${request.params.contract}
-            AND "denom" = ${denom1}
-        ),
-        bank_balance_deltas_union AS (
-          SELECT * FROM bank_balance_token_zero_deltas
-          UNION ALL
-          SELECT * FROM bank_balance_token_one_deltas
-        ),
-        cumulative_bank_balances AS (
-          SELECT
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            -- values
-            sum("BalanceDelta") OVER cumulative_events as "Balance"
-          FROM bank_balance_deltas_union
-          WINDOW cumulative_events AS (
-            -- partition sums to each pool
-            PARTITION BY "TokenZero", "TokenOne", "TokenIn"
-            ORDER BY "sort_key" ASC
-            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-          )
-        ),
+        cumulative_bank_balances AS (${bankReservesTimeseries(
+          data.contract,
+          data.token_0_denom,
+          data.token_1_denom
+        )}),
         cumulative_bank_balances_at_height AS (
           SELECT
             "timestamp",
             "height",
-            "sort_key",
             -- pool token index
             "TokenZero",
             "TokenOne",
             "TokenIn",
             -- values
-            "Balance"
+            "address_balance" as "Balance"
           FROM (
             SELECT *,
               ROW_NUMBER() OVER (
@@ -234,172 +184,12 @@ export const route: Route<Request, Response> = {
           -- filter to last row of each height
           WHERE "row_order" = 1
         ),
-        vault_shares_deltas AS (
-          WITH "Receiver" = ${request.params.contract} as "is_vault"
-          SELECT
-            -- sorting
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            "TokenZero",
-            "TokenOne",
-            "TickIndex",
-            "Fee",
-            -- values
-            if ("credit" = 1, "shares" * "is_vault", -"shares" * "is_vault") as "vault_shares_delta",
-            if ("credit" = 1, "shares", -"shares") as "total_shares_delta"
-          FROM spacebox.dex_shares
-          -- filter data early to reduce processing
-          WHERE
-            -- filter to pair
-            "TokenZero" = ${denom0} AND
-            "TokenOne" = ${denom1}
-        ),
-        vault_shares_zero_deltas AS (
-          WITH "Receiver" = ${request.params.contract} as "is_vault"
-          SELECT
-            -- sorting
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            "TokenZero",
-            "TokenOne",
-            -- choose side as TokenZero
-            "TokenZero" as "TokenIn",
-            -- shift central tick index to "TickIndexZero" side
-            "Fee" - "TickIndex" as "TickIndex",
-            "Fee",
-            -- values
-            "vault_shares_delta",
-            "total_shares_delta"
-          FROM vault_shares_deltas
-        ),
-        vault_shares_one_deltas AS (
-          WITH "Receiver" = ${request.params.contract} as "is_vault"
-          SELECT
-            -- sorting
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            "TokenZero",
-            "TokenOne",
-            -- choose side as TokenOne
-            "TokenOne" as "TokenIn",
-            -- shift central tick index to "TickIndexOne" side
-            "Fee" + "TickIndex" as "TickIndex",
-            "Fee",
-            -- values
-            "vault_shares_delta",
-            "total_shares_delta"
-          FROM vault_shares_deltas
-        ),
-        vault_shares_deltas_union AS (
-          SELECT * FROM vault_shares_zero_deltas
-          UNION ALL
-          SELECT * FROM vault_shares_one_deltas
-        ),
-        dex_reserves_deltas AS (
-          SELECT
-            -- sorting
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            "TickIndex",
-            "Fee",
-            -- reserves diff across each individual pool
-            "Reserves" - lagInFrame("Reserves", 1, toUInt256(0)) OVER (
-              -- partition by pool
-              PARTITION BY
-                "TokenZero",
-                "TokenOne",
-                "TokenIn",
-                "TickIndex",
-                "Fee",
-                "TrancheKey"
-              -- sort by event order
-              ORDER BY "sort_key" ASC
-            ) AS "ReservesDelta"
-          FROM spacebox.dex_message_event_tick_update
-          -- filter data early to reduce processing
-          WHERE
-            -- filter to pair
-            "TokenZero" = ${denom0} AND
-            "TokenOne" = ${denom1} AND
-            -- do not include tranches (limit order liquidity)
-            empty("TrancheKey")
-        ),
-        vault_reserves_deltas_union AS (
-          SELECT
-            -- sorting
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            "TickIndex",
-            "Fee",
-            -- values
-            "ReservesDelta",
-            0 as "vault_shares_delta",
-            0 as "total_shares_delta"
-          FROM dex_reserves_deltas
-          UNION ALL
-          SELECT
-            -- sorting
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            "TickIndex",
-            "Fee",
-            -- values
-            0 as "ReservesDelta",
-            "vault_shares_delta",
-            "total_shares_delta"
-          FROM vault_shares_deltas_union
-        ),
+        cumulative_vault_reserves AS (${dexReservesTimeseries(
+          data.contract,
+          data.token_0_denom,
+          data.token_1_denom
+        )}),
         -- perform cumulative sum across reserves of all pools within the pair
-        cumulative_vault_reserves AS (
-          WITH
-            sum("vault_shares_delta") OVER cumulative_events as "vault_shares",
-            sum("total_shares_delta") OVER cumulative_events as "total_shares",
-            sum("ReservesDelta") OVER cumulative_events as "total_reserves"
-          SELECT
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pool index
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            "TickIndex",
-            "Fee",
-            -- values
-            if (
-              "total_shares" > 0,
-              "total_reserves" * "vault_shares" / "total_shares",
-              0
-            ) as "vault_reserves"
-          FROM vault_reserves_deltas_union
-          WINDOW cumulative_events AS (
-            -- partition sums to each pool
-            PARTITION BY "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee"
-            ORDER BY "sort_key" ASC
-            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-          )
-        ),
         cumulative_vault_reserves_at_height AS (
           SELECT
             "timestamp",
@@ -410,7 +200,7 @@ export const route: Route<Request, Response> = {
             "TokenIn",
             -- values
             -- sum all cumulative pool totals by token pair + token side
-            sum("vault_reserves") as "Reserves"
+            sum("address_reserves") as "Reserves"
           -- get the last row (ORDER BY "sort_key" DESC WHERE "row_order"= 1)
           -- of each pool within a current block height (last state of block)
           FROM (
