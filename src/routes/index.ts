@@ -3,10 +3,10 @@ import * as debugRoutes from './_debug';
 import { route as liquidityRoute } from './liquidity';
 import { route as priceRoute } from './price';
 import { route as slinkyRoute } from './slinky';
-import { route as vaultsTvlRoute } from './vaults/tvl';
 import { route as swapVolumeRoute } from './swap-volume';
 import { route as tradesRoute } from './trades';
 import { route as tvlRoute } from './tvl';
+import { route as vaultsTvlRoute } from './vaults/tvl';
 
 import { GetData, handleResponse } from '../utils/response';
 
