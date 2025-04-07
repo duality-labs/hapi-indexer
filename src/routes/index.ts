@@ -33,7 +33,7 @@ export const routes = [
 export const router = Router();
 
 for (const route of routes) {
-  router[route.method.toLowerCase() === 'post' ? 'post' : 'get'](
+  router[route.method](
     route.path,
     // todo: somehow fix the types between Router and handleResponse correctly
     handleResponse(

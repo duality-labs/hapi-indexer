@@ -26,7 +26,7 @@ interface Response {
 }
 
 export const route: Route<Request, Response> = {
-  method: 'GET',
+  method: 'get',
   path: '/slinky/:base/:quote?',
   handler: async (request, abortSignal, previousResponse) => {
     const limit = Number(request.query.limit) || LIMIT_ROWS;

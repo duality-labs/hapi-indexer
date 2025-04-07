@@ -27,7 +27,7 @@ interface Response {
 }
 
 export const route: Route<Request, Response> = {
-  method: 'GET',
+  method: 'get',
   path: '/swap-volume/:denomA/:denomB',
   handler: async (request, abortSignal, previousResponse) => {
     const [denom0, denom1] = [

@@ -10,7 +10,7 @@ export type Route<
   RequestPayload extends BaseRequestPayload,
   ResponsePayload extends BaseResponsePayload
 > = {
-  method: 'GET' | 'POST';
+  method: 'get' | 'post';
   path: string;
   handler: GetData<RequestPayload, ResponsePayload>;
 };

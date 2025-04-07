@@ -22,7 +22,7 @@ interface Response {
 }
 
 export const route: Route<Request, Response> = {
-  method: 'GET',
+  method: 'get',
   path: '/trades/:denomA/:denomB',
   handler: async (request, abortSignal, previousResponse) => {
     const [denom0, denom1] = [

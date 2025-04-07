@@ -27,7 +27,7 @@ const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
 
 export const route: Route<Request, Response> = {
-  method: 'GET',
+  method: 'get',
   path: '/tvl/:denomA/:denomB',
   handler: async (request, abortSignal, previousResponse) => {
     const [denom0, denom1] = [

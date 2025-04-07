@@ -5,7 +5,7 @@ import { ServerResponse } from 'node:http';
 
 // add debug route
 export const debugQuery = {
-  method: 'GET',
+  method: 'get' as const,
   path: '/debug/query',
   handler: async (
     req: ExtendedRequest<
@@ -44,7 +44,7 @@ export const debugQuery = {
 
 // add debug route
 export const debugHeight = {
-  method: 'GET',
+  method: 'get' as const,
   path: '/debug/height',
   handler: async (
     req: ExtendedRequest<
