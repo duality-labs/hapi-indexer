@@ -61,7 +61,7 @@ export const route: Route<Request, Response> = {
 
     // get requested time period or default
     const timePeriods = Number(request.query.periods) || 1;
-    const timePeriod = getTimePeriod(request.query.period as string) || 'day';
+    const timePeriod = getTimePeriod(request.query.period) || 'day';
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get requested times or zero

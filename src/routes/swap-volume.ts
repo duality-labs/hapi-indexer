@@ -54,7 +54,7 @@ export const route: Route<Request, Response> = {
     );
 
     // get timeseries query
-    const timePeriod = getTimePeriod(request.query.period as string);
+    const timePeriod = getTimePeriod(request.query.period);
     if (timePeriod) {
       // get timeseries data height (quick query to determine cache version)
       const currentHeight = await getCachedResponse<{

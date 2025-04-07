@@ -3,11 +3,11 @@ import sql, { raw } from 'sql-template-tag';
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import {
-  getTimePeriod,
+  getFillableTimePeriod,
   hours,
   inMs,
   minutes,
-  TimePeriod,
+  WithFillTimePeriod,
   toUnixTime,
 } from '../../utils/units';
 
@@ -17,7 +17,7 @@ interface Request {
     from?: string;
     to?: string;
     periods?: string;
-    period?: TimePeriod;
+    period?: WithFillTimePeriod;
     limit?: string;
   };
 }
@@ -134,7 +134,7 @@ export const route: Route<Request, Response> = {
 
     // get requested time period or default
     const timePeriods = Number(request.query.periods) || 1;
-    const timePeriod = getTimePeriod(request.query.period as string) || 'day';
+    const timePeriod = getFillableTimePeriod(request.query.period) || 'day';
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get contract start time
