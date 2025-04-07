@@ -1,4 +1,5 @@
 import sql from 'sql-template-tag';
+import bankReservesDeltasTimeseries from './bankReservesDeltas';
 
 export default function bankReservesTimeseries(
   address: string,
@@ -7,43 +8,11 @@ export default function bankReservesTimeseries(
 ) {
   return sql`
     WITH
-      bank_balance_token_zero_deltas AS (
-        SELECT
-          "timestamp",
-          "height",
-          "sort_key",
-          -- pool index
-          ${denom0} as "TokenZero",
-          ${denom1} as "TokenOne",
-          -- choose side as TokenZero
-          "TokenZero" as "TokenIn",
-          -- Reserves
-          "amount" AS "BalanceDelta"
-        FROM spacebox.bank_transfer
-        WHERE "address" = ${address}
-          AND "denom" = ${denom0}
-      ),
-      bank_balance_token_one_deltas AS (
-        SELECT
-          "timestamp",
-          "height",
-          "sort_key",
-          -- pool index
-          ${denom0} as "TokenZero",
-          ${denom1} as "TokenOne",
-          -- choose side as TokenOne
-          "TokenOne" as "TokenIn",
-          -- Reserves
-          "amount" AS "BalanceDelta"
-        FROM spacebox.bank_transfer
-        WHERE "address" = ${address}
-          AND "denom" = ${denom1}
-      ),
-      bank_balance_deltas_union AS (
-        SELECT * FROM bank_balance_token_zero_deltas
-        UNION ALL
-        SELECT * FROM bank_balance_token_one_deltas
-      )
+      bank_balance_deltas_union AS (${bankReservesDeltasTimeseries(
+        address,
+        denom0,
+        denom1
+      )})
     SELECT
       "timestamp",
       "height",
@@ -53,7 +22,7 @@ export default function bankReservesTimeseries(
       "TokenOne",
       "TokenIn",
       -- values
-      sum("BalanceDelta") OVER cumulative_events as "address_balance"
+      sum("balance_delta") OVER cumulative_events as "address_balance"
     FROM bank_balance_deltas_union
     WINDOW cumulative_events AS (
       -- partition sums to each pool

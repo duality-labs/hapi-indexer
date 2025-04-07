@@ -4,15 +4,15 @@ import sql from 'sql-template-tag';
 // SwapAmountIn/SwapAmountOut for events in Neutron <= v5 that do not have them
 export const selectDexTickUpdatesWithSwapAmountFix = sql`
   -- get previous reserves value by using an ordered window to select previous (by order) row data
-  -- to help determine the ReservesDiff field: the current - previous Reserves value
+  -- to help determine the ReservesDelta field: the current - previous Reserves value
   WITH lagInFrame("Reserves", 1, 0) OVER (
     -- partition by "pools" of reserves (they are separate per tick + fee/tranche combination)
     PARTITION BY "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee", "TrancheKey"
     -- within the pool index partition, sort by event order
     ORDER BY "height" ASC, "block_part_index" ASC, "tx_index" ASC, "event_index" ASC
   ) as "PreviousReserves",
-  -- compare this to current row data to get relative state (ReservesDiff) and
-  ("Reserves" - "PreviousReserves") as "ReservesDiff"
+  -- compare this to current row data to get relative state (ReservesDelta) and
+  ("Reserves" - "PreviousReserves") as "ReservesDelta"
   -- use the already derived is_swap field to compute new SwapAmountIn and SwapAmountOut attributes
   SELECT
     -- pass through materialized sort key
@@ -25,9 +25,9 @@ export const selectDexTickUpdatesWithSwapAmountFix = sql`
       t."SwapAmountOut",
       -- apply swap volume fix
       if (
-        -- note: all swap TickUpdate events should be DEX decrements (ReservesDiff < 0)
-        "is_swap" AND "ReservesDiff" < 0,
-        toUInt128(abs("ReservesDiff")),
+        -- note: all swap TickUpdate events should be DEX decrements (ReservesDelta < 0)
+        "is_swap" AND "ReservesDelta" < 0,
+        toUInt128(abs("ReservesDelta")),
         "SwapAmountOut"
       )
     ) as "SwapAmountOut",
@@ -37,8 +37,8 @@ export const selectDexTickUpdatesWithSwapAmountFix = sql`
       -- apply swap volume fix
       if (
         -- note: SwapAmountIn may have rounding errors (but this very small in practice)
-        "is_swap" AND "ReservesDiff" < 0,
-        toUInt128(ceiling(multiply(toFloat64(abs("ReservesDiff")), pow(1.0001, "TickIndex")))),
+        "is_swap" AND "ReservesDelta" < 0,
+        toUInt128(ceiling(multiply(toFloat64(abs("ReservesDelta")), pow(1.0001, "TickIndex")))),
         "SwapAmountIn"
       )
     ) as "SwapAmountIn"
