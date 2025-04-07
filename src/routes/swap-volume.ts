@@ -1,6 +1,6 @@
 import sql, { raw } from 'sql-template-tag';
 
-import { handleResponse } from '../utils/response';
+import { Route } from '../types';
 import { getCachedResponse } from '../utils/cache-query';
 import { config } from '../config';
 import {
@@ -14,20 +14,22 @@ import {
 
 const LIMIT_ROWS = 1000;
 
-export const route = {
+interface Request {
+  Params: { denomA: string; denomB: string };
+  Query: {
+    from?: string;
+    to?: string;
+    period?: TimePeriod;
+  };
+}
+interface Response {
+  time: string;
+}
+
+export const route: Route<Request, Response> = {
   method: 'GET',
   path: '/swap-volume/:denomA/:denomB',
-  handler: handleResponse<
-    {
-      Params: { denomA: string; denomB: string };
-      Query: {
-        from?: string;
-        to?: string;
-        period?: TimePeriod;
-      };
-    },
-    { time: string }
-  >(async (request, abortSignal, previousResponse) => {
+  handler: async (request, abortSignal, previousResponse) => {
     const [denom0, denom1] = [
       request.params.denomA,
       request.params.denomB,
@@ -200,7 +202,7 @@ export const route = {
           Number(currentTime.data.at(0)?._cache_version) ?? undefined,
       }
     );
-  }),
+  },
 };
 
 // this select statement applies the "swap volume fix" to recreate

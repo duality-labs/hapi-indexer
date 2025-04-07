@@ -1,4 +1,3 @@
-// import { Request, Response } from 'express';
 import { mediaTypes } from '@hapi/accept';
 import { isEqual, reject } from 'lodash-es';
 import logger from './logger';
@@ -7,6 +6,21 @@ import { ExtendedRequest } from 'router';
 import { ServerResponse } from 'node:http';
 
 const { NODE_ENV = 'development' } = process.env;
+
+interface BaseRequestPayload {
+  Params?: Record<string, string>;
+  Query?: Record<string, string>;
+}
+type BaseResponsePayload = object;
+
+export type GetData<
+  RequestPayload extends BaseRequestPayload,
+  ResponsePayload extends BaseResponsePayload
+> = (
+  request: ExtendedRequest<RequestPayload['Params'], RequestPayload['Query']>,
+  abortController: AbortSignal,
+  previousResponse?: ExtendedResponseJSON<ResponsePayload>
+) => Promise<ExtendedResponseJSON<ResponsePayload>>;
 
 export function formatChunk({
   event,
@@ -29,18 +43,9 @@ export function formatChunk({
 }
 
 export function handleResponse<
-  RequestPayload extends {
-    Params?: Record<string, string>;
-    Query?: Record<string, string>;
-  },
-  ResponsePayload = unknown
->(
-  getData: (
-    request: ExtendedRequest<RequestPayload['Params'], RequestPayload['Query']>,
-    abortController: AbortSignal,
-    previousResponse?: ExtendedResponseJSON<ResponsePayload>
-  ) => Promise<ExtendedResponseJSON<ResponsePayload>>
-) {
+  RequestPayload extends BaseRequestPayload,
+  ResponsePayload extends BaseResponsePayload
+>(getData: GetData<RequestPayload, ResponsePayload>) {
   return async (
     req: ExtendedRequest,
     res: ServerResponse,

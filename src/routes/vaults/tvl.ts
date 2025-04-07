@@ -1,6 +1,6 @@
 import sql, { raw } from 'sql-template-tag';
 
-import { handleResponse } from '../../utils/response';
+import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import {
   getTimePeriod,
@@ -29,58 +29,57 @@ interface Response {
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
 
-export const route = {
+export const route: Route<Request, Response> = {
   method: 'GET',
   path: '/vaults/tvl/:contract',
-  handler: handleResponse<Request, Response>(
-    async (request, abortSignal, previousResponse) => {
-      const sourceTableHeight = await getCachedResponse<{ height: string }>(
-        sql`
+  handler: async (request, abortSignal, previousResponse) => {
+    const sourceTableHeight = await getCachedResponse<{ height: string }>(
+      sql`
         SELECT max("height") AS "height"
         FROM spacebox."raw_block_results"
       `,
-        abortSignal
-      );
+      abortSignal
+    );
 
-      // get timeseries data height (quick query to determine cache version)
-      const contract = await getCachedResponse<{
-        timestamp: string;
-        height: string;
-        contract: string;
-        token_0_denom: string;
-        token_1_denom: string;
-        token_0_symbol: string;
-        token_1_symbol: string;
-        token_0_quote_currency: string;
-        token_1_quote_currency: string;
-      }>(
-        sql`
+    // get timeseries data height (quick query to determine cache version)
+    const contract = await getCachedResponse<{
+      timestamp: string;
+      height: string;
+      contract: string;
+      token_0_denom: string;
+      token_1_denom: string;
+      token_0_symbol: string;
+      token_1_symbol: string;
+      token_0_quote_currency: string;
+      token_1_quote_currency: string;
+    }>(
+      sql`
           SELECT *
           FROM spacebox."supervaults_message_event_instantiate"
           WHERE "contract" = ${request.params.contract}
         `,
-        abortSignal,
-        {
-          cacheTime: 10 * minutes * inMs,
-        }
-      );
-
-      const data = contract.data.at(0);
-      if (!data) {
-        throw new Error('NotFound', { cause: 404 });
+      abortSignal,
+      {
+        cacheTime: 10 * minutes * inMs,
       }
-      const denom0 = data.token_0_denom;
-      const denom1 = data.token_1_denom;
-      const pair0 = `${data.token_0_symbol}-${data.token_0_quote_currency}`;
-      const pair1 = `${data.token_1_symbol}-${data.token_1_quote_currency}`;
+    );
 
-      // get timeseries data height (quick query to determine cache version)
-      const allUpdateHeights = await Promise.all([
-        getCachedResponse<{
-          height: string;
-          time: string;
-        }>(
-          sql`
+    const data = contract.data.at(0);
+    if (!data) {
+      throw new Error('NotFound', { cause: 404 });
+    }
+    const denom0 = data.token_0_denom;
+    const denom1 = data.token_1_denom;
+    const pair0 = `${data.token_0_symbol}-${data.token_0_quote_currency}`;
+    const pair1 = `${data.token_1_symbol}-${data.token_1_quote_currency}`;
+
+    // get timeseries data height (quick query to determine cache version)
+    const allUpdateHeights = await Promise.all([
+      getCachedResponse<{
+        height: string;
+        time: string;
+      }>(
+        sql`
             SELECT
               max(t."height") AS "height",
               argMax("timestamp", t."height") as "time"
@@ -88,13 +87,13 @@ export const route = {
             WHERE "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
         `,
-          abortSignal
-        ),
-        getCachedResponse<{
-          height: string;
-          time: string;
-        }>(
-          sql`
+        abortSignal
+      ),
+      getCachedResponse<{
+        height: string;
+        time: string;
+      }>(
+        sql`
             SELECT
               max(t."height") AS "height",
               argMax("timestamp", t."height") as "time"
@@ -102,13 +101,13 @@ export const route = {
             WHERE "address" = ${request.params.contract}
               AND ("denom" = ${denom0} OR "denom" = ${denom1})
         `,
-          abortSignal
-        ),
-        getCachedResponse<{
-          height: string;
-          time: string;
-        }>(
-          sql`
+        abortSignal
+      ),
+      getCachedResponse<{
+        height: string;
+        time: string;
+      }>(
+        sql`
             SELECT
               max(t."height") AS "height",
               argMax("timestamp", t."height") as "time"
@@ -116,40 +115,40 @@ export const route = {
             WHERE "pair_id" = ${pair0}
               OR "pair_id" = ${pair1}
         `,
-          abortSignal
-        ),
-      ]);
+        abortSignal
+      ),
+    ]);
 
-      const currentHeight = allUpdateHeights
-        .slice()
-        .sort((a, b) => {
-          const rowA = a.data.at(0);
-          const rowB = b.data.at(0);
-          return rowA && rowB
-            ? Number(rowB.height) - Number(rowA.height)
-            : rowA
-            ? -1
-            : 1;
-        })
-        .at(0);
+    const currentHeight = allUpdateHeights
+      .slice()
+      .sort((a, b) => {
+        const rowA = a.data.at(0);
+        const rowB = b.data.at(0);
+        return rowA && rowB
+          ? Number(rowB.height) - Number(rowA.height)
+          : rowA
+          ? -1
+          : 1;
+      })
+      .at(0);
 
-      // get requested time period or default
-      const timePeriods = Number(request.query.periods) || 1;
-      const timePeriod = getTimePeriod(request.query.period as string) || 'day';
-      // get previous query limit
-      const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
-      // get contract start time
-      const timeContractStart = toUnixTime(data.timestamp);
-      // ClickHouse will compare either native strings or Unix timestamps
-      const unixFrom = Math.max(
-        timeContractStart,
-        Number(request.query.from) || 0
-      );
-      const unixTo = Number(request.query.to) || 0;
+    // get requested time period or default
+    const timePeriods = Number(request.query.periods) || 1;
+    const timePeriod = getTimePeriod(request.query.period as string) || 'day';
+    // get previous query limit
+    const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
+    // get contract start time
+    const timeContractStart = toUnixTime(data.timestamp);
+    // ClickHouse will compare either native strings or Unix timestamps
+    const unixFrom = Math.max(
+      timeContractStart,
+      Number(request.query.from) || 0
+    );
+    const unixTo = Number(request.query.to) || 0;
 
-      // get timeseries data
-      return await getCachedResponse<Response & { height: string }, Response>(
-        sql`
+    // get timeseries data
+    return await getCachedResponse<Response & { height: string }, Response>(
+      sql`
         WITH
         -- add fake columns to join the price data across
         -- without some specific ID rows ClickHouse will complain: "ASOF join needs at least one equi-join column"
@@ -580,43 +579,38 @@ export const route = {
         -- cap limit to max, set default if not well defined
         LIMIT ${Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS}
       `,
-        abortSignal,
-        {
-          heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-          getRow: ({ time, tvl_0, tvl_1 }) => ({ time, tvl_0, tvl_1 }),
-          getHeight: (data) =>
-            Number(data.find((row) => Number(row.height) > 0)?.height),
-          getMetadata: (metadata) => {
-            return (
-              metadata
-                // remove height field
-                ?.filter(({ name }) => name !== 'height')
-                // add reserve field denoms
-                ?.map((row) =>
-                  row.name === 'tvl_0'
-                    ? { ...row, units: `${denom0} USD` }
-                    : row
-                )
-                ?.map((row) =>
-                  row.name === 'tvl_1'
-                    ? { ...row, units: `${denom1} USD` }
-                    : row
-                )
-                // add time units, convert tick index units
-                ?.map((row) =>
-                  row.name === 'time'
-                    ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
-                    : { ...row }
-                )
-            );
-          },
-          // flag as complete if there will be no data changes after this
-          isComplete:
-            !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
-          cacheTime: 1 * hours * inMs,
-          cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
-        }
-      );
-    }
-  ),
+      abortSignal,
+      {
+        heartbeat: Number(sourceTableHeight.data.at(0)?.height),
+        getRow: ({ time, tvl_0, tvl_1 }) => ({ time, tvl_0, tvl_1 }),
+        getHeight: (data) =>
+          Number(data.find((row) => Number(row.height) > 0)?.height),
+        getMetadata: (metadata) => {
+          return (
+            metadata
+              // remove height field
+              ?.filter(({ name }) => name !== 'height')
+              // add reserve field denoms
+              ?.map((row) =>
+                row.name === 'tvl_0' ? { ...row, units: `${denom0} USD` } : row
+              )
+              ?.map((row) =>
+                row.name === 'tvl_1' ? { ...row, units: `${denom1} USD` } : row
+              )
+              // add time units, convert tick index units
+              ?.map((row) =>
+                row.name === 'time'
+                  ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
+                  : { ...row }
+              )
+          );
+        },
+        // flag as complete if there will be no data changes after this
+        isComplete:
+          !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
+        cacheTime: 1 * hours * inMs,
+        cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+      }
+    );
+  },
 };

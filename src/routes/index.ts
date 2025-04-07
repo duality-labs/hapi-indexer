@@ -8,6 +8,8 @@ import { route as swapVolumeRoute } from './swap-volume';
 import { route as tradesRoute } from './trades';
 import { route as tvlRoute } from './tvl';
 
+import { GetData, handleResponse } from '../utils/response';
+
 const { NODE_ENV = '' } = process.env;
 
 const developmentRoutes = [...Object.values(debugRoutes)];
@@ -26,17 +28,16 @@ export const routes = [
   ...(NODE_ENV === 'development'
     ? [...developmentRoutes, ...productionRoutes]
     : productionRoutes),
-] as unknown as Array<{
-  method: 'get' | 'post';
-  path: string;
-  handler: () => undefined;
-}>;
+];
 
 export const router = Router();
 
 for (const route of routes) {
-  router[route.method.toLowerCase() as 'get' | 'post'](
+  router[route.method.toLowerCase() === 'post' ? 'post' : 'get'](
     route.path,
-    route.handler
+    // todo: somehow fix the types between Router and handleResponse correctly
+    handleResponse(
+      route.handler as GetData<object, object>
+    ) as unknown as () => undefined
   );
 }

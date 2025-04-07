@@ -1,6 +1,6 @@
 import sql, { raw } from 'sql-template-tag';
 
-import { handleResponse } from '../utils/response';
+import { Route } from '../types';
 import { getCachedResponse } from '../utils/cache-query';
 import {
   getTimePeriod,
@@ -26,30 +26,29 @@ interface Response {
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
 
-export const route = {
+export const route: Route<Request, Response> = {
   method: 'GET',
   path: '/tvl/:denomA/:denomB',
-  handler: handleResponse<Request, Response>(
-    async (request, abortSignal, previousResponse) => {
-      const [denom0, denom1] = [
-        request.params.denomA,
-        request.params.denomB,
-      ].sort();
+  handler: async (request, abortSignal, previousResponse) => {
+    const [denom0, denom1] = [
+      request.params.denomA,
+      request.params.denomB,
+    ].sort();
 
-      const sourceTableHeight = await getCachedResponse<{ height: string }>(
-        sql`
+    const sourceTableHeight = await getCachedResponse<{ height: string }>(
+      sql`
         SELECT max("height") AS "height"
         FROM spacebox."raw_block_results"
       `,
-        abortSignal
-      );
+      abortSignal
+    );
 
-      // get timeseries data height (quick query to determine cache version)
-      const currentHeight = await getCachedResponse<{
-        height: string;
-        time: string;
-      }>(
-        sql`
+    // get timeseries data height (quick query to determine cache version)
+    const currentHeight = await getCachedResponse<{
+      height: string;
+      time: string;
+    }>(
+      sql`
         SELECT
           max(t."height") AS "height",
           argMax("timestamp", t."height") as "time"
@@ -57,33 +56,33 @@ export const route = {
         WHERE "TokenZero" = ${denom0}
           AND "TokenOne" = ${denom1}
       `,
-        abortSignal
-      );
+      abortSignal
+    );
 
-      // get requested time period or default
-      const timePeriods = Number(request.query.periods) || 1;
-      const timePeriod = getTimePeriod(request.query.period as string) || 'day';
-      // get previous query limit
-      const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
-      // get requested times or zero
-      const unixFrom = Number(request.query.from) || 0;
-      const unixTo = Number(request.query.to) || 0;
+    // get requested time period or default
+    const timePeriods = Number(request.query.periods) || 1;
+    const timePeriod = getTimePeriod(request.query.period as string) || 'day';
+    // get previous query limit
+    const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
+    // get requested times or zero
+    const unixFrom = Number(request.query.from) || 0;
+    const unixTo = Number(request.query.to) || 0;
 
-      // get timeseries data
-      return await getCachedResponse<
-        {
-          time: string;
-          height: string;
-          Reserves0: string;
-          Reserves1: string;
-        },
-        {
-          time: string;
-          Reserves0: string;
-          Reserves1: string;
-        }
-      >(
-        sql`
+    // get timeseries data
+    return await getCachedResponse<
+      {
+        time: string;
+        height: string;
+        Reserves0: string;
+        Reserves1: string;
+      },
+      {
+        time: string;
+        Reserves0: string;
+        Reserves1: string;
+      }
+    >(
+      sql`
         WITH
         -- find deltas of each liquidity pool reserves change, the reserve
         -- deltas can be treated as "any reserves" and summed across the pair
@@ -191,43 +190,42 @@ export const route = {
         -- cap limit to max, set default if not well defined
         LIMIT ${Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS}
       `,
-        abortSignal,
-        {
-          heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-          getRow: ({ time, Reserves0, Reserves1 }) => ({
-            time,
-            Reserves0,
-            Reserves1,
-          }),
-          getHeight: (data) =>
-            Number(data.find((row) => Number(row.height) > 0)?.height),
-          getMetadata: (metadata) => {
-            return (
-              metadata
-                // remove height field
-                ?.filter(({ name }) => name !== 'height')
-                // add reserve field denoms
-                ?.map((row) =>
-                  row.name === 'Reserves0' ? { ...row, units: denom0 } : row
-                )
-                ?.map((row) =>
-                  row.name === 'Reserves1' ? { ...row, units: denom1 } : row
-                )
-                // add time units, convert tick index units
-                ?.map((row) =>
-                  row.name === 'time'
-                    ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
-                    : { ...row, type: 'Int32' }
-                )
-            );
-          },
-          // flag as complete if there will be no data changes after this
-          isComplete:
-            !!unixTo && toUnixTime(currentHeight.data.at(0)?.time) > unixTo,
-          cacheTime: 1 * hours * inMs,
-          cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
-        }
-      );
-    }
-  ),
+      abortSignal,
+      {
+        heartbeat: Number(sourceTableHeight.data.at(0)?.height),
+        getRow: ({ time, Reserves0, Reserves1 }) => ({
+          time,
+          Reserves0,
+          Reserves1,
+        }),
+        getHeight: (data) =>
+          Number(data.find((row) => Number(row.height) > 0)?.height),
+        getMetadata: (metadata) => {
+          return (
+            metadata
+              // remove height field
+              ?.filter(({ name }) => name !== 'height')
+              // add reserve field denoms
+              ?.map((row) =>
+                row.name === 'Reserves0' ? { ...row, units: denom0 } : row
+              )
+              ?.map((row) =>
+                row.name === 'Reserves1' ? { ...row, units: denom1 } : row
+              )
+              // add time units, convert tick index units
+              ?.map((row) =>
+                row.name === 'time'
+                  ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
+                  : { ...row, type: 'Int32' }
+              )
+          );
+        },
+        // flag as complete if there will be no data changes after this
+        isComplete:
+          !!unixTo && toUnixTime(currentHeight.data.at(0)?.time) > unixTo,
+        cacheTime: 1 * hours * inMs,
+        cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+      }
+    );
+  },
 };

@@ -1,15 +1,22 @@
 import sql from 'sql-template-tag';
 
-import { handleResponse } from '../utils/response';
+import { Route } from '../types';
 import { getCachedResponse } from '../utils/cache-query';
 import { hours, inMs } from '../utils/units';
 
-export const route = {
+interface Request {
+  Params: { denomA: string; denomB: string };
+}
+interface Response {
+  index: string;
+  reserves_0?: string;
+  reserves_1?: string;
+}
+
+export const route: Route<Request, Response> = {
   method: 'GET',
   path: '/liquidity/:denomA/:denomB',
-  handler: handleResponse<{
-    Params: { denomA: string; denomB: string };
-  }>(async (request, abortSignal, previousResponse) => {
+  handler: async (request, abortSignal, previousResponse) => {
     const [denom0, denom1] = [
       request.params.denomA,
       request.params.denomB,
@@ -91,7 +98,7 @@ export const route = {
         cacheVersion: Number(currentHeight.data.at(0)?.height) ?? undefined,
       }
     );
-  }),
+  },
 };
 
 // note: it is important to user argMax() to query the latest version number

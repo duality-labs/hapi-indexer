@@ -1,6 +1,6 @@
 import sql, { raw } from 'sql-template-tag';
 
-import { handleResponse } from '../utils/response';
+import { Route } from '../types';
 import { getCachedResponse } from '../utils/cache-query';
 import {
   getTimePeriod,
@@ -12,22 +12,28 @@ import {
 
 const LIMIT_ROWS = 10000;
 
-export const route = {
+interface Request {
+  Params: { denomA: string; denomB: string };
+  Query: {
+    from?: string;
+    to?: string;
+    periods?: string;
+    period?: TimePeriod;
+    limit?: string;
+  };
+}
+interface Response {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+export const route: Route<Request, Response> = {
   method: 'GET',
   path: '/price/:denomA/:denomB',
-  handler: handleResponse<
-    {
-      Params: { denomA: string; denomB: string };
-      Query: {
-        from?: string;
-        to?: string;
-        periods?: string;
-        period?: TimePeriod;
-        limit?: string;
-      };
-    },
-    { time: string }
-  >(async (request, abortSignal, previousResponse) => {
+  handler: async (request, abortSignal, previousResponse) => {
     const limit = Number(request.query.limit) || LIMIT_ROWS;
     const [denom0, denom1] = [
       request.params.denomA,
@@ -71,17 +77,7 @@ export const route = {
     const unixTo = Number(request.query.to) || 0;
 
     // get timeseries data
-    return await getCachedResponse<
-      {
-        time: string;
-        open: string;
-        high: string;
-        low: string;
-        close: string;
-        height: string;
-      },
-      { time: string; open: number; high: number; low: number; close: number }
-    >(
+    return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH windowed_table AS (
           WITH
@@ -194,5 +190,5 @@ export const route = {
         cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
       }
     );
-  }),
+  },
 };

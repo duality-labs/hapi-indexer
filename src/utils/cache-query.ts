@@ -66,7 +66,10 @@ function checkCache() {
 }
 
 // add overload type: passing "height" is required to return  "height" property
-export async function getCachedResponse<Row, RowResponse = Row>(
+export async function getCachedResponse<
+  Row extends object,
+  RowResponse extends object = Row
+>(
   query: Sql,
   abortSignal: AbortSignal,
   // require both heartbeat and getHeight() to return data frame data height
@@ -75,12 +78,18 @@ export async function getCachedResponse<Row, RowResponse = Row>(
     getHeight: (array: Row[]) => number;
   }
 ): Promise<ExtendedResponseJSON<RowResponse>>;
-export async function getCachedResponse<Row, RowResponse = Row>(
+export async function getCachedResponse<
+  Row extends object,
+  RowResponse extends object = Row
+>(
   query: Sql,
   abortSignal: AbortSignal,
   options?: ResponseOptions<Row, RowResponse>
 ): Promise<Omit<ExtendedResponseJSON<RowResponse>, 'height' | 'heartbeat'>>;
-export async function getCachedResponse<Row, RowResponse extends Row = Row>(
+export async function getCachedResponse<
+  Row extends object,
+  RowResponse extends object = Row
+>(
   query: Sql,
   abortSignal: AbortSignal,
   {
@@ -138,9 +147,9 @@ export async function getCachedResponse<Row, RowResponse extends Row = Row>(
     heartbeat,
     meta: getMetadata ? getMetadata(response.meta) : response.meta,
     data: getRow
-      ? response.data.flatMap(getRow)
+      ? response.data.flatMap<RowResponse>(getRow)
       : // note: return type may be wrong when RowResponse != Row
-        (response.data as RowResponse[]),
+        (response.data as unknown as RowResponse[]),
     height: getHeight?.(response.data),
     statistics: SHOW_STATISTICS === 'true' ? response.statistics : undefined,
     isComplete,
