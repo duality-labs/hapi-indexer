@@ -7,6 +7,7 @@ import { route as swapVolumeRoute } from './swap-volume';
 import { route as tradesRoute } from './trades';
 import { route as tvlRoute } from './tvl';
 import { route as vaultsTvlRoute } from './vaults/tvl';
+import { route as vaultsSwapVolumeRoute } from './vaults/swap-volume';
 
 import { GetData, handleResponse } from '../utils/response';
 
@@ -20,6 +21,7 @@ const productionRoutes = [
   swapVolumeRoute,
   tradesRoute,
   tvlRoute,
+  vaultsSwapVolumeRoute,
   vaultsTvlRoute,
 ];
 
