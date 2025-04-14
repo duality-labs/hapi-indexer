@@ -9,7 +9,7 @@ import logger from './utils/logger';
 
 import { inMs, minutes } from './utils/units';
 
-import { SingleDocumentJSONFormat } from '@clickhouse/client';
+import { ResponseJSON, SingleDocumentJSONFormat } from '@clickhouse/client';
 import { client } from './utils/client';
 import { router as routes } from './routes';
 
@@ -127,36 +127,59 @@ const init = async () => {
   // add status route
   router.get('/', (req, res) => {
     res.setHeader('content-type', 'application/json');
-    res.end(
-      JSON.stringify({
-        status: 'OK',
-        http2Available: req.httpVersionMajor >= 2,
-        server: {
-          status: serverTimes.started
-            ? 'OK'
-            : serverTimes.starting
-            ? 'STARTING'
-            : 'OFFLINE',
-          since: serverTimes.started?.toISOString(),
-        },
-        upstream: {
-          status: serverTimes.connected
-            ? 'OK'
-            : serverTimes.connecting
-            ? 'CONNECTING'
-            : 'OFFLINE',
-          since: serverTimes.connected?.toISOString(),
-        },
-        indexer: {
-          status: serverTimes.indexed
-            ? 'OK'
-            : serverTimes.indexing
-            ? 'INDEXING'
-            : 'OFFLINE',
-          since: serverTimes.indexed?.toISOString(),
-        },
-      })
-    );
+    new Promise<ResponseJSON<'JSON'>>((resolve, reject) => {
+      // race against timeout
+      const timeout = setTimeout(
+        () => reject(new Error('query time out')),
+        3000
+      );
+      // query DB for status data
+      client
+        .query({
+          query: `--sql
+            SELECT
+              count(*) AS block_count,
+              block_count / (max_height - min_height + 1) AS block_coverage,
+              min("height") AS min_height,
+              max("height") AS max_height,
+              max("timestamp") AS max_time,
+              NOW() AS query_time,
+              query_time - max_time AS lag_time
+            FROM spacebox.raw_block_results
+          `,
+        })
+        .then((data) => data.json<'JSON'>())
+        .then(resolve)
+        .catch(reject)
+        .finally(() => clearTimeout(timeout));
+    })
+      .then((data) => ({ data, error: null }))
+      .catch((error) => ({ error, data: null }))
+      .then(({ data, error }) => {
+        res.end(
+          JSON.stringify({
+            status: 'OK',
+            http2Available: req.httpVersionMajor >= 2,
+            server: {
+              status: serverTimes.started
+                ? 'OK'
+                : serverTimes.starting
+                ? 'STARTING'
+                : 'OFFLINE',
+              since: serverTimes.started?.toISOString(),
+            },
+            db: {
+              query: {
+                ...data,
+                // return single row of data object
+                data: data?.data?.at(0),
+              },
+              error: error?.message,
+              since: serverTimes.connected?.toISOString(),
+            },
+          })
+        );
+      });
   });
 
   const handler = (req: IncomingMessage, res: ServerResponse) => {
