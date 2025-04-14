@@ -7,11 +7,13 @@ import http, { IncomingMessage, Server, ServerResponse } from 'node:http';
 import http2, { Http2SecureServer } from 'node:http2';
 import logger from './utils/logger';
 
-import { inMs, minutes } from './utils/units';
+import { inMs, minutes, seconds } from './utils/units';
 
 import { ResponseJSON, SingleDocumentJSONFormat } from '@clickhouse/client';
 import { client } from './utils/client';
 import { router as routes } from './routes';
+import { getCachedResponse } from './utils/cache-query';
+import sql from 'sql-template-tag';
 
 function safeReadFileText(filename: string) {
   if (filename && fs.existsSync(filename)) {
@@ -127,43 +129,48 @@ const init = async () => {
   // add status route
   router.get('/', (req, res) => {
     res.setHeader('content-type', 'application/json');
-    new Promise<ResponseJSON<'JSON'>>((resolve, reject) => {
-      // race against timeout
-      const timeout = setTimeout(
-        () => reject(new Error('query time out')),
-        3000
-      );
-      // query DB for status data
-      client
-        .query({
-          query: `--sql
-            SELECT
-              count(*) AS block_count,
-              block_count / (max_height - min_height + 1) AS block_coverage,
-              min("height") AS min_height,
-              max("height") AS max_height,
-              max("timestamp") AS max_time,
-              NOW() AS query_time,
-              query_time - max_time AS lag_time
-            FROM spacebox.raw_block_results
-          `,
-        })
-        .then((data) => data.json<'JSON'>())
-        .then(resolve)
-        .catch(reject)
-        .finally(() => clearTimeout(timeout));
-    })
+    new Promise<ResponseJSON<{ block_coverage: number; lag_time: number }>>(
+      (resolve, reject) => {
+        // race against timeout
+        const timeout = setTimeout(
+          () => reject(new Error('query time out')),
+          3000
+        );
+        const abortController = new AbortController();
+        // query DB for status data
+        getCachedResponse<{ block_coverage: number; lag_time: number }>(
+          sql`
+          SELECT
+          count(*) AS block_count,
+          block_count / (max_height - min_height + 1) AS block_coverage,
+          min("height") AS min_height,
+          max("height") AS max_height,
+          max("timestamp") AS max_time,
+          NOW() AS query_time,
+          query_time - max_time AS lag_time
+          FROM spacebox.raw_block_results
+        `,
+          abortController.signal,
+          {
+            cacheTime: 2 * seconds * inMs,
+          }
+        )
+          .then(resolve)
+          .catch(reject)
+          .finally(() => clearTimeout(timeout));
+      }
+    )
       .then((data) => ({ result: data, error: null }))
       .catch((error) => ({ error, result: null }))
       .then(({ result, error }) => {
-        const data = result?.data?.at(0) as
-          | { block_coverage: number; lag_time: number }
-          | undefined;
+        // server status
         const serverStatus = serverTimes.started
           ? 'OK'
           : serverTimes.starting
           ? 'STARTING'
           : 'OFFLINE';
+        // DB status
+        const data = result?.data?.at(0);
         const dbStatus =
           data && data.block_coverage >= 1 && data.lag_time <= 10
             ? 'OK'
@@ -172,7 +179,7 @@ const init = async () => {
             : data && data.lag_time > 10
             ? 'LAGGING_DATA'
             : 'NO_DATA';
-        //  return statuses
+        // return statuses
         res.end(
           JSON.stringify({
             status:
