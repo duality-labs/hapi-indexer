@@ -143,19 +143,20 @@ const init = async () => {
         // query DB for status data
         getCachedResponse<{ block_coverage: number; lag_time: number }>(
           sql`
-          SELECT
-          count(*) AS block_count,
-          block_count / (max_height - min_height + 1) AS block_coverage,
-          min("height") AS min_height,
-          max("height") AS max_height,
-          max("timestamp") AS max_time,
-          NOW() AS query_time,
-          query_time - max_time AS lag_time
-          FROM spacebox.raw_block_results
+            SELECT
+            count(*) AS block_count,
+            block_count / (max_height - min_height + 1) AS block_coverage,
+            min("height") AS min_height,
+            max("height") AS max_height,
+            max("timestamp") AS max_time,
+            NOW() AS query_time,
+            query_time - max_time AS lag_time
+            FROM spacebox.raw_block_results
         `,
           abortController.signal,
           {
             cacheTime: 2 * seconds * inMs,
+            isComplete: true,
           }
         )
           .then(resolve)
@@ -195,7 +196,7 @@ const init = async () => {
             db: {
               status: dbStatus,
               query: {
-                ...result?.data,
+                ...result,
                 // return single row of data object
                 data,
               },
