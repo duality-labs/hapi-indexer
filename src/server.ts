@@ -15,7 +15,7 @@ import { router as routes } from './routes';
 import { getCachedResponse } from './utils/cache-query';
 import sql from 'sql-template-tag';
 
-const MAX_LAG_TIME = 10 * seconds;
+const MAX_LAG_TIME = 60 * seconds;
 const MAX_QUERY_TIME = 3 * seconds;
 
 function safeReadFileText(filename: string) {
