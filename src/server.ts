@@ -153,26 +153,41 @@ const init = async () => {
         .catch(reject)
         .finally(() => clearTimeout(timeout));
     })
-      .then((data) => ({ data, error: null }))
-      .catch((error) => ({ error, data: null }))
-      .then(({ data, error }) => {
+      .then((data) => ({ result: data, error: null }))
+      .catch((error) => ({ error, result: null }))
+      .then(({ result, error }) => {
+        const data = result?.data?.at(0) as
+          | { block_coverage: number; lag_time: number }
+          | undefined;
+        const serverStatus = serverTimes.started
+          ? 'OK'
+          : serverTimes.starting
+          ? 'STARTING'
+          : 'OFFLINE';
+        const dbStatus =
+          data && data.block_coverage >= 1 && data.lag_time <= 10
+            ? 'OK'
+            : data && data.block_coverage < 1
+            ? 'INCOMPLETE_DATA'
+            : data && data.lag_time > 10
+            ? 'LAGGING_DATA'
+            : 'NO_DATA';
+        //  return statuses
         res.end(
           JSON.stringify({
-            status: 'OK',
+            status:
+              serverStatus === 'OK' && dbStatus === 'OK' ? 'OK' : 'NOT_OK',
             http2Available: req.httpVersionMajor >= 2,
             server: {
-              status: serverTimes.started
-                ? 'OK'
-                : serverTimes.starting
-                ? 'STARTING'
-                : 'OFFLINE',
+              status: serverStatus,
               since: serverTimes.started?.toISOString(),
             },
             db: {
+              status: dbStatus,
               query: {
-                ...data,
+                ...result?.data,
                 // return single row of data object
-                data: data?.data?.at(0),
+                data,
               },
               error: error?.message,
               since: serverTimes.connected?.toISOString(),
