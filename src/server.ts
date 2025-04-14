@@ -15,6 +15,9 @@ import { router as routes } from './routes';
 import { getCachedResponse } from './utils/cache-query';
 import sql from 'sql-template-tag';
 
+const MAX_LAG_TIME = 10 * seconds;
+const MAX_QUERY_TIME = 3 * seconds;
+
 function safeReadFileText(filename: string) {
   if (filename && fs.existsSync(filename)) {
     return fs.readFileSync(filename);
@@ -134,7 +137,7 @@ const init = async () => {
         // race against timeout
         const timeout = setTimeout(
           () => reject(new Error('query time out')),
-          3000
+          MAX_QUERY_TIME * inMs
         );
         const abortController = new AbortController();
         // query DB for status data
@@ -172,11 +175,11 @@ const init = async () => {
         // DB status
         const data = result?.data?.at(0);
         const dbStatus =
-          data && data.block_coverage >= 1 && data.lag_time <= 10
+          data && data.block_coverage >= 1 && data.lag_time <= MAX_LAG_TIME
             ? 'OK'
             : data && data.block_coverage < 1
             ? 'INCOMPLETE_DATA'
-            : data && data.lag_time > 10
+            : data && data.lag_time > MAX_LAG_TIME
             ? 'LAGGING_DATA'
             : 'NO_DATA';
         // return statuses
