@@ -21,6 +21,7 @@ interface ResponseOptions<T, U> extends QueryCacheOptions {
   getRow?: (value: T, index: number, array: T[]) => U | U[];
   getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<U>['meta'];
   isComplete?: boolean;
+  showStatistics?: boolean;
 }
 interface QueryCacheOptions {
   cacheKey?: string;
@@ -101,6 +102,7 @@ export async function getCachedResponse<
     cacheKey = JSON.stringify([query.sql, query.values]),
     cacheVersion = 0,
     cacheTime = DEFAULT_CACHE_TIME,
+    showStatistics = SHOW_STATISTICS === 'true',
   }: ResponseOptions<Row, RowResponse> = {}
 ): Promise<ExtendedResponseJSON<RowResponse> | ResponseJSON<RowResponse>> {
   const now = Date.now();
@@ -151,7 +153,7 @@ export async function getCachedResponse<
       : // note: return type may be wrong when RowResponse != Row
         (response.data as unknown as RowResponse[]),
     height: getHeight?.(response.data),
-    statistics: SHOW_STATISTICS === 'true' ? response.statistics : undefined,
+    statistics: showStatistics ? response.statistics : undefined,
     isComplete,
   };
 }

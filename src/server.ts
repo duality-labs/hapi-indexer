@@ -156,7 +156,7 @@ const init = async () => {
           abortController.signal,
           {
             cacheTime: 2 * seconds * inMs,
-            isComplete: true,
+            showStatistics: true,
           }
         )
           .then(resolve)
@@ -196,9 +196,9 @@ const init = async () => {
             db: {
               status: dbStatus,
               query: {
-                ...result,
                 // return single row of data object
                 data,
+                statistics: result?.statistics,
               },
               error: error?.message,
               since: serverTimes.connected?.toISOString(),
