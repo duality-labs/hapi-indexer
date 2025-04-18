@@ -6,7 +6,7 @@ import { route as slinkyRoute } from './slinky';
 import { route as swapVolumeRoute } from './swap-volume';
 import { route as tradesRoute } from './trades';
 import { route as tvlRoute } from './tvl';
-import { route as vaultAprRoute } from './vaults/apr';
+import { route as vaultsAprRoute } from './vaults/apr';
 import { route as vaultsTvlRoute } from './vaults/tvl';
 import { route as vaultsSwapVolumeRoute } from './vaults/swap-volume';
 
@@ -22,7 +22,7 @@ const productionRoutes = [
   swapVolumeRoute,
   tradesRoute,
   tvlRoute,
-  vaultAprRoute,
+  vaultsAprRoute,
   vaultsSwapVolumeRoute,
   vaultsTvlRoute,
 ];
