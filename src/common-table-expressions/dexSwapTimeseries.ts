@@ -187,7 +187,7 @@ export default function dexSwapTimeseries(
           ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
         )
       )
-    SELECT *, *."sort_key"
+    SELECT *, "sort_key"
     FROM address_volumes
     WHERE "address_volume_and_fees" > 0
   `;

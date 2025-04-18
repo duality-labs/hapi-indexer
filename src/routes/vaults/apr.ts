@@ -159,8 +159,8 @@ export const route: Route<Request, Response> = {
         ${pair1} as "quote_pair_one",
         bank_balance_deltas_union AS (${bankReservesDeltasTimeseries(
           data.contract,
-          denom0,
-          denom1
+          data.token_0_denom,
+          data.token_1_denom
         )}),
         address_swap_volume AS (${dexSwapTimeseries(
           data.contract,
@@ -259,13 +259,13 @@ export const route: Route<Request, Response> = {
             "TokenOne",
             -- values
             if (
-              "ReservesZero" > 0 OR "BalanceZero" > 0
-              "FeesZero" / ("ReservesZero" + "BalanceZero"),
+              "ReservesZero" > 0 OR "BalanceZero" > 0,
+              "FeesZero" / ("ReservesZero" + toFloat64("BalanceZero")),
               0
             ) as "AprZero",
             if (
-              "ReservesOne" > 0 OR "BalanceOne" > 0
-              "FeesOne" / ("ReservesOne" + "BalanceOne"),
+              "ReservesOne" > 0 OR "BalanceOne" > 0,
+              "FeesOne" / ("ReservesOne" + toFloat64("BalanceOne")),
               0
             ) as "AprOne"
           FROM amount_timeseries_at_event_with_bank_balance as t
@@ -374,8 +374,8 @@ export const route: Route<Request, Response> = {
           "apr_0_usd",
           "apr_1_usd"
         FROM swap_volume_amount_timeseries
-        WHERE "volume_0_usd" > 0
-            OR "volume_1_usd" > 0
+        WHERE "apr_0_usd" > 0
+            OR "apr_1_usd" > 0
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined

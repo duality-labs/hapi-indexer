@@ -11,7 +11,8 @@ export default function bankReservesDeltasTimeseries(
         SELECT
           "timestamp",
           "height",
-          "sort_key",
+          -- remove coins_index from sort key (no longer needed)
+          ("sort_key".1, "sort_key".2, "sort_key".3, "sort_key".4) as "sort_key",
           -- pool index
           ${denom0} as "TokenZero",
           ${denom1} as "TokenOne",
@@ -27,7 +28,8 @@ export default function bankReservesDeltasTimeseries(
         SELECT
           "timestamp",
           "height",
-          "sort_key",
+          -- remove coins_index from sort key (no longer needed)
+          ("sort_key".1, "sort_key".2, "sort_key".3, "sort_key".4) as "sort_key",
           -- pool index
           ${denom0} as "TokenZero",
           ${denom1} as "TokenOne",

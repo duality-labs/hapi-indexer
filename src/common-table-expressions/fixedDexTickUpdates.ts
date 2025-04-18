@@ -10,15 +10,15 @@ export const selectDexTickUpdatesWithSwapAmountFix = sql`
     PARTITION BY "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee", "TrancheKey"
     -- within the pool index partition, sort by event order
     ORDER BY "height" ASC, "block_part_index" ASC, "tx_index" ASC, "event_index" ASC
-  ) as "PreviousReserves",
-  -- compare this to current row data to get relative state (ReservesDelta) and
-  ("Reserves" - "PreviousReserves") as "ReservesDelta"
+  ) as "PreviousReserves"
   -- use the already derived is_swap field to compute new SwapAmountIn and SwapAmountOut attributes
   SELECT
     -- pass through materialized sort key
     t."sort_key" as "sort_key",
     -- pass through all other fields
     t.*,
+    -- compare this to current row data to get relative state (ReservesDelta) and
+    (t."Reserves" - "PreviousReserves") as "ReservesDelta",
     -- attach fixed computed fields
     if (
       t."SwapAmountOut" > 0,
