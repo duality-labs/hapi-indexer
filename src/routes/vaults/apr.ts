@@ -57,7 +57,7 @@ export const route: Route<Request, Response> = {
     }>(
       sql`
           SELECT *
-          FROM spacebox."supervaults_message_event_instantiate"
+          FROM spacebox."dex_vaults_message_event_instantiate"
           WHERE "contract" = ${request.params.contract}
         `,
       abortSignal,
