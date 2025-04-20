@@ -109,8 +109,8 @@ export const selectVaultConfigs = sql`
                 ) as "token_1_decimals"
             FROM vault_configs
         ),
-        "token_order"[1] as "token_a",
-        "token_order"[2] as "token_b"
+        filled_vault_configs."token_order"[1] as "token_a",
+        filled_vault_configs."token_order"[2] as "token_b"
     -- finally normalize the data to the correct side
     SELECT
         "height",
@@ -160,6 +160,8 @@ export const selectVaultConfigs = sql`
             "token_1_quote_currency"
         ) as "token_b_quote_currency",
         "max_blocks_stale_token_b" as "token_b_max_blocks_stale",
+        -- pass through token_0 / token_1 order to end users
+        splitByString('<>', "pool_id") as "token_order",
         "pool_id",
         "deposit_cap",
         "oracle_contract",

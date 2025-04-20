@@ -55,6 +55,7 @@ export const route: Route<Request, Response> = {
           "token_b_symbol",
           "token_b_quote_currency",
           "token_b_max_blocks_stale",
+          "token_order",
           "pool_id",
           "deposit_cap",
           "oracle_contract",
