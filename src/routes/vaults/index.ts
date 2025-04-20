@@ -62,6 +62,7 @@ export const route: Route<Request, Response> = {
           "imbalance",
           "fee_tier_config",
           "timestamp_stale",
+          "paused",
           "denom"
         FROM (${selectVaultConfigs})
         -- TODO: join amount of tokens on either side, on dex or not (this will be approximate TVL)

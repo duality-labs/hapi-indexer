@@ -169,6 +169,7 @@ export const selectVaultConfigs = sql`
         "imbalance",
         "fee_tier_config",
         "timestamp_stale",
+        "paused",
         "denom"
     FROM filled_vault_configs
 `;
