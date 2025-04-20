@@ -113,6 +113,7 @@ export const selectVaultConfigs = sql`
         filled_vault_configs."token_order"[2] as "token_b"
     -- finally normalize the data to the correct side
     SELECT
+        *,
         "height",
         "timestamp",
         "contract_address",
