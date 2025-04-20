@@ -108,6 +108,64 @@ export const selectVaultConfigs = sql`
                     )
                 ) as "token_1_decimals"
             FROM vault_configs
-        )
-    SELECT * FROM filled_vault_configs
+        ),
+        "token_order"[1] as "token_a",
+        "token_order"[2] as "token_b"
+    -- finally normalize the data to the correct side
+    SELECT
+        "height",
+        "timestamp",
+        "contract_address",
+        "owner",
+        "max_blocks_stale_token_b" as "token_b_max_blocks_stale",
+        if(
+            "token_0_symbol" = "token_a",
+            "token_0_denom",
+            "token_1_denom"
+        ) as "token_a_denom",
+        if(
+            "token_0_symbol" = "token_a",
+            "token_0_decimals",
+            "token_1_decimals"
+        ) as "token_a_decimals",
+        if(
+            "token_0_symbol" = "token_a",
+            "token_0_symbol",
+            "token_1_symbol"
+        ) as "token_a_symbol",
+        if(
+            "token_0_symbol" = "token_a",
+            "token_0_quote_currency",
+            "token_1_quote_currency"
+        ) as "token_a_quote_currency",
+        "max_blocks_stale_token_a" as "token_a_max_blocks_stale",
+        if(
+            "token_0_symbol" = "token_b",
+            "token_0_denom",
+            "token_1_denom"
+        ) as "token_b_denom",
+        if(
+            "token_0_symbol" = "token_b",
+            "token_0_decimals",
+            "token_1_decimals"
+        ) as "token_b_decimals",
+        if(
+            "token_0_symbol" = "token_b",
+            "token_0_symbol",
+            "token_1_symbol"
+        ) as "token_b_symbol",
+        if(
+            "token_0_symbol" = "token_b",
+            "token_0_quote_currency",
+            "token_1_quote_currency"
+        ) as "token_b_quote_currency",
+        "max_blocks_stale_token_b" as "token_b_max_blocks_stale",
+        "pool_id",
+        "deposit_cap",
+        "oracle_contract",
+        "imbalance",
+        "fee_tier_config",
+        "timestamp_stale",
+        "denom"
+    FROM filled_vault_configs
 `;
