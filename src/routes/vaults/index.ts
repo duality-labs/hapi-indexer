@@ -3,6 +3,7 @@ import sql from 'sql-template-tag';
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import { hours, inMs } from '../../utils/units';
+import { selectVaultConfigs } from '../../common-table-expressions/vaultConfigs';
 
 interface Request {
   params: { contract: string };
@@ -42,8 +43,7 @@ export const route: Route<Request, Response> = {
         SELECT
           "height",
           "timestamp" AS "time",
-          "code_id" as "instantiate_code_id",
-          "contract",
+          "contract_address",
           "owner",
           "max_blocks_stale_token_a",
           "max_blocks_stale_token_b",
@@ -59,11 +59,9 @@ export const route: Route<Request, Response> = {
           "imbalance",
           "fee_tier_config",
           "timestamp_stale",
-          "denom"."new_token_denom" as "vault_denom"
-        FROM spacebox."dex_vaults_message_event_instantiate" as "init"
-        INNER JOIN spacebox."dex_vaults_message_event_create_denom" as "denom"
-          ON "init"."contract" = "denom"."contract"
-        -- TODO: join to vault updates tabel to get the latest state of the vault
+          "denom"
+        FROM (${selectVaultConfigs})
+        -- TODO: join amount of tokens on either side, on dex or not (this will be approximate TVL)
         ${
           previousResponse
             ? // if this is an incremental update, get changes since known height
