@@ -42,7 +42,8 @@ export const route: Route<Request, Response> = {
       sql`
         SELECT
           "height",
-          "timestamp" AS "time",
+          "created_at",
+          "updated_at",
           "contract_address",
           "owner",
           "token_a_denom",
@@ -76,7 +77,7 @@ export const route: Route<Request, Response> = {
               sql``
         }
         -- default sort reverse chronologically
-        ORDER BY "time" DESC
+        ORDER BY "created_at" DESC
         -- cap limit to max, set default if not well defined
         LIMIT ${Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS}
       `,
@@ -94,7 +95,7 @@ export const route: Route<Request, Response> = {
               ?.filter(({ name }) => name !== 'height')
               // add time units
               ?.map((row) =>
-                row.name === 'time'
+                row.name === 'created_at' || row.name === 'updated_at'
                   ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
                   : row
               )

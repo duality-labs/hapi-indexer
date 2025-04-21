@@ -6,7 +6,8 @@ export const selectVaultConfigs = sql`
     WITH
         event_with_maybe_related_contract_attributes AS (
             SELECT
-                argMax(updated."timestamp", updated."height") as "timestamp",
+                argMax(initial."timestamp", initial."height") as "created_at",
+                argMax(updated."timestamp", updated."height") as "updated_at",
                 argMax(updated."height", updated."height") as "height",
                 argMax(updated."txhash", updated."height") as "txhash",
                 argMax(updated."event_index", updated."height") as "event_index",
@@ -43,8 +44,9 @@ export const selectVaultConfigs = sql`
         ),
         vault_configs AS (
             SELECT
-                "timestamp",
                 "height",
+                "created_at",
+                "updated_at",
                 "txhash",
                 "event_index",
                 "contract_address",
@@ -115,7 +117,8 @@ export const selectVaultConfigs = sql`
     SELECT
         *,
         "height",
-        "timestamp",
+        "created_at",
+        "updated_at",
         "contract_address",
         "owner",
         "max_blocks_stale_token_b" as "token_b_max_blocks_stale",
