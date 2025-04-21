@@ -32,7 +32,7 @@ export const route: Route<Request, Response> = {
     const currentHeight = await getCachedResponse<{ height: string }>(
       sql`
           SELECT max("height") AS "height"
-          FROM spacebox."dex_vaults_message_event_create_denom"
+          FROM spacebox."dex_vaults_config_tx_event"
         `,
       abortSignal
     );
