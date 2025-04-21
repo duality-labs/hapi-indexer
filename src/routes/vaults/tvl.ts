@@ -354,8 +354,12 @@ export const route: Route<Request, Response> = {
             toFloat64(amounts."BalanceOne") as "BalanceOne",
             amounts."ReservesZero" as "ReservesZero",
             amounts."ReservesOne" as "ReservesOne",
-            toFloat64(p0."price") * exp10(-p0."decimals") * ("ReservesZero" + "BalanceZero") as "tvl_0",
-            toFloat64(p1."price") * exp10(-p1."decimals") * ("ReservesOne" + "BalanceOne") as "tvl_1"
+            toFloat64(p0."price") * exp10(-(${
+              token0.decimals
+            } + p0."decimals")) * ("ReservesZero" + "BalanceZero") as "tvl_0",
+            toFloat64(p1."price") * exp10(-(${
+              token1.decimals
+            } + p1."decimals")) * ("ReservesOne" + "BalanceOne") as "tvl_1"
           FROM filled_amount_timeseries_of_period as amounts
           -- join to closest available price or token zero
           ASOF LEFT JOIN grouped_prices as p0
@@ -395,10 +399,14 @@ export const route: Route<Request, Response> = {
               ?.filter(({ name }) => name !== 'height')
               // add reserve field denoms
               ?.map((row) =>
-                row.name === 'tvl_0' ? { ...row, units: `${denom0} USD` } : row
+                row.name === 'tvl_0'
+                  ? { ...row, units: token0.quoteCurrency }
+                  : row
               )
               ?.map((row) =>
-                row.name === 'tvl_1' ? { ...row, units: `${denom1} USD` } : row
+                row.name === 'tvl_1'
+                  ? { ...row, units: token1.quoteCurrency }
+                  : row
               )
               // add time units, convert tick index units
               ?.map((row) =>
