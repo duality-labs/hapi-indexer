@@ -31,7 +31,7 @@ export const route: Route<Request, Response> = {
     const currentHeight = await getCachedResponse<{ height: string }>(
       sql`
           SELECT max("height") AS "height"
-          FROM spacebox."dex_vault_shares"
+          FROM spacebox."dex_vaults_shares"
         `,
       abortSignal
     );
@@ -40,13 +40,13 @@ export const route: Route<Request, Response> = {
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
-          dex_vault_shares_updates as (
+          dex_vaults_shares_updates as (
             SELECT
               "height",
               "sort_key",
               "contract_address",
               "total_shares"
-            FROM spacebox."dex_vault_shares"
+            FROM spacebox."dex_vaults_shares"
             ${
               previousResponse
                 ? // if this is an incremental update, get changes since known height
@@ -62,7 +62,7 @@ export const route: Route<Request, Response> = {
               argMax("height", "sort_key") AS "height",
               "contract_address",
               argMax("total_shares", "sort_key") AS "total_shares"
-            FROM dex_vault_shares_updates
+            FROM dex_vaults_shares_updates
             GROUP BY "contract_address"
           )
         SELECT
