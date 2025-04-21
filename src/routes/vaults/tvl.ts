@@ -12,6 +12,10 @@ import {
 } from '../../utils/units';
 import dexReservesTimeseries from '../../common-table-expressions/dexReservesTimeseries';
 import bankReservesTimeseries from '../../common-table-expressions/bankReservesTimeseries';
+import {
+  selectVaultConfigs,
+  VaultResponse,
+} from '../../common-table-expressions/vaultConfigs';
 
 interface Request {
   params: { contract: string };
@@ -44,36 +48,45 @@ export const route: Route<Request, Response> = {
     );
 
     // get timeseries data height (quick query to determine cache version)
-    const contract = await getCachedResponse<{
-      timestamp: string;
-      height: string;
-      contract: string;
-      token_0_denom: string;
-      token_1_denom: string;
-      token_0_symbol: string;
-      token_1_symbol: string;
-      token_0_quote_currency: string;
-      token_1_quote_currency: string;
-    }>(
+    const contractResponse = await getCachedResponse<VaultResponse>(
       sql`
           SELECT *
-          FROM spacebox."dex_vaults_message_event_instantiate"
-          WHERE "contract" = ${request.params.contract}
+          FROM (${selectVaultConfigs})
+          WHERE "contract_address" = ${request.params.contract}
         `,
       abortSignal,
       {
-        cacheTime: 10 * minutes * inMs,
+        cacheTime: 1 * minutes * inMs,
       }
     );
 
-    const data = contract.data.at(0);
+    const data = contractResponse.data.at(0);
     if (!data) {
       throw new Error('NotFound', { cause: 404 });
     }
-    const denom0 = data.token_0_denom;
-    const denom1 = data.token_1_denom;
-    const pair0 = `${data.token_0_symbol}-${data.token_0_quote_currency}`;
-    const pair1 = `${data.token_1_symbol}-${data.token_1_quote_currency}`;
+    const contract = data.contract_address;
+    const hasTokensReversed = data.token_order[0] !== data.token_a_denom;
+    const tokenA = {
+      denom: data.token_a_denom,
+      decimals: data.token_a_decimals,
+      maxBlocksStale: data.token_a_max_blocks_stale,
+      symbol: data.token_a_symbol,
+      quoteCurrency: data.token_a_quote_currency,
+    };
+    const tokenB = {
+      denom: data.token_b_denom,
+      decimals: data.token_b_decimals,
+      maxBlocksStale: data.token_b_max_blocks_stale,
+      symbol: data.token_b_symbol,
+      quoteCurrency: data.token_b_quote_currency,
+    };
+    const token0 = hasTokensReversed ? tokenB : tokenA;
+    const token1 = hasTokensReversed ? tokenA : tokenB;
+
+    const denom0 = token0.denom;
+    const denom1 = token1.denom;
+    const pair0 = `${token0.symbol}-${token0.quoteCurrency}`;
+    const pair1 = `${token1.symbol}-${token1.quoteCurrency}`;
 
     // get timeseries data height (quick query to determine cache version)
     const allUpdateHeights = await Promise.all([
@@ -140,7 +153,7 @@ export const route: Route<Request, Response> = {
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get contract start time
-    const timeContractStart = toUnixTime(data.timestamp);
+    const timeContractStart = toUnixTime(data.created_at);
     // ClickHouse will compare either native strings or Unix timestamps
     const unixFrom = Math.max(
       timeContractStart,
@@ -158,9 +171,9 @@ export const route: Route<Request, Response> = {
         ${pair0} as "quote_pair_zero",
         ${pair1} as "quote_pair_one",
         cumulative_bank_balances AS (${bankReservesTimeseries(
-          data.contract,
-          data.token_0_denom,
-          data.token_1_denom
+          contract,
+          denom0,
+          denom1
         )}),
         cumulative_bank_balances_at_height AS (
           SELECT
@@ -185,9 +198,9 @@ export const route: Route<Request, Response> = {
           WHERE "row_order" = 1
         ),
         cumulative_vault_reserves AS (${dexReservesTimeseries(
-          data.contract,
-          data.token_0_denom,
-          data.token_1_denom
+          contract,
+          denom0,
+          denom1
         )}),
         -- perform cumulative sum across reserves of all pools within the pair
         cumulative_vault_reserves_at_height AS (
