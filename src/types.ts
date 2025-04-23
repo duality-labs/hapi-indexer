@@ -12,5 +12,7 @@ export type Route<
 > = {
   method: 'get' | 'post';
   path: string;
-  handler: GetData<RequestPayload, ResponsePayload>;
+  handler:
+    | GetData<RequestPayload, ResponsePayload>
+    | Record<string, GetData<RequestPayload, ResponsePayload>>;
 };
