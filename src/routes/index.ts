@@ -12,7 +12,8 @@ import { route as vaultsAprRoute } from './vaults/apr';
 import { route as vaultsTvlRoute } from './vaults/tvl';
 import { route as vaultsSwapVolumeRoute } from './vaults/swap-volume';
 
-import { GetData, handleResponse } from '../utils/response';
+import { handleResponse } from '../utils/response';
+import { Route } from '../types';
 
 const { NODE_ENV = '' } = process.env;
 
@@ -40,12 +41,13 @@ export const routes = [
 
 export const router = Router();
 
-for (const route of routes) {
+// todo: somehow fix the types between Router and handleResponse correctly
+for (const route of routes as Route<object, object>[]) {
   router[route.method](
     route.path,
-    // todo: somehow fix the types between Router and handleResponse correctly
     handleResponse(
-      route.handler as GetData<object, object>
+      route.handler,
+      route.handleAdditionalStreams
     ) as unknown as () => undefined
   );
 }
