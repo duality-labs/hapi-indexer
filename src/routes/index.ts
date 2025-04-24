@@ -47,6 +47,7 @@ for (const route of routes as Route<object, object>[]) {
     route.path,
     handleResponse(
       route.handler,
+      route.updateState,
       route.handleAdditionalStreams
     ) as unknown as () => undefined
   );

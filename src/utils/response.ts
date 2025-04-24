@@ -44,12 +44,22 @@ export function formatChunk({
 
 export function handleResponse<
   RequestPayload extends BaseRequestPayload,
-  ResponsePayload extends BaseResponsePayload
+  ResponsePayload extends BaseResponsePayload,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  AdditionalStreams extends Record<string, GetData<any, any>> = Record<
+    string,
+    never
+  >
 >(
   getData: GetData<RequestPayload, ResponsePayload>,
-  additionalStreams?: (
-    queryParams: RequestPayload['query']
-  ) => Record<string, GetData<RequestPayload, ResponsePayload>>
+  updateState?: (
+    state: ResponsePayload[],
+    dataUpdates: ResponsePayload[]
+  ) => ResponsePayload[],
+  getAdditionalStreams?: (
+    request: RequestPayload,
+    state: ExtendedResponseJSON<ResponsePayload>
+  ) => AdditionalStreams
 ) {
   return async (
     req: ExtendedRequest<RequestPayload['params'], RequestPayload['query']>,
@@ -89,139 +99,155 @@ export function handleResponse<
           })
         );
 
-        const getDataWithLabels = {
-          ...additionalStreams?.(req.query),
-          [additionalStreams ? 'main' : '']: getData,
-        };
-
-        await Promise.all(
-          Object.entries(getDataWithLabels).map(async ([label, getData]) => {
-            const getLabel = (height?: number) =>
-              [
-                label ? `label: ${label}` : '',
-                height ? `height: ${height}` : '',
-              ]
-                .filter(Boolean)
-                .join(', ');
-
-            // get initial data
-            const initialData = await getData(
-              reqPayload,
-              abortController.signal
-            );
-            if (initialData.meta) {
-              res.write(
-                formatChunk({
-                  event: 'metadata',
-                  id: getLabel(),
-                  data: JSON.stringify(initialData.meta),
-                })
-              );
-            }
-            res.write(
-              formatChunk({
-                event: 'data',
-                id: getLabel(initialData.height),
-                data: JSON.stringify(initialData.data),
-              })
-            );
-            // add stats info if available
-            if (initialData.statistics) {
-              res.write(
-                formatChunk({
-                  event: 'statistics',
-                  id: getLabel(initialData.height),
-                  data: JSON.stringify(initialData.statistics),
-                })
-              );
-            }
-
-            let lastResult = initialData;
-            while (!abortController.signal.aborted && !lastResult.isComplete) {
-              // wait for next update data change
-              try {
-                const newResultData = await getData(
-                  reqPayload,
-                  abortController.signal,
-                  lastResult
-                );
-                // find data updates
-                const newRows =
-                  !isEqual(lastResult.data, newResultData.data) &&
-                  newResultData.data.filter((newRow) => {
-                    return !lastResult.data.some((row) => isEqual(row, newRow));
-                  });
-                // write data chunk if updates are found
-                if (newRows && newRows.length > 0) {
-                  res.write(
-                    formatChunk({
-                      event: 'data',
-                      id: getLabel(newResultData.height),
-                      // send unsent rows only
-                      data: JSON.stringify(newRows),
-                    })
-                  );
-                  // add stats info if available
-                  if (newResultData.statistics) {
-                    res.write(
-                      formatChunk({
-                        event: 'statistics',
-                        id: getLabel(newResultData.height),
-                        data: JSON.stringify(newResultData.statistics),
-                      })
-                    );
-                  }
-                }
-                // send heartbeat data to report changes in source data height
-                else if (
-                  !isEqual(lastResult.heartbeat, newResultData.heartbeat)
-                ) {
-                  res.write(
-                    formatChunk({
-                      event: 'heartbeat',
-                      id: getLabel(newResultData.heartbeat),
-                    })
-                  );
-                  // add stats info if available
-                  if (newResultData.statistics) {
-                    res.write(
-                      formatChunk({
-                        event: 'statistics',
-                        id: getLabel(newResultData.heartbeat),
-                        data: JSON.stringify(newResultData.statistics),
-                      })
-                    );
-                  }
-                }
-                // save new data to compare against
-                // note that incremental updates may have 0 rows, in which case
-                // they may have 0 height, so pass the last known height along
-                lastResult = {
-                  ...newResultData,
-                  height: newResultData.height || lastResult.height,
-                };
-                // wait a bit
-                await new Promise((resolve) => setTimeout(resolve, 100));
-              } catch (err) {
-                logger.error(`SSE update error: ${err}`);
-                // send error event to user
-                if (res.writable) {
-                  // send error only if it wasn't an aborted request
-                  if (!abortController.signal.aborted) {
-                    res.write(
-                      formatChunk({
-                        event: 'error',
-                        data: (err as Error)?.message ?? `${err}`,
-                      })
-                    );
-                  }
-                }
-                // exit loop, likely getData has failed somehow
-                break;
-              }
-            }
+        // get initial data
+        const initialData = await getData(reqPayload, abortController.signal);
+        if (initialData.meta) {
+          res.write(
+            formatChunk({
+              event: 'metadata',
+              data: JSON.stringify(initialData.meta),
+            })
+          );
+        }
+        res.write(
+          formatChunk({
+            event: 'data',
+            id: `height: ${initialData.height}`,
+            data: JSON.stringify(initialData.data),
           })
         );
+        // add stats info if available
+        if (initialData.statistics) {
+          res.write(
+            formatChunk({
+              event: 'statistics',
+              id: `height: ${initialData.height}`,
+              data: JSON.stringify(initialData.statistics),
+            })
+          );
+        }
+
+        let state: ExtendedResponseJSON<ResponsePayload> = initialData;
+        const lastResults: Record<
+          string,
+          ExtendedResponseJSON<ResponsePayload>
+        > = { '': initialData };
+        while (
+          !abortController.signal.aborted &&
+          !lastResults['']?.isComplete
+        ) {
+          state = {
+            ...lastResults[''],
+            data:
+              updateState?.(state.data, lastResults[''].data) ||
+              lastResults[''].data,
+          };
+          const getDataWithRouteLabels = {
+            '': getData,
+            ...getAdditionalStreams?.(reqPayload, state),
+          };
+
+          // wait for next update data change
+          try {
+            await Promise.all(
+              Object.entries(getDataWithRouteLabels).map(
+                async ([route, getData]) => {
+                  const getLabel = (height?: number) =>
+                    [
+                      route ? `route: ${route}` : '',
+                      height ? `height: ${height}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(', ');
+
+                  const lastResult:
+                    | ExtendedResponseJSON<ResponsePayload>
+                    | undefined = lastResults[route];
+                  const newResultData = await getData(
+                    reqPayload,
+                    abortController.signal,
+                    lastResult
+                  );
+                  // find data updates
+                  const newRows =
+                    !isEqual(lastResult?.data, newResultData.data) &&
+                    newResultData.data.filter((newRow) => {
+                      return !lastResult?.data.some((row) =>
+                        isEqual(row, newRow)
+                      );
+                    });
+                  // write data chunk if updates are found
+                  if (newRows && newRows.length > 0) {
+                    res.write(
+                      formatChunk({
+                        event: 'data',
+                        id: getLabel(newResultData.height),
+                        // send unsent rows only
+                        data: JSON.stringify(newRows),
+                      })
+                    );
+                    // add stats info if available
+                    if (newResultData.statistics) {
+                      res.write(
+                        formatChunk({
+                          event: 'statistics',
+                          id: getLabel(newResultData.height),
+                          data: JSON.stringify(newResultData.statistics),
+                        })
+                      );
+                    }
+                  }
+                  // send heartbeat data to report changes in source data height
+                  else if (
+                    !isEqual(lastResult?.heartbeat, newResultData.heartbeat)
+                  ) {
+                    res.write(
+                      formatChunk({
+                        event: 'heartbeat',
+                        id: getLabel(newResultData.heartbeat),
+                      })
+                    );
+                    // add stats info if available
+                    if (newResultData.statistics) {
+                      res.write(
+                        formatChunk({
+                          event: 'statistics',
+                          id: getLabel(newResultData.heartbeat),
+                          data: JSON.stringify(newResultData.statistics),
+                        })
+                      );
+                    }
+                  }
+                  // save new data to compare against
+                  // note that incremental updates may have 0 rows, in which case
+                  // they may have 0 height, so pass the last known height along
+                  lastResults[route] = {
+                    ...newResultData,
+                    height: newResultData.height || lastResult?.height || NaN,
+                  };
+                  // wait a bit
+                  await new Promise((resolve) => setTimeout(resolve, 100));
+                }
+              )
+            );
+          } catch (err) {
+            logger.error(`SSE update error: ${err}`);
+            // send error event to user
+            if (res.writable) {
+              // send error only if it wasn't an aborted request
+              if (!abortController.signal.aborted) {
+                res.write(
+                  formatChunk({
+                    event: 'error',
+                    data: (err as Error)?.message ?? `${err}`,
+                  })
+                );
+              }
+            }
+            // exit loop, likely getData has failed somehow
+            break;
+          }
+        }
 
         // cancel request to DB if not yet cancelled
         if (!abortController.signal.aborted) {
