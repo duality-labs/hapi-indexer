@@ -4,11 +4,23 @@ import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import { hours, inMs } from '../../utils/units';
 import { selectVaultConfigs } from '../../common-table-expressions/vaultConfigs';
+import {
+  route as tvlRoute,
+  Request as TvlRequest,
+  Response as TvlResponse,
+} from './tvl';
+import {
+  route as sharesRoute,
+  Request as SharesRequest,
+  Response as SharesResponse,
+} from './shares';
+import { GetData } from '../../utils/response';
 
 interface Request {
   params: { contract: string };
   query: {
     limit?: string;
+    with?: string;
   };
 }
 interface Response {
@@ -40,7 +52,14 @@ interface Response {
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
 
-export const route: Route<Request, Response> = {
+export const route: Route<
+  Request,
+  Response,
+  {
+    tvl?: GetData<TvlRequest, TvlResponse>;
+    shares?: GetData<SharesRequest, SharesResponse>;
+  }
+> = {
   method: 'get',
   path: '/vaults',
   handler: async (request, abortSignal, previousResponse) => {
@@ -128,5 +147,60 @@ export const route: Route<Request, Response> = {
         cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
       }
     );
+  },
+  updateState: (state: Response[], dataUpdates: Response[]) => {
+    return dataUpdates.reduce((state, vaultUpdate) => {
+      return state.map((vault) => {
+        // return updated vault
+        return vault.contract_address === vaultUpdate.contract_address
+          ? vaultUpdate
+          : vault;
+      });
+    }, state);
+  },
+  handleAdditionalStreams: ({ query }, routeResults) => {
+    const streams = query.with?.split(',') || [];
+    return {
+      ...(streams.includes('tvl') &&
+        Object.fromEntries(
+          routeResults.data.map((vault) => {
+            const route = `/vaults/tvl/${vault.contract_address}?limit=1`;
+            const getData: GetData<TvlRequest, TvlResponse> = (
+              _request,
+              abortSignal,
+              previousResponse
+            ) =>
+              tvlRoute.handler(
+                {
+                  params: { contract: vault.contract_address },
+                  query: { limit: '1' },
+                },
+                abortSignal,
+                previousResponse
+              );
+            return [route, getData];
+          }) || []
+        )),
+      ...(streams.includes('shares') &&
+        Object.fromEntries(
+          routeResults.data.map((vault) => {
+            const route = `/vaults/shares/${vault.contract_address}?limit=1`;
+            const getData: GetData<SharesRequest, SharesResponse> = (
+              _request,
+              abortSignal,
+              previousResponse
+            ) =>
+              sharesRoute.handler(
+                {
+                  params: { contract: vault.contract_address },
+                  query: { limit: '1' },
+                },
+                abortSignal,
+                previousResponse
+              );
+            return [route, getData];
+          }) || []
+        )),
+    };
   },
 };

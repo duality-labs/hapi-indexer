@@ -4,13 +4,13 @@ import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import { hours, inMs } from '../../utils/units';
 
-interface Request {
+export interface Request {
   params: { contract: string };
   query: {
     limit?: string;
   };
 }
-interface Response {
+export interface Response {
   time: string;
 }
 const DEFAULT_ROWS = 100;

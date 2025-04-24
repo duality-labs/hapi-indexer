@@ -17,7 +17,7 @@ import {
   VaultResponse,
 } from '../../common-table-expressions/vaultConfigs';
 
-interface Request {
+export interface Request {
   params: { contract: string };
   query: {
     from?: string;
@@ -27,7 +27,7 @@ interface Request {
     limit?: string;
   };
 }
-interface Response {
+export interface Response {
   time: string;
   tvl_0: number;
   tvl_1: number;
