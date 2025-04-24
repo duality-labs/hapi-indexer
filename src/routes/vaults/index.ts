@@ -13,6 +13,29 @@ interface Request {
 }
 interface Response {
   time: string;
+  created_at: string;
+  updated_at: string;
+  contract_address: string;
+  owner: string[];
+  token_a_denom: string;
+  token_a_decimals: number;
+  token_a_symbol: string;
+  token_a_quote_currency: string;
+  token_a_max_blocks_stale: string;
+  token_b_denom: string;
+  token_b_decimals: number;
+  token_b_symbol: string;
+  token_b_quote_currency: string;
+  token_b_max_blocks_stale: string;
+  token_order: string[];
+  pool_id: string;
+  deposit_cap: string;
+  oracle_contract: string;
+  imbalance: string;
+  fee_tier_config: string;
+  timestamp_stale: string;
+  paused: false;
+  denom: string;
 }
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
