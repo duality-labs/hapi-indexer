@@ -18,7 +18,7 @@ const MAX_ROWS = 1000;
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/vaults/shares',
+  path: '/vaults/shares/{contract}',
   handler: async (request, abortSignal, previousResponse) => {
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`
@@ -44,32 +44,32 @@ export const route: Route<Request, Response> = {
             SELECT
               "height",
               "sort_key",
-              "contract_address",
               "total_shares"
             FROM spacebox."dex_vaults_shares"
+            WHERE "contract_address" = ${request.params.contract}
             ${
               previousResponse
                 ? // if this is an incremental update, get changes since known height
                   sql`
-                    WHERE "height" > ${previousResponse.height}
+                    AND "height" > ${previousResponse.height}
                   `
                 : // else return all
                   sql``
             }
+            -- default sort reverse chronologically
+            ORDER BY "sort_key" DESC
           ),
-          latest_shares as (
+          dex_vaults_shares_updates_grouped_to_height as (
             SELECT
-              argMax("height", "sort_key") AS "height",
-              "contract_address",
+              "height",
               argMax("total_shares", "sort_key") AS "total_shares"
             FROM dex_vaults_shares_updates
-            GROUP BY "contract_address"
+            GROUP BY "height"
           )
         SELECT
           "height",
-          "contract_address",
           "total_shares"
-        FROM latest_shares
+        FROM dex_vaults_shares_updates_grouped_to_height
         -- default sort reverse chronologically
         ORDER BY "height" DESC
         -- cap limit to max, set default if not well defined
