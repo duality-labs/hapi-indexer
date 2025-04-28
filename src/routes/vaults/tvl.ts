@@ -379,8 +379,6 @@ export const route: Route<Request, Response> = {
           "tvl_0",
           "tvl_1"
         FROM tvl_amount_timeseries
-        WHERE "tvl_0" > 0
-            OR "tvl_1" > 0
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined
