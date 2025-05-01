@@ -12,6 +12,10 @@ import {
 } from '../../utils/units';
 import dexSwapTimeseries from '../../common-table-expressions/dexSwapTimeseries';
 import bankReservesDeltasTimeseries from '../../common-table-expressions/bankReservesDeltas';
+import {
+  selectVaultConfigs,
+  VaultResponse,
+} from '../../common-table-expressions/vaultConfigs';
 
 export interface Request {
   params: { contract: string };
@@ -25,8 +29,8 @@ export interface Request {
 }
 export interface Response {
   time: string;
-  apr_0_usd: number;
-  apr_1_usd: number;
+  apr_0: number;
+  apr_1: number;
 }
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
@@ -44,36 +48,45 @@ export const route: Route<Request, Response> = {
     );
 
     // get timeseries data height (quick query to determine cache version)
-    const contract = await getCachedResponse<{
-      timestamp: string;
-      height: string;
-      contract: string;
-      token_0_denom: string;
-      token_1_denom: string;
-      token_0_symbol: string;
-      token_1_symbol: string;
-      token_0_quote_currency: string;
-      token_1_quote_currency: string;
-    }>(
+    const contractResponse = await getCachedResponse<VaultResponse>(
       sql`
           SELECT *
-          FROM spacebox."dex_vaults_message_event_instantiate"
-          WHERE "contract" = ${request.params.contract}
+          FROM (${selectVaultConfigs})
+          WHERE "contract_address" = ${request.params.contract}
         `,
       abortSignal,
       {
-        cacheTime: 10 * minutes * inMs,
+        cacheTime: 1 * minutes * inMs,
       }
     );
 
-    const data = contract.data.at(0);
+    const data = contractResponse.data.at(0);
     if (!data) {
       throw new Error('NotFound', { cause: 404 });
     }
-    const denom0 = data.token_0_denom;
-    const denom1 = data.token_1_denom;
-    const pair0 = `${data.token_0_symbol}-${data.token_0_quote_currency}`;
-    const pair1 = `${data.token_1_symbol}-${data.token_1_quote_currency}`;
+    const contract = data.contract_address;
+    const hasTokensReversed = data.token_order[0] !== data.token_a_denom;
+    const tokenA = {
+      denom: data.token_a_denom,
+      decimals: data.token_a_decimals,
+      maxBlocksStale: data.token_a_max_blocks_stale,
+      symbol: data.token_a_symbol,
+      quoteCurrency: data.token_a_quote_currency,
+    };
+    const tokenB = {
+      denom: data.token_b_denom,
+      decimals: data.token_b_decimals,
+      maxBlocksStale: data.token_b_max_blocks_stale,
+      symbol: data.token_b_symbol,
+      quoteCurrency: data.token_b_quote_currency,
+    };
+    const token0 = hasTokensReversed ? tokenB : tokenA;
+    const token1 = hasTokensReversed ? tokenA : tokenB;
+
+    const denom0 = token0.denom;
+    const denom1 = token1.denom;
+    const pair0 = `${token0.symbol}-${token0.quoteCurrency}`;
+    const pair1 = `${token1.symbol}-${token1.quoteCurrency}`;
 
     // get timeseries data height (quick query to determine cache version)
     const allUpdateHeights = await Promise.all([
@@ -140,7 +153,7 @@ export const route: Route<Request, Response> = {
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get contract start time
-    const timeContractStart = toUnixTime(data.timestamp);
+    const timeContractStart = toUnixTime(data.created_at);
     // ClickHouse will compare either native strings or Unix timestamps
     const unixFrom = Math.max(
       timeContractStart,
@@ -158,15 +171,11 @@ export const route: Route<Request, Response> = {
         ${pair0} as "quote_pair_zero",
         ${pair1} as "quote_pair_one",
         bank_balance_deltas_union AS (${bankReservesDeltasTimeseries(
-          data.contract,
-          data.token_0_denom,
-          data.token_1_denom
+          contract,
+          denom0,
+          denom1
         )}),
-        address_swap_volume AS (${dexSwapTimeseries(
-          data.contract,
-          data.token_0_denom,
-          data.token_1_denom
-        )}),
+        address_swap_volume AS (${dexSwapTimeseries(contract, denom0, denom1)}),
         amount_timeseries_at_event AS (
           SELECT
             "timestamp",
@@ -350,10 +359,10 @@ export const route: Route<Request, Response> = {
             amounts."AprOne" as "AprOne",
             (
               toFloat64(p0."price") * exp10(-p0."decimals") * ("AprZero")
-            ) as "apr_0_usd",
+            ) as "apr_0",
             (
               toFloat64(p0."price") * exp10(-p0."decimals") * ("AprZero")
-            ) as "apr_1_usd"
+            ) as "apr_1"
           FROM apr_timeseries_of_period as amounts
           -- join to closest available price or token zero
           -- todo: can improve accuracy by joining on exact event prices
@@ -371,11 +380,11 @@ export const route: Route<Request, Response> = {
         SELECT
           "timestamp" as "time",
           "height",
-          "apr_0_usd",
-          "apr_1_usd"
+          "apr_0",
+          "apr_1"
         FROM swap_volume_amount_timeseries
-        WHERE "apr_0_usd" > 0
-            OR "apr_1_usd" > 0
+        WHERE "apr_0" > 0
+            OR "apr_1" > 0
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined
@@ -384,10 +393,10 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-        getRow: ({ time, apr_0_usd, apr_1_usd }) => ({
+        getRow: ({ time, apr_0, apr_1 }) => ({
           time,
-          apr_0_usd,
-          apr_1_usd,
+          apr_0,
+          apr_1,
         }),
         getHeight: (data) =>
           Number(data.find((row) => Number(row.height) > 0)?.height),
@@ -398,13 +407,13 @@ export const route: Route<Request, Response> = {
               ?.filter(({ name }) => name !== 'height')
               // add reserve field denoms
               ?.map((row) =>
-                row.name.endsWith('_0_usd')
-                  ? { ...row, units: `${denom0} USD` }
+                row.name === 'apr_0'
+                  ? { ...row, units: token0.quoteCurrency }
                   : row
               )
               ?.map((row) =>
-                row.name.endsWith('_1_usd')
-                  ? { ...row, units: `${denom1} USD` }
+                row.name === 'apr_1'
+                  ? { ...row, units: token1.quoteCurrency }
                   : row
               )
               // add time units, convert tick index units
