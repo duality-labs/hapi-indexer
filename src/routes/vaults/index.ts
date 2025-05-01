@@ -10,6 +10,11 @@ import {
   Response as TvlResponse,
 } from './tvl';
 import {
+  route as aprRoute,
+  Request as AprRequest,
+  Response as AprResponse,
+} from './apr';
+import {
   route as sharesRoute,
   Request as SharesRequest,
   Response as SharesResponse,
@@ -171,6 +176,27 @@ export const route: Route<
               previousResponse
             ) =>
               tvlRoute.handler(
+                {
+                  params: { contract: vault.contract_address },
+                  // default to last month (5 weeks + one day rounding) in days
+                  query: { period: 'day', limit: '36' },
+                },
+                abortSignal,
+                previousResponse
+              );
+            return [route, getData];
+          }) || []
+        )),
+      ...(streams.includes('apr') &&
+        Object.fromEntries(
+          routeResults.data.map((vault) => {
+            const route = `/vaults/apr/${vault.contract_address}?period=day&limit=36`;
+            const getData: GetData<AprRequest, AprResponse> = (
+              _request,
+              abortSignal,
+              previousResponse
+            ) =>
+              aprRoute.handler(
                 {
                   params: { contract: vault.contract_address },
                   // default to last month (5 weeks + one day rounding) in days

@@ -13,7 +13,7 @@ import {
 import dexSwapTimeseries from '../../common-table-expressions/dexSwapTimeseries';
 import bankReservesDeltasTimeseries from '../../common-table-expressions/bankReservesDeltas';
 
-interface Request {
+export interface Request {
   params: { contract: string };
   query: {
     from?: string;
@@ -23,7 +23,7 @@ interface Request {
     limit?: string;
   };
 }
-interface Response {
+export interface Response {
   time: string;
   apr_0_usd: number;
   apr_1_usd: number;
