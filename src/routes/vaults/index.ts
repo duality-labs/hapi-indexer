@@ -164,7 +164,7 @@ export const route: Route<
       ...(streams.includes('tvl') &&
         Object.fromEntries(
           routeResults.data.map((vault) => {
-            const route = `/vaults/tvl/${vault.contract_address}?limit=1`;
+            const route = `/vaults/tvl/${vault.contract_address}?period=day&limit=36`;
             const getData: GetData<TvlRequest, TvlResponse> = (
               _request,
               abortSignal,
@@ -173,7 +173,8 @@ export const route: Route<
               tvlRoute.handler(
                 {
                   params: { contract: vault.contract_address },
-                  query: { limit: '1' },
+                  // default to last month (5 weeks + one day rounding) in days
+                  query: { period: 'day', limit: '36' },
                 },
                 abortSignal,
                 previousResponse
