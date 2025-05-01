@@ -15,5 +15,6 @@ export const client = createClient({
   database: CLICKHOUSE_DB_NAME,
   clickhouse_settings: {
     log_queries_min_query_duration_ms: 25,
+    max_execution_time: 60,
   },
 });
