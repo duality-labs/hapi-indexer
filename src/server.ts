@@ -145,6 +145,7 @@ const init = async () => {
           sql`
             SELECT
             count(*) AS block_count,
+            (max_height - min_height + 1) - count(*) AS missing_block_count,
             block_count / (max_height - min_height + 1) AS block_coverage,
             min("height") AS min_height,
             max("height") AS max_height,
