@@ -1,5 +1,4 @@
 import sql from 'sql-template-tag';
-import { selectDexTickUpdatesWithSwapAmountFix } from './fixedDexTickUpdates';
 
 export default function dexSwapTimeseries(
   address: string,
@@ -88,12 +87,24 @@ export default function dexSwapTimeseries(
           "TickIndex",
           "Fee",
           -- values
-          "ReservesDelta" as "total_reserves_delta",
+          -- reserves diff across each individual pool
+          "Reserves" - lagInFrame("Reserves", 1, toUInt256(0)) OVER (
+            -- partition by pool
+            PARTITION BY
+              "TokenZero",
+              "TokenOne",
+              "TokenIn",
+              "TickIndex",
+              "Fee",
+              "TrancheKey"
+            -- sort by event order
+            ORDER BY "sort_key" ASC
+          ) as "total_reserves_delta",
           -- get swap volume+fees in token in units
           "SwapAmountIn" as "total_volume_and_fees",
           -- fee basis is 1 point = 0.001%
           "SwapAmountIn" * "Fee" / 100000 as "total_fees"
-        FROM (${selectDexTickUpdatesWithSwapAmountFix})
+        FROM spacebox.dex_message_event_tick_update
         -- filter data early to reduce processing
         WHERE
           -- filter to swaps

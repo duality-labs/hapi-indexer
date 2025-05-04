@@ -1,5 +1,4 @@
 import sql from 'sql-template-tag';
-import { selectDexTickUpdatesWithSwapAmountFix } from './fixedDexTickUpdates';
 
 export default function dexSwapVolumeTimeseries(
   address: string,
@@ -91,7 +90,7 @@ export default function dexSwapVolumeTimeseries(
           "SwapAmountIn" as "total_volume_and_fees",
           -- fee basis is 1 point = 0.001%
           "SwapAmountIn" * "Fee" / 100000 as "total_fees"
-        FROM (${selectDexTickUpdatesWithSwapAmountFix})
+        FROM spacebox.dex_message_event_tick_update
         -- filter data early to reduce processing
         WHERE
           -- filter to swaps

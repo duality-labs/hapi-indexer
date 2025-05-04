@@ -3,7 +3,6 @@ import sql, { raw } from 'sql-template-tag';
 import { Route } from '../types';
 import { getCachedResponse } from '../utils/cache-query';
 import { hours, inMs, toUnixTime } from '../utils/units';
-import { selectDexTickUpdatesWithSwapAmountFix } from './swap-volume';
 
 const LIMIT_ROWS = 50;
 const DEFAULT_DUST_LEVEL_AMOUNT = 100;
@@ -116,7 +115,7 @@ export const route: Route<Request, Response> = {
               sumIf("SwapAmountIn", "TokenIn" != ${
                 request.params.denomA
               }) as "sell"
-            FROM (${selectDexTickUpdatesWithSwapAmountFix}) as tick_updates
+            FROM spacebox.dex_message_event_tick_update as tick_updates
             LEFT JOIN spacebox.raw_block_txhash as block_txhash
               ON tick_updates."block_part_index" = 2
               AND block_txhash."height" = tick_updates."height"

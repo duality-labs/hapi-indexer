@@ -86,7 +86,7 @@ export const route: Route<Request, Response> = {
               )}) AS "time",
               sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
               sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
-            FROM (${selectDexTickUpdatesWithSwapAmountFix})
+            FROM spacebox.dex_message_event_tick_update
             WHERE "is_swap" = 1
               AND "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
@@ -166,7 +166,7 @@ export const route: Route<Request, Response> = {
           toStartOfMinute(NOW()) as "time",
           sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
           sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
-        FROM (${selectDexTickUpdatesWithSwapAmountFix})
+        FROM spacebox.dex_message_event_tick_update
         WHERE "is_swap" = 1
           AND "timestamp" >= ${
             unixFrom || sql`toStartOfMinute(addDays(NOW(), -1))`
@@ -204,35 +204,3 @@ export const route: Route<Request, Response> = {
     );
   },
 };
-
-// this select statement applies the "swap volume fix" to recreate
-// SwapAmountIn/SwapAmountOut for events in Neutron <= v5 that do not have them
-export const selectDexTickUpdatesWithSwapAmountFix = sql`
-  -- get previous reserves value by using an ordered window to select previous (by order) row data
-  -- to help determine the ReservesDiff field: the current - previous Reserves value
-  WITH lagInFrame("Reserves", 1, 0) OVER (
-    -- partition by "pools" of reserves (they are separate per tick + fee/tranche combination)
-    PARTITION BY "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee", "TrancheKey"
-    -- within the pool index partition, sort by event order
-    ORDER BY "height" ASC, "block_part_index" ASC, "tx_index" ASC, "event_index" ASC
-  ) as "PreviousReserves"
-  -- compare this to current row data to get relative state (ReservesDiff) and
-  -- use the already derived is_swap field to compute new SwapAmountIn and SwapAmountOut attributes
-  SELECT
-    *,
-    -- get difference from last Reserves value
-    ("Reserves" - "PreviousReserves") as "ReservesDiff",
-    -- note: all swap TickUpdate events should be DEX decrements (ReservesDiff < 0)
-    if (
-      "is_swap" AND "ReservesDiff" < 0,
-      toUInt128(abs("ReservesDiff")),
-      "SwapAmountOut"
-    ) as "SwapAmountOut",
-    -- note: SwapAmountIn may have rounding errors (but this very small in practice)
-    if (
-      "is_swap" AND "ReservesDiff" < 0,
-      toUInt128(ceiling(multiply(toFloat64(abs("ReservesDiff")), pow(1.0001, "TickIndex")))),
-      "SwapAmountIn"
-    ) as "SwapAmountIn"
-  FROM spacebox."dex_message_event_tick_update"
-`;
