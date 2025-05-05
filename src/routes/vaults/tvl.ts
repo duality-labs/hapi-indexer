@@ -192,7 +192,25 @@ export const route: Route<Request, Response> = {
                 PARTITION BY "height", "TokenZero", "TokenOne", "TokenIn"
                 ORDER BY "sort_key" DESC
               ) AS "row_order"
-            FROM cumulative_bank_balances
+            FROM cumulative_bank_balances as t
+            -- reduce grouping work by filtering to period first
+            WHERE 1 = 1
+              ${
+                unixFrom || timePrevious
+                  ? sql`AND t."timestamp" >= toStartOfInterval(
+                      toDateTime(${unixFrom || timePrevious}),
+                      INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                    )`
+                  : raw('')
+              }
+              ${
+                unixTo
+                  ? sql`AND t."timestamp" < toStartOfInterval(
+                      toDateTime(${unixTo}),
+                      INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                    )`
+                  : raw('')
+              }
           )
           -- filter to last row of each height
           WHERE "row_order" = 1
@@ -220,7 +238,25 @@ export const route: Route<Request, Response> = {
                 PARTITION BY "height", "TokenZero", "TokenOne", "TokenIn"
                 ORDER BY "sort_key" DESC
               ) AS "row_order"
-            FROM cumulative_vault_reserves
+            FROM cumulative_vault_reserves as t
+            -- reduce grouping work by filtering to period first
+            WHERE 1 = 1
+              ${
+                unixFrom || timePrevious
+                  ? sql`AND t."timestamp" >= toStartOfInterval(
+                      toDateTime(${unixFrom || timePrevious}),
+                      INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                    )`
+                  : raw('')
+              }
+              ${
+                unixTo
+                  ? sql`AND t."timestamp" < toStartOfInterval(
+                      toDateTime(${unixTo}),
+                      INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                    )`
+                  : raw('')
+              }
           )
           WHERE "row_order" = 1
         ),
@@ -317,22 +353,6 @@ export const route: Route<Request, Response> = {
           FROM spacebox.raw_slinky_prices as t
           -- filter to symbol and contract start time
           WHERE ("pair_id" = "quote_pair_zero" OR "pair_id" = "quote_pair_one")
-          ${
-            unixFrom || timePrevious
-              ? sql`AND "timestamp" >= toStartOfInterval(
-                  toDateTime(${unixFrom || timePrevious}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          ${
-            unixTo
-              ? sql`AND "timestamp" < toStartOfInterval(
-                  toDateTime(${unixTo}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
           GROUP BY "pair_id", "timestamp"
           ORDER BY "timestamp" ASC
         ),
