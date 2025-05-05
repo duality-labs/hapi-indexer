@@ -12,7 +12,7 @@ import {
 } from '../../utils/units';
 import dexSwapVolumeTimeseries from '../../common-table-expressions/dexVolumeTimeseries';
 
-interface Request {
+export interface Request {
   params: { contract: string };
   query: {
     from?: string;
@@ -22,7 +22,7 @@ interface Request {
     limit?: string;
   };
 }
-interface Response {
+export interface Response {
   time: string;
   volume_0_usd: number;
   volume_1_usd: number;

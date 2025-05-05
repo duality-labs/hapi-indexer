@@ -19,6 +19,11 @@ import {
   Request as SharesRequest,
   Response as SharesResponse,
 } from './shares';
+import {
+  route as volumeRoute,
+  Request as VolumeRequest,
+  Response as VolumeResponse,
+} from './swap-volume';
 import { GetData } from '../../utils/response';
 
 interface Request {
@@ -221,6 +226,27 @@ export const route: Route<
                 {
                   params: { contract: vault.contract_address },
                   query: { limit: '1' },
+                },
+                abortSignal,
+                previousResponse
+              );
+            return [route, getData];
+          }) || []
+        )),
+      ...(streams.includes('volume') &&
+        Object.fromEntries(
+          routeResults.data.map((vault) => {
+            const route = `/vaults/volume/${vault.contract_address}?period=day&limit=36`;
+            const getData: GetData<VolumeRequest, VolumeResponse> = (
+              _request,
+              abortSignal,
+              previousResponse
+            ) =>
+              volumeRoute.handler(
+                {
+                  params: { contract: vault.contract_address },
+                  // default to last month (5 weeks + one day rounding) in days
+                  query: { period: 'day', limit: '36' },
                 },
                 abortSignal,
                 previousResponse
