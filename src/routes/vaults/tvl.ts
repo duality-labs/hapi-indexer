@@ -10,12 +10,12 @@ import {
   WithFillTimePeriod,
   toUnixTime,
 } from '../../utils/units';
-import dexReservesTimeseries from '../../common-table-expressions/dexReservesTimeseries';
 import bankReservesTimeseries from '../../common-table-expressions/bankReservesTimeseries';
 import {
   selectVaultConfigs,
   VaultResponse,
 } from '../../common-table-expressions/vaultConfigs';
+import dexVaultReservesTimeseries from '../../common-table-expressions/dexVaultReserves';
 
 export interface Request {
   params: { contract: string };
@@ -197,7 +197,7 @@ export const route: Route<Request, Response> = {
           -- filter to last row of each height
           WHERE "row_order" = 1
         ),
-        cumulative_vault_reserves AS (${dexReservesTimeseries(
+        cumulative_vault_reserves AS (${dexVaultReservesTimeseries(
           contract,
           denom0,
           denom1
@@ -211,28 +211,18 @@ export const route: Route<Request, Response> = {
             "TokenZero",
             "TokenOne",
             "TokenIn",
-            -- values
-            -- sum all cumulative pool totals by token pair + token side
-            sum("address_reserves") as "Reserves"
-          -- get the last row (ORDER BY "sort_key" DESC WHERE "row_order"= 1)
-          -- of each pool within a current block height (last state of block)
+            -- get the last row of the matching height
+            "Reserves"
           FROM (
             SELECT *,
               ROW_NUMBER() OVER (
                 -- get all rows matching a certain pool and height
-                PARTITION BY "height", "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee"
+                PARTITION BY "height", "TokenZero", "TokenOne", "TokenIn"
                 ORDER BY "sort_key" DESC
               ) AS "row_order"
             FROM cumulative_vault_reserves
           )
-          -- filter to last row of each height
           WHERE "row_order" = 1
-          GROUP BY
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            "timestamp",
-            "height"
         ),
         cumulative_all_at_height AS (
           SELECT
@@ -352,8 +342,8 @@ export const route: Route<Request, Response> = {
             amounts."height" as "height",
             toFloat64(amounts."BalanceZero") as "BalanceZero",
             toFloat64(amounts."BalanceOne") as "BalanceOne",
-            amounts."ReservesZero" as "ReservesZero",
-            amounts."ReservesOne" as "ReservesOne",
+            toFloat64(amounts."ReservesZero") as "ReservesZero",
+            toFloat64(amounts."ReservesOne") as "ReservesOne",
             toFloat64(p0."price") * exp10(-(${
               token0.decimals
             } + p0."decimals")) * ("ReservesZero" + "BalanceZero") as "tvl_0",
