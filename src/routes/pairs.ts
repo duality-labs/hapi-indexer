@@ -8,9 +8,9 @@ interface Request {
   params: Record<string, never>;
 }
 interface Response {
-  created_at_height: string;
+  created_at_height?: string;
   updated_at_height: string;
-  created_at: string;
+  created_at?: string;
   updated_at: string;
   token_0: string;
   token_1: string;
@@ -64,6 +64,16 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
+        getRow: !previousResponse
+          ? (row) => row
+          : (row) => {
+              return {
+                token_0: row.token_0,
+                token_1: row.token_1,
+                updated_at: row.updated_at,
+                updated_at_height: row.updated_at_height,
+              };
+            },
         getHeight: (data) =>
           Math.max(0, ...data.map((row) => Number(row.updated_at_height) || 0)),
         getMetadata: (metadata) => {
