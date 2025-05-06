@@ -1,14 +1,14 @@
 import sql, { raw } from 'sql-template-tag';
 
-import { Route } from '../types';
-import { getCachedResponse } from '../utils/cache-query';
+import { Route } from '../../types';
+import { getCachedResponse } from '../../utils/cache-query';
 import {
   getTimePeriod,
   hours,
   inMs,
   TimePeriod,
   toUnixTime,
-} from '../utils/units';
+} from '../../utils/units';
 
 const LIMIT_ROWS = 10000;
 interface Request {
@@ -27,7 +27,7 @@ interface Response {
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/slinky/:base/:quote?',
+  path: '/slinky/price/:base/:quote?',
   handler: async (request, abortSignal, previousResponse) => {
     const limit = Number(request.query.limit) || LIMIT_ROWS;
     const base = request.params.base;

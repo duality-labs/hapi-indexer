@@ -6,7 +6,7 @@ import { route as dexPriceRoute } from './dex/price';
 import { route as dexSwapVolumeRoute } from './dex/swap-volume';
 import { route as dexTradesRoute } from './dex/trades';
 import { route as dexTvlRoute } from './dex/tvl';
-import { route as slinkyRoute } from './slinky';
+import { route as slinkyPriceRoute } from './slinky/price';
 import { route as vaultsRoute } from './vaults';
 import { route as vaultsSharesRoute } from './vaults/shares';
 import { route as vaultsAprRoute } from './vaults/apr';
@@ -33,7 +33,7 @@ const productionRoutes: Route<any, any, any>[] = [
     // duplicate dex routes to base route
     { ...route, path: route.path.replace(/^\/dex/, '') },
   ]),
-  slinkyRoute,
+  slinkyPriceRoute,
   vaultsRoute,
   vaultsSharesRoute,
   vaultsAprRoute,
