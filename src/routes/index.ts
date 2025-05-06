@@ -1,6 +1,7 @@
 import Router from 'router';
 import * as debugRoutes from './_debug';
 import { route as liquidityRoute } from './liquidity';
+import { route as pairsRoute } from './pairs';
 import { route as priceRoute } from './price';
 import { route as slinkyRoute } from './slinky';
 import { route as swapVolumeRoute } from './swap-volume';
@@ -20,6 +21,7 @@ const { NODE_ENV = '' } = process.env;
 const developmentRoutes = [...Object.values(debugRoutes)];
 const productionRoutes = [
   liquidityRoute,
+  pairsRoute,
   priceRoute,
   slinkyRoute,
   swapVolumeRoute,
