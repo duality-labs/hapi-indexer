@@ -34,6 +34,8 @@ const productionRoutes: Route<any, any, any>[] = [
     { ...route, path: route.path.replace(/^\/dex/, '') },
   ]),
   slinkyPriceRoute,
+  // allow slinky price route as just "/slinky"
+  { ...slinkyPriceRoute, path: slinkyPriceRoute.path.replace('/price', '') },
   vaultsRoute,
   vaultsSharesRoute,
   vaultsAprRoute,
