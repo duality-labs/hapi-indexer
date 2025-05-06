@@ -8,9 +8,9 @@ interface Request {
   params: Record<string, never>;
 }
 interface Response {
-  created_at_height?: string;
+  created_at_height: string;
   updated_at_height: string;
-  created_at?: string;
+  created_at: string;
   updated_at: string;
   token_0: string;
   token_1: string;
@@ -36,7 +36,7 @@ export const route: Route<Request, Response> = {
       abortSignal
     );
 
-    return await getCachedResponse<Response>(
+    const pairs = await getCachedResponse<Response>(
       sql`
         SELECT
           "TokenZero" AS "token_0",
@@ -46,14 +46,6 @@ export const route: Route<Request, Response> = {
           argMin("timestamp", "sort_key") AS "created_at",
           argMax("timestamp", "sort_key") AS "updated_at"
         FROM spacebox."dex_message_event_tick_update"
-        WHERE 1=1
-          ${
-            previousResponse
-              ? // if this is an incremental update, get changes since known height
-                sql`AND "height" > ${previousResponse.height}`
-              : // if this is an initial request, do not filter
-                sql``
-          }
         -- group reserves from all tick index fees and tranche keys together
         GROUP BY
           "TokenZero",
@@ -64,16 +56,6 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-        getRow: !previousResponse
-          ? (row) => row
-          : (row) => {
-              return {
-                token_0: row.token_0,
-                token_1: row.token_1,
-                updated_at: row.updated_at,
-                updated_at_height: row.updated_at_height,
-              };
-            },
         getHeight: (data) =>
           Math.max(0, ...data.map((row) => Number(row.updated_at_height) || 0)),
         getMetadata: (metadata) => {
@@ -97,5 +79,16 @@ export const route: Route<Request, Response> = {
         cacheVersion: Number(currentHeight.data.at(0)?.height) ?? undefined,
       }
     );
+
+    // filter out non-updates from response
+    if (previousResponse) {
+      return {
+        ...pairs,
+        data: pairs.data.filter(
+          (row) => Number(row.updated_at_height) > previousResponse.height
+        ),
+      };
+    }
+    return pairs;
   },
 };
