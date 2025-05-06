@@ -1,8 +1,8 @@
 import sql, { raw } from 'sql-template-tag';
 
-import { Route } from '../types';
-import { getCachedResponse } from '../utils/cache-query';
-import { hours, inMs, toUnixTime } from '../utils/units';
+import { Route } from '../../types';
+import { getCachedResponse } from '../../utils/cache-query';
+import { hours, inMs, toUnixTime } from '../../utils/units';
 
 const LIMIT_ROWS = 50;
 const DEFAULT_DUST_LEVEL_AMOUNT = 100;
@@ -22,7 +22,7 @@ interface Response {
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/trades/:denomA/:denomB',
+  path: '/dex/trades/:denomA/:denomB',
   handler: async (request, abortSignal, previousResponse) => {
     const [denom0, denom1] = [
       request.params.denomA,

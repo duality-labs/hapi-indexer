@@ -1,8 +1,8 @@
 import sql, { raw } from 'sql-template-tag';
 
-import { Route } from '../types';
-import { getCachedResponse } from '../utils/cache-query';
-import { config } from '../config';
+import { Route } from '../../types';
+import { getCachedResponse } from '../../utils/cache-query';
+import { config } from '../../config';
 import {
   getTimePeriod,
   hours,
@@ -10,7 +10,7 @@ import {
   seconds,
   TimePeriod,
   toUnixTime,
-} from '../utils/units';
+} from '../../utils/units';
 
 const LIMIT_ROWS = 1000;
 
@@ -28,7 +28,7 @@ interface Response {
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/swap-volume/:denomA/:denomB',
+  path: '/dex/swap-volume/:denomA/:denomB',
   handler: async (request, abortSignal, previousResponse) => {
     const [denom0, denom1] = [
       request.params.denomA,

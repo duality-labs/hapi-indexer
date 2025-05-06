@@ -1,14 +1,14 @@
 import sql, { raw } from 'sql-template-tag';
 
-import { Route } from '../types';
-import { getCachedResponse } from '../utils/cache-query';
+import { Route } from '../../types';
+import { getCachedResponse } from '../../utils/cache-query';
 import {
   getTimePeriod,
   hours,
   inMs,
   TimePeriod,
   toUnixTime,
-} from '../utils/units';
+} from '../../utils/units';
 
 interface Request {
   params: { denomA: string; denomB: string };
@@ -28,7 +28,7 @@ const MAX_ROWS = 1000;
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/tvl/:denomA/:denomB',
+  path: '/dex/tvl/:denomA/:denomB',
   handler: async (request, abortSignal, previousResponse) => {
     const [denom0, denom1] = [
       request.params.denomA,

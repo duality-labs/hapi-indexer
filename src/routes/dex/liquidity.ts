@@ -1,8 +1,8 @@
 import sql from 'sql-template-tag';
 
-import { Route } from '../types';
-import { getCachedResponse } from '../utils/cache-query';
-import { hours, inMs } from '../utils/units';
+import { Route } from '../../types';
+import { getCachedResponse } from '../../utils/cache-query';
+import { hours, inMs } from '../../utils/units';
 
 interface Request {
   params: { denomA: string; denomB: string };
@@ -15,7 +15,7 @@ interface Response {
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/liquidity/:denomA/:denomB',
+  path: '/dex/liquidity/:denomA/:denomB',
   handler: async (request, abortSignal, previousResponse) => {
     const [denom0, denom1] = [
       request.params.denomA,

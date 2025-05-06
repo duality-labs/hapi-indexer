@@ -1,8 +1,8 @@
 import sql from 'sql-template-tag';
 
-import { Route } from '../types';
-import { getCachedResponse } from '../utils/cache-query';
-import { hours, inMs } from '../utils/units';
+import { Route } from '../../types';
+import { getCachedResponse } from '../../utils/cache-query';
+import { hours, inMs } from '../../utils/units';
 
 interface Request {
   params: Record<string, never>;
@@ -18,7 +18,7 @@ interface Response {
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/pairs',
+  path: '/dex/pairs',
   handler: async (_, abortSignal, previousResponse) => {
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`

@@ -1,14 +1,14 @@
 import sql, { raw } from 'sql-template-tag';
 
-import { Route } from '../types';
-import { getCachedResponse } from '../utils/cache-query';
+import { Route } from '../../types';
+import { getCachedResponse } from '../../utils/cache-query';
 import {
   getTimePeriod,
   hours,
   inMs,
   TimePeriod,
   toUnixTime,
-} from '../utils/units';
+} from '../../utils/units';
 
 const LIMIT_ROWS = 10000;
 
@@ -32,7 +32,7 @@ interface Response {
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/price/:denomA/:denomB',
+  path: '/dex/price/:denomA/:denomB',
   handler: async (request, abortSignal, previousResponse) => {
     const limit = Number(request.query.limit) || LIMIT_ROWS;
     const [denom0, denom1] = [

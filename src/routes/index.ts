@@ -1,12 +1,12 @@
 import Router from 'router';
 import * as debugRoutes from './_debug';
-import { route as liquidityRoute } from './liquidity';
-import { route as pairsRoute } from './pairs';
-import { route as priceRoute } from './price';
+import { route as dexLiquidityRoute } from './dex/liquidity';
+import { route as dexPairsRoute } from './dex/pairs';
+import { route as dexPriceRoute } from './dex/price';
+import { route as dexSwapVolumeRoute } from './dex/swap-volume';
+import { route as dexTradesRoute } from './dex/trades';
+import { route as dexTvlRoute } from './dex/tvl';
 import { route as slinkyRoute } from './slinky';
-import { route as swapVolumeRoute } from './swap-volume';
-import { route as tradesRoute } from './trades';
-import { route as tvlRoute } from './tvl';
 import { route as vaultsRoute } from './vaults';
 import { route as vaultsSharesRoute } from './vaults/shares';
 import { route as vaultsAprRoute } from './vaults/apr';
@@ -19,14 +19,21 @@ import { Route } from '../types';
 const { NODE_ENV = '' } = process.env;
 
 const developmentRoutes = [...Object.values(debugRoutes)];
-const productionRoutes = [
-  liquidityRoute,
-  pairsRoute,
-  priceRoute,
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const productionRoutes: Route<any, any, any>[] = [
+  ...[
+    dexLiquidityRoute,
+    dexPairsRoute,
+    dexPriceRoute,
+    dexSwapVolumeRoute,
+    dexTradesRoute,
+    dexTvlRoute,
+  ].flatMap((route) => [
+    route,
+    // duplicate dex routes to base route
+    { ...route, path: route.path.replace(/^\/dex/, '') },
+  ]),
   slinkyRoute,
-  swapVolumeRoute,
-  tradesRoute,
-  tvlRoute,
   vaultsRoute,
   vaultsSharesRoute,
   vaultsAprRoute,
