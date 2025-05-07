@@ -13,6 +13,8 @@ interface Response {
   reserves_1?: string;
 }
 
+const threshold = 10;
+
 export const route: Route<Request, Response> = {
   method: 'get',
   path: '/dex/liquidity/:denomA/:denomB',
@@ -49,7 +51,7 @@ export const route: Route<Request, Response> = {
           max("height") as "max_height",
           "TokenIn" = "TokenOne" as "token",
           "TickIndex" as "index",
-          sum("Reserves") as "reserves"
+          sumIf("Reserves", "Reserves" >= ${threshold}) as "reserves"
         FROM (${selectLatestTickState})
         WHERE "TokenZero" = ${denom0}
           AND "TokenOne" = ${denom1}
@@ -58,7 +60,7 @@ export const route: Route<Request, Response> = {
               ? // if this is an incremental update, get changes since known height
                 sql`"height" > ${previousResponse.height}`
               : // if this is an initial request, ignore unhelpful zero reserve rows
-                sql`not("ReservesZero")`
+                sql`"Reserves" >= ${threshold}`
           }
         -- group reserves from all tick index fees and tranche keys together
         GROUP BY
