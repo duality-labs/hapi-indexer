@@ -144,8 +144,8 @@ const init = async () => {
         getCachedResponse<{ block_coverage: number; lag_time: number }>(
           sql`
             SELECT
-            count(*) AS block_count,
-            (max_height - min_height + 1) - count(*) AS missing_block_count,
+            uniqExact("height") AS block_count,
+            (max_height - min_height + 1) - block_count AS missing_block_count,
             block_count / (max_height - min_height + 1) AS block_coverage,
             min("height") AS min_height,
             max("height") AS max_height,
