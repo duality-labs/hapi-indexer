@@ -65,23 +65,20 @@ export const route: Route<Request, Response> = {
       throw new Error('NotFound', { cause: 404 });
     }
     const contract = data.contract_address;
-    const hasTokensReversed = data.token_order[0] !== data.token_a_denom;
-    const tokenA = {
-      denom: data.token_a_denom,
-      decimals: data.token_a_decimals,
-      maxBlocksStale: data.token_a_max_blocks_stale,
-      symbol: data.token_a_symbol,
-      quoteCurrency: data.token_a_quote_currency,
+    const token0 = {
+      denom: data.token_0_denom,
+      decimals: data.token_0_decimals,
+      maxBlocksStale: data.token_0_max_blocks_stale,
+      symbol: data.token_0_symbol,
+      quoteCurrency: data.token_0_quote_currency,
     };
-    const tokenB = {
-      denom: data.token_b_denom,
-      decimals: data.token_b_decimals,
-      maxBlocksStale: data.token_b_max_blocks_stale,
-      symbol: data.token_b_symbol,
-      quoteCurrency: data.token_b_quote_currency,
+    const token1 = {
+      denom: data.token_1_denom,
+      decimals: data.token_1_decimals,
+      maxBlocksStale: data.token_1_max_blocks_stale,
+      symbol: data.token_1_symbol,
+      quoteCurrency: data.token_1_quote_currency,
     };
-    const token0 = hasTokensReversed ? tokenB : tokenA;
-    const token1 = hasTokensReversed ? tokenA : tokenB;
 
     const denom0 = token0.denom;
     const denom1 = token1.denom;
