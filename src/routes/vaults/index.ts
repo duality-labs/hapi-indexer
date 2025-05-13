@@ -39,16 +39,16 @@ interface Response {
   updated_at: string;
   contract_address: string;
   owner: string[];
-  token_a_denom: string;
-  token_a_decimals: number;
-  token_a_symbol: string;
-  token_a_quote_currency: string;
-  token_a_max_blocks_stale: string;
-  token_b_denom: string;
-  token_b_decimals: number;
-  token_b_symbol: string;
-  token_b_quote_currency: string;
-  token_b_max_blocks_stale: string;
+  token_0_denom: string;
+  token_0_decimals: number;
+  token_0_symbol: string;
+  token_0_quote_currency: string;
+  token_0_max_blocks_stale: string;
+  token_1_denom: string;
+  token_1_decimals: number;
+  token_1_symbol: string;
+  token_1_quote_currency: string;
+  token_1_max_blocks_stale: string;
   token_order: string[];
   pool_id: string;
   deposit_cap: string;
@@ -98,17 +98,17 @@ export const route: Route<
           "updated_at",
           "contract_address",
           "owner",
-          "token_a_denom",
-          "token_a_decimals",
-          "token_a_symbol",
-          "token_a_quote_currency",
-          "token_a_max_blocks_stale",
-          "token_b_denom",
-          "token_b_decimals",
-          "token_b_symbol",
-          "token_b_quote_currency",
-          "token_b_max_blocks_stale",
-          "token_order",
+          "token_0_denom",
+          "token_0_decimals",
+          "token_0_symbol",
+          "token_0_quote_currency",
+          "token_0_max_blocks_stale",
+          "token_1_denom",
+          "token_1_decimals",
+          "token_1_symbol",
+          "token_1_quote_currency",
+          "token_1_max_blocks_stale",
+          "estimated_token_order",
           "pool_id",
           "deposit_cap",
           "oracle_contract",

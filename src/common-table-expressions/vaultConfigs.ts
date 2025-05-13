@@ -85,8 +85,11 @@ export const selectVaultConfigs = sql`
                         'Addr\(\"([a-z]+[a-z0-9]{30,})"\)'
                     )
                 ) AS "owner",
+                -- support incorrectly named "max_blocks_stale_token_a" and "max_blocks_stale_token_b" attributes
                 toUInt64OrZero(JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'max_blocks_stale_token_a'), "contract_attributes"), 'value')) AS "max_blocks_stale_token_a",
                 toUInt64OrZero(JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'max_blocks_stale_token_b'), "contract_attributes"), 'value')) AS "max_blocks_stale_token_b",
+                toUInt64OrZero(JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'max_blocks_stale_token_0'), "contract_attributes"), 'value')) AS "max_blocks_stale_token_0",
+                toUInt64OrZero(JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'max_blocks_stale_token_1'), "contract_attributes"), 'value')) AS "max_blocks_stale_token_1",
                 JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'token_0_denom'), "contract_attributes"), 'value') AS "token_0_denom",
                 toUInt8OrZero(JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'token_0_decimals'), "contract_attributes"), 'value')) AS "token_0_decimals",
                 JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'token_0_symbol'), "contract_attributes"), 'value') AS "token_0_symbol",
@@ -103,9 +106,9 @@ export const selectVaultConfigs = sql`
                 toUInt64OrZero(JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'timestamp_stale'), "contract_attributes"), 'value')) AS "timestamp_stale",
                 toBool(JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'paused'), "contract_attributes"), 'value')) AS "paused",
                 JSONExtractString(arrayFirst(x -> (JSONExtractString(x, 'key') = 'denom'), "contract_attributes"), 'value') AS "denom",
-                extractGroups("denom", 'factory\/[a-z0-9]{30,}\/([A-Z]+)-([A-Z]+)') AS token_order
+                extractGroups("denom", 'factory\/[a-z0-9]{30,}\/([A-Z]+)-([A-Z]+)') AS estimated_token_order
             FROM event_with_related_contract_attributes
-            WHERE notEmpty("denom") AND length(token_order) = 2
+            WHERE notEmpty("denom")
         ),
         -- fill in missing values with defaults
         filled_vault_configs as (
@@ -137,9 +140,7 @@ export const selectVaultConfigs = sql`
                     )
                 ) as "token_1_decimals"
             FROM vault_configs
-        ),
-        filled_vault_configs."token_order"[1] as "token_a",
-        filled_vault_configs."token_order"[2] as "token_b"
+        )
     -- finally normalize the data to the correct side
     SELECT
         *,
@@ -148,51 +149,47 @@ export const selectVaultConfigs = sql`
         "updated_at",
         "contract_address",
         "owner",
-        "max_blocks_stale_token_b" as "token_b_max_blocks_stale",
+        "token_0_denom",
+        "token_0_decimals",
+        "token_0_symbol",
+        "token_0_quote_currency",
+        -- support incorrectly named "max_blocks_stale_token_a" attributes
+        -- these mean "max_blocks_stale_token_0"
         if(
-            "token_0_symbol" = "token_a",
-            "token_0_denom",
-            "token_1_denom"
-        ) as "token_a_denom",
+            "max_blocks_stale_token_0" > 0,
+            "max_blocks_stale_token_0",
+            "max_blocks_stale_token_a"
+        ) as "token_0_max_blocks_stale",
+        "token_1_denom",
+        "token_1_decimals",
+        "token_1_symbol",
+        "token_1_quote_currency",
+        -- support incorrectly named "max_blocks_stale_token_b" attributes
+        -- these mean "max_blocks_stale_token_1"
         if(
-            "token_0_symbol" = "token_a",
-            "token_0_decimals",
-            "token_1_decimals"
-        ) as "token_a_decimals",
-        if(
-            "token_0_symbol" = "token_a",
-            "token_0_symbol",
-            "token_1_symbol"
-        ) as "token_a_symbol",
-        if(
-            "token_0_symbol" = "token_a",
-            "token_0_quote_currency",
-            "token_1_quote_currency"
-        ) as "token_a_quote_currency",
-        "max_blocks_stale_token_a" as "token_a_max_blocks_stale",
-        if(
-            "token_0_symbol" = "token_b",
-            "token_0_denom",
-            "token_1_denom"
-        ) as "token_b_denom",
-        if(
-            "token_0_symbol" = "token_b",
-            "token_0_decimals",
-            "token_1_decimals"
-        ) as "token_b_decimals",
-        if(
-            "token_0_symbol" = "token_b",
-            "token_0_symbol",
-            "token_1_symbol"
-        ) as "token_b_symbol",
-        if(
-            "token_0_symbol" = "token_b",
-            "token_0_quote_currency",
-            "token_1_quote_currency"
-        ) as "token_b_quote_currency",
-        "max_blocks_stale_token_b" as "token_b_max_blocks_stale",
-        -- pass through token_0 / token_1 order to end users
-        splitByString('<>', "pool_id") as "token_order",
+            "max_blocks_stale_token_1" > 0,
+            "max_blocks_stale_token_1",
+            "max_blocks_stale_token_b"
+        ) as "token_1_max_blocks_stale",
+        -- add estimated order from contract denom string to end users
+        arrayFilter(
+            (denom) -> notEmpty(denom),
+            arrayMap(
+                -- convert from symbol to denom
+                (symbol) -> (
+                    if (
+                        symbol = "token_0_symbol",
+                        "token_0_denom",
+                        if (
+                            symbol = "token_1_symbol",
+                            "token_1_denom",
+                            ''
+                        )
+                    )
+                ),
+                "estimated_token_order"
+            )
+        ) as "estimated_token_order",
         "pool_id",
         "deposit_cap",
         "oracle_contract",
