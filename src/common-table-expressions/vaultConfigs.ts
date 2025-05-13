@@ -117,7 +117,7 @@ export const selectVaultConfigs = sql`
                     "token_0_decimals" > 0,
                     "token_0_decimals",
                     if (
-                        "token_0_symbol" = 'ETH',
+                        "token_0_symbol" in ('ETH', 'DYDX'),
                         18,
                         if (
                             "token_0_symbol" = 'BTC',
@@ -130,7 +130,7 @@ export const selectVaultConfigs = sql`
                     "token_1_decimals" > 0,
                     "token_1_decimals",
                     if (
-                        "token_1_symbol" = 'ETH',
+                        "token_1_symbol" in ('ETH', 'DYDX'),
                         18,
                         if (
                             "token_1_symbol" = 'BTC',
