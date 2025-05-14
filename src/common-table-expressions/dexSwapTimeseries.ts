@@ -190,7 +190,6 @@ export default function dexSwapTimeseries(
           "total_volume_and_fees",
           "total_fees"
         FROM address_volumes_union
-        WHERE total_volume_and_fees > 0
         WINDOW cumulative_events AS (
           -- partition sums to each pool
           PARTITION BY "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee"
