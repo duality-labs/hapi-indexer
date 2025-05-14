@@ -20,7 +20,7 @@ export default function dexSwapVolumeTimeseries(
           "TickIndex",
           "Fee",
           -- values
-          if ("credit" = 1, "shares" * "is_address", -"shares" * "is_address") as "address_shares_delta",
+          "total_shares_delta" * "is_address" as "address_shares_delta",
           if ("credit" = 1, "shares", -"shares") as "total_shares_delta"
         FROM spacebox.dex_shares
         -- filter data early to reduce processing
