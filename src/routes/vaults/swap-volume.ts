@@ -185,10 +185,10 @@ export const route: Route<Request, Response> = {
             "quote_pair_zero" as "PairZero",
             "quote_pair_one" as "PairOne",
             -- values
-            sumIf("address_volume_and_fees", "TokenIn" = "TokenZero") as "VolumeZero",
-            sumIf("address_volume_and_fees", "TokenIn" = "TokenOne") as "VolumeOne",
-            sumIf("address_fees", "TokenIn" = "TokenZero") as "FeesZero",
-            sumIf("address_fees", "TokenIn" = "TokenOne") as "FeesOne"
+            sumIf("address_volume_and_fees", "TokenIn" = "TokenOne") as "VolumeZero",
+            sumIf("address_volume_and_fees", "TokenIn" = "TokenZero") as "VolumeOne",
+            sumIf("address_fees", "TokenIn" = "TokenOne") as "FeesZero",
+            sumIf("address_fees", "TokenIn" = "TokenZero") as "FeesOne"
           FROM address_swap_volume as t
           WHERE 1 = 1
           ${
