@@ -159,7 +159,12 @@ export default function dexSwapTimeseries(
           -- perform cumulative sum of address shares of all pools within the pair
           sum("address_shares_delta") OVER cumulative_events as "address_shares",
           sum("total_shares_delta") OVER cumulative_events as "total_shares",
-          sum("total_reserves_delta") OVER cumulative_events as "total_reserves"
+          sum("total_reserves_delta") OVER cumulative_events as "total_reserves",
+          if (
+            "address_shares" > 0 AND "total_shares" > 0,
+            "address_shares" / "total_shares",
+            0
+          ) as "address_fraction"
         SELECT
           "timestamp",
           "height",
@@ -171,21 +176,9 @@ export default function dexSwapTimeseries(
           "TickIndex",
           "Fee",
           -- values
-          if (
-            "address_shares" > 0 AND "total_shares" > 0,
-            toFloat64("total_reserves") * ("address_shares" / "total_shares"),
-            0
-          ) as "address_reserves",
-          if (
-            "address_shares" > 0 AND "total_shares" > 0,
-            toFloat64("total_volume_and_fees") * ("address_shares" / "total_shares"),
-            0
-          ) as "address_volume_and_fees",
-          if (
-            "address_shares" > 0 AND "total_shares" > 0,
-            "total_fees" * ("address_shares" / "total_shares"),
-            0
-          ) as "address_fees",
+          toFloat64("total_reserves") * "address_fraction" as "address_reserves",
+          toFloat64("total_volume_and_fees") * "address_fraction" as "address_volume_and_fees",
+          "total_fees" * "address_fraction" as "address_fees",
           "total_reserves",
           "total_volume_and_fees",
           "total_fees"
