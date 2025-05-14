@@ -11,6 +11,10 @@ import {
   toUnixTime,
 } from '../../utils/units';
 import dexSwapVolumeTimeseries from '../../common-table-expressions/dexVolumeTimeseries';
+import {
+  selectVaultConfigs,
+  VaultResponse,
+} from '../../common-table-expressions/vaultConfigs';
 
 export interface Request {
   params: { contract: string };
@@ -45,36 +49,42 @@ export const route: Route<Request, Response> = {
     );
 
     // get timeseries data height (quick query to determine cache version)
-    const contract = await getCachedResponse<{
-      timestamp: string;
-      height: string;
-      contract: string;
-      token_0_denom: string;
-      token_1_denom: string;
-      token_0_symbol: string;
-      token_1_symbol: string;
-      token_0_quote_currency: string;
-      token_1_quote_currency: string;
-    }>(
+    const contractResponse = await getCachedResponse<VaultResponse>(
       sql`
           SELECT *
-          FROM spacebox."dex_vaults_message_event_instantiate"
-          WHERE "contract" = ${request.params.contract}
+          FROM (${selectVaultConfigs})
+          WHERE "contract_address" = ${request.params.contract}
         `,
       abortSignal,
       {
-        cacheTime: 10 * minutes * inMs,
+        cacheTime: 1 * minutes * inMs,
       }
     );
 
-    const data = contract.data.at(0);
+    const data = contractResponse.data.at(0);
     if (!data) {
       throw new Error('NotFound', { cause: 404 });
     }
-    const denom0 = data.token_0_denom;
-    const denom1 = data.token_1_denom;
-    const pair0 = `${data.token_0_symbol}-${data.token_0_quote_currency}`;
-    const pair1 = `${data.token_1_symbol}-${data.token_1_quote_currency}`;
+    const contract = data.contract_address;
+    const token0 = {
+      denom: data.token_0_denom,
+      decimals: data.token_0_decimals,
+      maxBlocksStale: data.token_0_max_blocks_stale,
+      symbol: data.token_0_symbol,
+      quoteCurrency: data.token_0_quote_currency,
+    };
+    const token1 = {
+      denom: data.token_1_denom,
+      decimals: data.token_1_decimals,
+      maxBlocksStale: data.token_1_max_blocks_stale,
+      symbol: data.token_1_symbol,
+      quoteCurrency: data.token_1_quote_currency,
+    };
+
+    const denom0 = token0.denom;
+    const denom1 = token1.denom;
+    const pair0 = `${token0.symbol}-${token0.quoteCurrency}`;
+    const pair1 = `${token1.symbol}-${token1.quoteCurrency}`;
 
     // get timeseries data height (quick query to determine cache version)
     const allUpdateHeights = await Promise.all([
@@ -141,7 +151,7 @@ export const route: Route<Request, Response> = {
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get contract start time
-    const timeContractStart = toUnixTime(data.timestamp);
+    const timeContractStart = toUnixTime(data.created_at);
     // ClickHouse will compare either native strings or Unix timestamps
     const unixFrom = Math.max(
       timeContractStart,
@@ -159,9 +169,9 @@ export const route: Route<Request, Response> = {
         ${pair0} as "quote_pair_zero",
         ${pair1} as "quote_pair_one",
         address_swap_volume AS (${dexSwapVolumeTimeseries(
-          data.contract,
-          data.token_0_denom,
-          data.token_1_denom
+          contract,
+          denom0,
+          denom1
         )}),
         -- get a standard period time of how much the vault has per time period
         amount_timeseries_of_period AS (
