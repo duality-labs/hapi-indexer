@@ -176,12 +176,16 @@ export default function dexSwapTimeseries(
           "TickIndex",
           "Fee",
           -- values
-          toFloat64("total_reserves") * "address_fraction" as "address_reserves",
-          toFloat64("total_volume_and_fees") * "address_fraction" as "address_volume_and_fees",
-          "total_fees" * "address_fraction" as "address_fees",
+          -- note: "total_reserves" and "address_reserves" are cumulative values
           "total_reserves",
+          toFloat64("total_reserves") * "address_fraction" as "address_reserves",
+          -- note: the rest of the following values are *not* cumulative
+          "total_reserves_delta",
+          toFloat64("total_reserves_delta") * "address_fraction" as "address_reserves_delta",
           "total_volume_and_fees",
-          "total_fees"
+          toFloat64("total_volume_and_fees") * "address_fraction" as "address_volume_and_fees",
+          "total_fees",
+          "total_fees" * "address_fraction" as "address_fees"
         FROM address_volumes_union
         WINDOW cumulative_events AS (
           -- partition sums to each pool
@@ -193,5 +197,7 @@ export default function dexSwapTimeseries(
     SELECT *, "sort_key"
     FROM address_volumes
     WHERE "address_volume_and_fees" > 0
+       -- ensure updates to the address reserves are presevered in this table
+       OR "address_reserves_delta" != 0
   `;
 }
