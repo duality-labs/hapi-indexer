@@ -281,7 +281,7 @@ export const route: Route<Request, Response> = {
           "timestamp" as "time",
           "height",
           "volume_0_usd",
-          "volume_1_usd"
+          "volume_1_usd",
           "fees_0_usd",
           "fees_1_usd"
         FROM swap_volume_amount_timeseries
