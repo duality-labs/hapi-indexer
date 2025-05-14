@@ -18,7 +18,7 @@ const MAX_ROWS = 1000;
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/vaults/shares/{contract}',
+  path: '/vaults/shares/:contract',
   handler: async (request, abortSignal, previousResponse) => {
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`
