@@ -62,7 +62,7 @@ export function bankReservesDeltasAtHeightTimeseries(
           -- choose side as TokenZero
           "TokenZero" as "TokenIn",
           -- Reserves
-          sumMerge("amount") AS "balance_delta"
+          sumMerge("amount_state") AS "balance_delta"
         FROM (
           SELECT *
           FROM spacebox.bank_transfer_by_height
@@ -81,7 +81,7 @@ export function bankReservesDeltasAtHeightTimeseries(
           -- choose side as TokenOne
           "TokenOne" as "TokenIn",
           -- Reserves
-          sumMerge("amount") AS "balance_delta"
+          sumMerge("amount_state") AS "balance_delta"
         FROM (
           SELECT *
           FROM spacebox.bank_transfer_by_height
