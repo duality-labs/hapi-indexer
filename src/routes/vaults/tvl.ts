@@ -111,7 +111,7 @@ export const route: Route<Request, Response> = {
               argMax("timestamp", t."height") as "time"
             FROM spacebox.bank_transfer as t
             WHERE "address" = ${request.params.contract}
-              AND ("denom" = ${denom0} OR "denom" = ${denom1})
+              AND "denom" IN (${denom0}, ${denom1})
         `,
         abortSignal
       ),
@@ -185,9 +185,10 @@ export const route: Route<Request, Response> = {
           -- reduce grouping work by filtering to period first
           WHERE 1 = 1
             ${
-              timePrevious || unixFrom
+              // ensure bank balances are read all the way from start of contract
+              timeContractStart
                 ? sql`AND t."timestamp" >= toStartOfInterval(
-                    toDateTime(${timePrevious || unixFrom}),
+                    toDateTime(${timeContractStart}),
                     INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                   )`
                 : raw('')
@@ -228,9 +229,10 @@ export const route: Route<Request, Response> = {
             -- reduce grouping work by filtering to period first
             WHERE 1 = 1
               ${
-                timePrevious || unixFrom
+                // ensure bank balances are read all the way from start of contract
+                timeContractStart
                   ? sql`AND t."timestamp" >= toStartOfInterval(
-                      toDateTime(${timePrevious || unixFrom}),
+                      toDateTime(${timeContractStart}),
                       INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                     )`
                   : raw('')
@@ -295,23 +297,6 @@ export const route: Route<Request, Response> = {
             argMax("ReservesZero", t."timestamp") AS "ReservesZero",
             argMax("ReservesOne", t."timestamp") AS "ReservesOne"
           FROM grouped_vault_reserves_at_height as t
-          WHERE 1 = 1
-          ${
-            timePrevious || unixFrom
-              ? sql`AND t."timestamp" >= toStartOfInterval(
-                  toDateTime(${timePrevious || unixFrom}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          ${
-            unixTo
-              ? sql`AND t."timestamp" < toStartOfInterval(
-                  toDateTime(${unixTo}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
           -- order by time
           GROUP BY "PairZero", "PairOne", "timestamp"
           ORDER BY "PairZero", "PairOne", "timestamp" ASC
@@ -340,6 +325,22 @@ export const route: Route<Request, Response> = {
           FROM spacebox.raw_slinky_prices as t
           -- filter to symbol and contract start time
           WHERE ("pair_id" = "quote_pair_zero" OR "pair_id" = "quote_pair_one")
+          ${
+            timeContractStart
+              ? sql`AND t."timestamp" >= toStartOfInterval(
+                  toDateTime(${timeContractStart}),
+                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                )`
+              : raw('')
+          }
+          ${
+            unixTo
+              ? sql`AND t."timestamp" < toStartOfInterval(
+                  toDateTime(${unixTo}),
+                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                )`
+              : raw('')
+          }
           GROUP BY "pair_id", "timestamp"
           ORDER BY "timestamp" ASC
         ),
@@ -357,7 +358,30 @@ export const route: Route<Request, Response> = {
             toFloat64(p1."price") * exp10(-(${
               token1.decimals
             } + p1."decimals")) * ("ReservesOne" + "BalanceOne") as "tvl_1"
-          FROM filled_amount_timeseries_of_period as amounts
+          FROM (
+            -- filter to selected time here
+            -- unfortunately required past balances to know current values
+            -- and cannot be filtered until thihs step
+            SELECT *
+            FROM filled_amount_timeseries_of_period as t
+            WHERE 1 = 1
+            ${
+              timePrevious || unixFrom
+                ? sql`AND t."timestamp" >= toStartOfInterval(
+                    toDateTime(${timePrevious || unixFrom}),
+                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                  )`
+                : raw('')
+            }
+            ${
+              unixTo
+                ? sql`AND t."timestamp" < toStartOfInterval(
+                    toDateTime(${unixTo}),
+                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                  )`
+                : raw('')
+            }
+          ) as amounts
           -- join to closest available price or token zero
           ASOF LEFT JOIN grouped_prices as p0
             ON (amounts."ReservesZero" > 0 OR amounts."BalanceZero" > 0)
@@ -415,7 +439,9 @@ export const route: Route<Request, Response> = {
         isComplete:
           !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
         cacheTime: 1 * hours * inMs,
-        cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+        cacheVersion: allUpdateHeights
+          .map((res) => Number(res.data.at(0)?.height) || 0)
+          .reduce((acc, v) => acc + v, 0),
       }
     );
   },
