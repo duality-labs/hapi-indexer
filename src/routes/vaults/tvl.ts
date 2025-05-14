@@ -10,7 +10,7 @@ import {
   WithFillTimePeriod,
   toUnixTime,
 } from '../../utils/units';
-import bankReservesTimeseries from '../../common-table-expressions/bankReservesTimeseries';
+import { bankReservesAtHeightTimeseries } from '../../common-table-expressions/bankReservesTimeseries';
 import {
   selectVaultConfigs,
   VaultResponse,
@@ -167,11 +167,6 @@ export const route: Route<Request, Response> = {
         -- but we alread filter to the required IDs in the following CTEs
         ${pair0} as "quote_pair_zero",
         ${pair1} as "quote_pair_one",
-        cumulative_bank_balances AS (${bankReservesTimeseries(
-          contract,
-          denom0,
-          denom1
-        )}),
         cumulative_bank_balances_at_height AS (
           SELECT
             "timestamp",
@@ -182,35 +177,29 @@ export const route: Route<Request, Response> = {
             "TokenIn",
             -- values
             "address_balance" as "Balance"
-          FROM (
-            SELECT *,
-              ROW_NUMBER() OVER (
-                -- get all rows matching a certain pool and height
-                PARTITION BY "height", "TokenZero", "TokenOne", "TokenIn"
-                ORDER BY "sort_key" DESC
-              ) AS "row_order"
-            FROM cumulative_bank_balances as t
-            -- reduce grouping work by filtering to period first
-            WHERE 1 = 1
-              ${
-                unixFrom || timePrevious
-                  ? sql`AND t."timestamp" >= toStartOfInterval(
-                      toDateTime(${unixFrom || timePrevious}),
-                      INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                    )`
-                  : raw('')
-              }
-              ${
-                unixTo
-                  ? sql`AND t."timestamp" < toStartOfInterval(
-                      toDateTime(${unixTo}),
-                      INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                    )`
-                  : raw('')
-              }
-          )
-          -- filter to last row of each height
-          WHERE "row_order" = 1
+          FROM (${bankReservesAtHeightTimeseries(
+            contract,
+            denom0,
+            denom1
+          )}) as t
+          -- reduce grouping work by filtering to period first
+          WHERE 1 = 1
+            ${
+              unixFrom || timePrevious
+                ? sql`AND t."timestamp" >= toStartOfInterval(
+                    toDateTime(${unixFrom || timePrevious}),
+                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                  )`
+                : raw('')
+            }
+            ${
+              unixTo
+                ? sql`AND t."timestamp" < toStartOfInterval(
+                    toDateTime(${unixTo}),
+                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                  )`
+                : raw('')
+            }
         ),
         cumulative_vault_reserves AS (${dexVaultReservesTimeseries(
           contract,

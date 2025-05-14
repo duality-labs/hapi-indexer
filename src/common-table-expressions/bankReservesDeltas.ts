@@ -44,3 +44,54 @@ export default function bankReservesDeltasTimeseries(
       SELECT * FROM bank_balance_token_one_deltas
   `;
 }
+
+export function bankReservesDeltasAtHeightTimeseries(
+  address: string,
+  denom0: string,
+  denom1: string
+) {
+  return sql`
+    WITH
+      bank_balance_token_zero_deltas AS (
+        SELECT
+          any("timestamp") as "timestamp",
+          "height",
+          -- pool index
+          ${denom0} as "TokenZero",
+          ${denom1} as "TokenOne",
+          -- choose side as TokenZero
+          "TokenZero" as "TokenIn",
+          -- Reserves
+          sumMerge("amount") AS "balance_delta"
+        FROM (
+          SELECT *
+          FROM spacebox.bank_transfer_by_height
+          WHERE "address" = ${address}
+            AND "denom" = ${denom0}
+        )
+        GROUP BY "address", "denom", "height"
+      ),
+      bank_balance_token_one_deltas AS (
+        SELECT
+          any("timestamp") as "timestamp",
+          "height",
+          -- pool index
+          ${denom0} as "TokenZero",
+          ${denom1} as "TokenOne",
+          -- choose side as TokenOne
+          "TokenOne" as "TokenIn",
+          -- Reserves
+          sumMerge("amount") AS "balance_delta"
+        FROM (
+          SELECT *
+          FROM spacebox.bank_transfer_by_height
+          WHERE "address" = ${address}
+            AND "denom" = ${denom1}
+        )
+        GROUP BY "address", "denom", "height"
+      )
+      SELECT * FROM bank_balance_token_zero_deltas
+      UNION ALL
+      SELECT * FROM bank_balance_token_one_deltas
+  `;
+}
