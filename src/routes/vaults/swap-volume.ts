@@ -251,18 +251,18 @@ export const route: Route<Request, Response> = {
             toFloat64(amounts."VolumeOne") as "VolumeOne",
             amounts."FeesZero" as "FeesZero",
             amounts."FeesOne" as "FeesOne",
-            (
-              toFloat64(p0."price") * exp10(-p0."decimals") * ("VolumeZero")
-            ) as "volume_0_usd",
-            (
-              toFloat64(p1."price") * exp10(-p1."decimals") * ("VolumeOne")
-            ) as "volume_1_usd",
-            (
-              toFloat64(p0."price") * exp10(-p0."decimals") * ("FeesZero")
-            ) as "fees_0_usd",
-            (
-              toFloat64(p0."price") * exp10(-p0."decimals") * ("FeesZero")
-            ) as "fees_1_usd"
+            "VolumeZero" * toFloat64(p0."price") * exp10(-(p0."decimals" + ${
+              token0.decimals
+            })) as "volume_0_usd",
+            "VolumeOne" * toFloat64(p1."price") * exp10(-(p1."decimals" + ${
+              token1.decimals
+            })) as "volume_1_usd",
+            "FeesZero" * toFloat64(p0."price") * exp10(-(p0."decimals" + ${
+              token0.decimals
+            })) as "fees_0_usd",
+            "FeesOne" * toFloat64(p1."price") * exp10(-(p1."decimals" + ${
+              token1.decimals
+            })) as "fees_1_usd"
           FROM amount_timeseries_of_period as amounts
           -- join to closest available price or token zero
           -- todo: can improve accuracy by joining on exact event prices
