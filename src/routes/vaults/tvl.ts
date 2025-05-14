@@ -185,9 +185,9 @@ export const route: Route<Request, Response> = {
           -- reduce grouping work by filtering to period first
           WHERE 1 = 1
             ${
-              unixFrom || timePrevious
+              timePrevious || unixFrom
                 ? sql`AND t."timestamp" >= toStartOfInterval(
-                    toDateTime(${unixFrom || timePrevious}),
+                    toDateTime(${timePrevious || unixFrom}),
                     INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                   )`
                 : raw('')
@@ -228,9 +228,9 @@ export const route: Route<Request, Response> = {
             -- reduce grouping work by filtering to period first
             WHERE 1 = 1
               ${
-                unixFrom || timePrevious
+                timePrevious || unixFrom
                   ? sql`AND t."timestamp" >= toStartOfInterval(
-                      toDateTime(${unixFrom || timePrevious}),
+                      toDateTime(${timePrevious || unixFrom}),
                       INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                     )`
                   : raw('')
@@ -297,9 +297,9 @@ export const route: Route<Request, Response> = {
           FROM grouped_vault_reserves_at_height as t
           WHERE 1 = 1
           ${
-            unixFrom || timePrevious
+            timePrevious || unixFrom
               ? sql`AND t."timestamp" >= toStartOfInterval(
-                  toDateTime(${unixFrom || timePrevious}),
+                  toDateTime(${timePrevious || unixFrom}),
                   INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                 )`
               : raw('')

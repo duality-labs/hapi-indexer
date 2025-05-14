@@ -223,6 +223,10 @@ export function handleResponse<
                   // they may have 0 height, so pass the last known height along
                   lastResults[route] = {
                     ...newResultData,
+                    // only save new data if it contains rows
+                    data: newResultData.data.length
+                      ? newResultData.data
+                      : lastResults[route].data,
                     height: newResultData.height || lastResult?.height || NaN,
                   };
                   // wait a bit
