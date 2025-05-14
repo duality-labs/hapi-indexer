@@ -11,15 +11,14 @@ export default function bankReservesDeltasTimeseries(
         SELECT
           "timestamp",
           "height",
-          -- remove coins_index from sort key (no longer needed)
-          ("sort_key".1, "sort_key".2, "sort_key".3, "sort_key".4) as "sort_key",
+          "sort_key",
           -- pool index
           ${denom0} as "TokenZero",
           ${denom1} as "TokenOne",
           -- choose side as TokenZero
           "TokenZero" as "TokenIn",
           -- Reserves
-          "amount" AS "balance_delta"
+          if("type" = 'coin_spent', -"amount", "amount") AS "balance_delta"
         FROM spacebox.bank_transfer
         WHERE "address" = ${address}
           AND "denom" = ${denom0}
@@ -28,15 +27,14 @@ export default function bankReservesDeltasTimeseries(
         SELECT
           "timestamp",
           "height",
-          -- remove coins_index from sort key (no longer needed)
-          ("sort_key".1, "sort_key".2, "sort_key".3, "sort_key".4) as "sort_key",
+          "sort_key",
           -- pool index
           ${denom0} as "TokenZero",
           ${denom1} as "TokenOne",
           -- choose side as TokenOne
           "TokenOne" as "TokenIn",
           -- Reserves
-          "amount" AS "balance_delta"
+          if("type" = 'coin_spent', -"amount", "amount") AS "balance_delta"
         FROM spacebox.bank_transfer
         WHERE "address" = ${address}
           AND "denom" = ${denom1}
