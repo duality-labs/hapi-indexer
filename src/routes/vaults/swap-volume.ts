@@ -28,10 +28,10 @@ export interface Request {
 }
 export interface Response {
   time: string;
-  volume_0_usd: number;
-  volume_1_usd: number;
-  fees_0_usd: number;
-  fees_1_usd: number;
+  volume_0: number;
+  volume_1: number;
+  fees_0: number;
+  fees_1: number;
 }
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
@@ -253,16 +253,16 @@ export const route: Route<Request, Response> = {
             amounts."FeesOne" as "FeesOne",
             "VolumeZero" * toFloat64(p0."price") * exp10(-(p0."decimals" + ${
               token0.decimals
-            })) as "volume_0_usd",
+            })) as "volume_0",
             "VolumeOne" * toFloat64(p1."price") * exp10(-(p1."decimals" + ${
               token1.decimals
-            })) as "volume_1_usd",
+            })) as "volume_1",
             "FeesZero" * toFloat64(p0."price") * exp10(-(p0."decimals" + ${
               token0.decimals
-            })) as "fees_0_usd",
+            })) as "fees_0",
             "FeesOne" * toFloat64(p1."price") * exp10(-(p1."decimals" + ${
               token1.decimals
-            })) as "fees_1_usd"
+            })) as "fees_1"
           FROM amount_timeseries_of_period as amounts
           -- join to closest available price or token zero
           -- todo: can improve accuracy by joining on exact event prices
@@ -280,13 +280,13 @@ export const route: Route<Request, Response> = {
         SELECT
           "timestamp" as "time",
           "height",
-          "volume_0_usd",
-          "volume_1_usd",
-          "fees_0_usd",
-          "fees_1_usd"
+          "volume_0",
+          "volume_1",
+          "fees_0",
+          "fees_1"
         FROM swap_volume_amount_timeseries
-        WHERE "volume_0_usd" > 0
-            OR "volume_1_usd" > 0
+        WHERE "volume_0" > 0
+            OR "volume_1" > 0
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined
@@ -295,13 +295,13 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-        getRow: ({
+        getRow: ({ time, volume_0, volume_1, fees_0, fees_1 }) => ({
           time,
-          volume_0_usd,
-          volume_1_usd,
-          fees_0_usd,
-          fees_1_usd,
-        }) => ({ time, volume_0_usd, volume_1_usd, fees_0_usd, fees_1_usd }),
+          volume_0,
+          volume_1,
+          fees_0,
+          fees_1,
+        }),
         getHeight: (data) =>
           Number(data.find((row) => Number(row.height) > 0)?.height),
         getMetadata: (metadata) => {
@@ -309,22 +309,12 @@ export const route: Route<Request, Response> = {
             metadata
               // remove height field
               ?.filter(({ name }) => name !== 'height')
-              // add reserve field denoms
-              ?.map((row) =>
-                row.name.endsWith('_0_usd')
-                  ? { ...row, units: `${denom0} USD` }
-                  : row
-              )
-              ?.map((row) =>
-                row.name.endsWith('_1_usd')
-                  ? { ...row, units: `${denom1} USD` }
-                  : row
-              )
+              // add units (all USD except for time)
               // add time units, convert tick index units
               ?.map((row) =>
                 row.name === 'time'
                   ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
-                  : { ...row }
+                  : { ...row, units: 'USD' }
               )
           );
         },
