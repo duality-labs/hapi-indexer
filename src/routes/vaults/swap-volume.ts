@@ -280,10 +280,14 @@ export const route: Route<Request, Response> = {
         SELECT
           "timestamp" as "time",
           "height",
-          "volume_0",
-          "volume_1",
-          "fees_0",
-          "fees_1"
+          "volume_0" as "volume_0_maker",
+          0 as "volume_0_taker",
+          "volume_1" as "volume_1_maker",
+          0 as "volume_1_taker",
+          "fees_0" as "fees_0_maker",
+          0 as "fees_0_taker",
+          "fees_1" as "fees_1_maker",
+          0 as "fees_1_taker"
         FROM swap_volume_amount_timeseries
         WHERE "volume_0" > 0
             OR "volume_1" > 0
@@ -295,13 +299,8 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-        getRow: ({ time, volume_0, volume_1, fees_0, fees_1 }) => ({
-          time,
-          volume_0,
-          volume_1,
-          fees_0,
-          fees_1,
-        }),
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        getRow: ({ height, ...row }) => row,
         getHeight: (data) =>
           Number(data.find((row) => Number(row.height) > 0)?.height),
         getMetadata: (metadata) => {
