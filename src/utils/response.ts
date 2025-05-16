@@ -224,9 +224,10 @@ export function handleResponse<
                   lastResults[route] = {
                     ...newResultData,
                     // only save new data if it contains rows
-                    data: newResultData.data.length
-                      ? newResultData.data
-                      : lastResults[route].data,
+                    data:
+                      newResultData.data.length > 0
+                        ? newResultData.data
+                        : lastResults[route]?.data || [],
                     height: newResultData.height || lastResult?.height || NaN,
                   };
                   // wait a bit
