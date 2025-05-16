@@ -177,7 +177,8 @@ export function handleResponse<
                       );
                     });
                   // write data chunk if updates are found
-                  if (newRows && newRows.length > 0) {
+                  // or if data is an initial payload
+                  if (!lastResult || (newRows && newRows.length > 0)) {
                     res.write(
                       formatChunk({
                         event: 'data',
