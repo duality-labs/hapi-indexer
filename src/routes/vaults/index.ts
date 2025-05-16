@@ -174,7 +174,7 @@ export const route: Route<
       ...(streams.includes('tvl') &&
         Object.fromEntries(
           routeResults.data.map((vault) => {
-            const route = `/vaults/tvl/${vault.contract_address}?period=day&limit=36`;
+            const route = `/vaults/tvl/${vault.contract_address}?period=day&limit=1`;
             const getData: GetData<TvlRequest, TvlResponse> = (
               _request,
               abortSignal,
@@ -184,7 +184,7 @@ export const route: Route<
                 {
                   params: { contract: vault.contract_address },
                   // default to last month (5 weeks + one day rounding) in days
-                  query: { period: 'day', limit: '36' },
+                  query: { period: 'day', limit: '1' },
                 },
                 abortSignal,
                 previousResponse
@@ -195,7 +195,7 @@ export const route: Route<
       ...(streams.includes('apr') &&
         Object.fromEntries(
           routeResults.data.map((vault) => {
-            const route = `/vaults/apr/${vault.contract_address}?period=day&limit=36`;
+            const route = `/vaults/apr/${vault.contract_address}?period=day&limit=1`;
             const getData: GetData<AprRequest, AprResponse> = (
               _request,
               abortSignal,
@@ -205,7 +205,7 @@ export const route: Route<
                 {
                   params: { contract: vault.contract_address },
                   // default to last month (5 weeks + one day rounding) in days
-                  query: { period: 'day', limit: '36' },
+                  query: { period: 'day', limit: '1' },
                 },
                 abortSignal,
                 previousResponse
@@ -236,7 +236,7 @@ export const route: Route<
       ...(streams.includes('volume') &&
         Object.fromEntries(
           routeResults.data.map((vault) => {
-            const route = `/vaults/volume/${vault.contract_address}?period=day&limit=36`;
+            const route = `/vaults/volume/${vault.contract_address}?period=day&limit=1`;
             const getData: GetData<VolumeRequest, VolumeResponse> = (
               _request,
               abortSignal,
@@ -246,7 +246,7 @@ export const route: Route<
                 {
                   params: { contract: vault.contract_address },
                   // default to last month (5 weeks + one day rounding) in days
-                  query: { period: 'day', limit: '36' },
+                  query: { period: 'day', limit: '1' },
                 },
                 abortSignal,
                 previousResponse
