@@ -93,32 +93,53 @@ export const route: Route<
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         SELECT
-          "height",
-          "created_at",
-          "updated_at",
-          "contract_address",
-          "owner",
-          "token_0_denom",
-          "token_0_decimals",
-          "token_0_symbol",
-          "token_0_quote_currency",
-          "token_0_max_blocks_stale",
-          "token_1_denom",
-          "token_1_decimals",
-          "token_1_symbol",
-          "token_1_quote_currency",
-          "token_1_max_blocks_stale",
-          "estimated_token_order",
-          "pool_id",
-          "deposit_cap",
-          "oracle_contract",
-          "imbalance",
-          "fee_tier_config",
-          "timestamp_stale",
-          "paused",
-          "denom"
-        FROM (${selectVaultConfigs})
-        -- TODO: join amount of tokens on either side, on dex or not (this will be approximate TVL)
+          config."height" as "height",
+          config."created_at" as "created_at",
+          config."updated_at" as "updated_at",
+          config."contract_address" as "contract_address",
+          config."owner" as "owner",
+          config."token_0_denom" as "token_0_denom",
+          config."token_0_decimals" as "token_0_decimals",
+          config."token_0_symbol" as "token_0_symbol",
+          config."token_0_quote_currency" as "token_0_quote_currency",
+          config."token_0_max_blocks_stale" as "token_0_max_blocks_stale",
+          config."token_1_denom" as "token_1_denom",
+          config."token_1_decimals" as "token_1_decimals",
+          config."token_1_symbol" as "token_1_symbol",
+          config."token_1_quote_currency" as "token_1_quote_currency",
+          config."token_1_max_blocks_stale" as "token_1_max_blocks_stale",
+          config."estimated_token_order" as "estimated_token_order",
+          config."pool_id" as "pool_id",
+          config."deposit_cap" as "deposit_cap",
+          config."oracle_contract" as "oracle_contract",
+          config."imbalance" as "imbalance",
+          config."fee_tier_config" as "fee_tier_config",
+          config."timestamp_stale" as "timestamp_stale",
+          config."paused" as "paused",
+          config."denom" as "denom",
+          (bank_0."balance" + deposited."token_0_balance") as "amount_0",
+          (bank_1."balance" + deposited."token_1_balance") as "amount_1",
+          toFloat64("amount_0") * toFloat64(price_0."price") * exp10(-(config."token_0_decimals" + price_0."decimals")) as "tvl_0",
+          toFloat64("amount_1") * toFloat64(price_1."price") * exp10(-(config."token_1_decimals" + price_1."decimals")) as "tvl_1"
+        FROM (${selectVaultConfigs}) as config
+        -- join to current wallet (off-dex) balance
+        LEFT JOIN spacebox.bank_transfer_state as bank_0
+          ON config."contract_address" = bank_0."address"
+          AND config."token_0_denom" = bank_0."denom"
+        LEFT JOIN spacebox.bank_transfer_state as bank_1
+          ON config."contract_address" = bank_1."address"
+          AND config."token_1_denom" = bank_1."denom"
+        -- join to current reserves (on-dex) balance
+        LEFT JOIN spacebox.dex_vaults_dex_balance_state as deposited
+          ON config."contract_address" = deposited."contract_address"
+        -- join to current slinky prices
+        -- note: this should eventually be replaced with deposited.price attributes
+        LEFT JOIN spacebox.slinky_prices_state as price_0
+          ON price_0."quote" = 'USD'
+          AND price_0."base" = config."token_0_symbol"
+        LEFT JOIN spacebox.slinky_prices_state as price_1
+          ON price_1."quote" = 'USD'
+          AND price_1."base" = config."token_1_symbol"
         ${
           previousResponse
             ? // if this is an incremental update, get changes since known height
@@ -145,6 +166,12 @@ export const route: Route<
             metadata
               // remove height field
               ?.filter(({ name }) => name !== 'height')
+              // add reserve field denoms
+              ?.map((row) =>
+                row.name === 'tvl_0' || row.name === 'tvl_1'
+                  ? { ...row, units: 'USD' }
+                  : row
+              )
               // add time units
               ?.map((row) =>
                 row.name === 'created_at' || row.name === 'updated_at'
