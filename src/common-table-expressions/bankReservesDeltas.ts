@@ -54,7 +54,7 @@ export function bankReservesDeltasAtHeightTimeseries(
     WITH
       bank_balance_token_zero_deltas AS (
         SELECT
-          any("timestamp") as "timestamp",
+          "timestamp",
           "height",
           -- pool index
           ${denom0} as "TokenZero",
@@ -62,18 +62,14 @@ export function bankReservesDeltasAtHeightTimeseries(
           -- choose side as TokenZero
           "TokenZero" as "TokenIn",
           -- Reserves
-          sumMerge("amount_state") AS "balance_delta"
-        FROM (
-          SELECT *
-          FROM spacebox.bank_transfer_by_height
-          WHERE "address" = ${address}
-            AND "denom" = ${denom0}
-        )
-        GROUP BY "address", "denom", "height"
+          "amount_delta" AS "balance_delta"
+        FROM spacebox.bank_transfer_by_height
+        WHERE "address" = ${address}
+          AND "denom" = ${denom0}
       ),
       bank_balance_token_one_deltas AS (
         SELECT
-          any("timestamp") as "timestamp",
+          "timestamp",
           "height",
           -- pool index
           ${denom0} as "TokenZero",
@@ -81,14 +77,10 @@ export function bankReservesDeltasAtHeightTimeseries(
           -- choose side as TokenOne
           "TokenOne" as "TokenIn",
           -- Reserves
-          sumMerge("amount_state") AS "balance_delta"
-        FROM (
-          SELECT *
-          FROM spacebox.bank_transfer_by_height
-          WHERE "address" = ${address}
-            AND "denom" = ${denom1}
-        )
-        GROUP BY "address", "denom", "height"
+          "amount_delta" AS "balance_delta"
+        FROM spacebox.bank_transfer_by_height
+        WHERE "address" = ${address}
+          AND "denom" = ${denom0}
       )
       SELECT * FROM bank_balance_token_zero_deltas
       UNION ALL
