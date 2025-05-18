@@ -9,6 +9,7 @@ import { route as dexTvlRoute } from './dex/tvl';
 import { route as slinkyPriceRoute } from './slinky/price';
 import { route as vaultsRoute } from './vaults';
 import { route as vaultsSharesRoute } from './vaults/shares';
+import { route as vaultsUserSharesRoute } from './vaults/user/shares';
 import { route as vaultsAprRoute } from './vaults/apr';
 import { route as vaultsTvlRoute } from './vaults/tvl';
 import { route as vaultsSwapVolumeRoute } from './vaults/swap-volume';
@@ -38,6 +39,7 @@ const productionRoutes: Route<any, any, any>[] = [
   { ...slinkyPriceRoute, path: slinkyPriceRoute.path.replace('/price', '') },
   vaultsRoute,
   vaultsSharesRoute,
+  vaultsUserSharesRoute,
   vaultsAprRoute,
   vaultsSwapVolumeRoute,
   vaultsTvlRoute,
