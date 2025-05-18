@@ -2,7 +2,7 @@ import sql from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
-import { hours, inMs } from '../../utils/units';
+import { inMs, minutes } from '../../utils/units';
 import { selectVaultConfigs } from '../../common-table-expressions/vaultConfigs';
 import {
   route as tvlRoute,
@@ -81,12 +81,27 @@ export const route: Route<
       abortSignal
     );
 
-    const currentHeight = await getCachedResponse<{ height: string }>(
-      sql`
-          SELECT max("height") AS "height"
-          FROM spacebox."dex_vaults_config_tx_event"
-        `,
-      abortSignal
+    const currentHeights = await Promise.all([
+      getCachedResponse<{ height: string }>(
+        sql`
+            SELECT max("height") AS "height"
+            FROM spacebox."dex_vaults_config_tx_event"
+          `,
+        abortSignal
+      ),
+      getCachedResponse<{ height: string }>(
+        sql`
+            SELECT max("height") AS "height"
+            FROM spacebox."dex_vaults_dex_balance_state"
+          `,
+        abortSignal
+      ),
+    ]);
+
+    const currentHeight = Math.max(
+      ...currentHeights.map(
+        (response) => Number(response.data.at(0)?.height) || 0
+      )
     );
 
     // get timeseries data
@@ -180,8 +195,8 @@ export const route: Route<
               )
           );
         },
-        cacheTime: 1 * hours * inMs,
-        cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+        cacheTime: 1 * minutes * inMs,
+        cacheVersion: currentHeight,
       }
     );
   },
