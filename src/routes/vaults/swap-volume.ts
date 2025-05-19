@@ -147,7 +147,9 @@ export const route: Route<Request, Response> = {
 
     // get requested time period or default
     const timePeriods = Number(request.query.periods) || 1;
-    const timePeriod = getFillableTimePeriod(request.query.period) || 'day';
+    const last24H = !getFillableTimePeriod(request.query.period);
+    const timePeriod = getFillableTimePeriod(request.query.period) || 'minute';
+
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get contract start time
@@ -176,9 +178,16 @@ export const route: Route<Request, Response> = {
         -- get a standard period time of how much the vault has per time period
         amount_timeseries_of_period AS (
           SELECT
-            toStartOfInterval(t."timestamp", INTERVAL ${raw(
-              timePeriods.toFixed(0)
-            )} ${raw(timePeriod)}) AS "timestamp",
+            ${
+              last24H
+                ? sql`toStartOfInterval(
+                    addDays(NOW(), -1),
+                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                  )`
+                : sql`toStartOfInterval(t."timestamp", INTERVAL ${raw(
+                    timePeriods.toFixed(0)
+                  )} ${raw(timePeriod)})`
+            } AS "timestamp",
             max(t."height") AS "height",
             -- now that we will split the value fields to two sides:
             -- bring in the contract value sides
@@ -192,17 +201,21 @@ export const route: Route<Request, Response> = {
           FROM address_swap_volume as t
           WHERE 1 = 1
           ${
-            unixFrom || timePrevious
+            last24H || unixFrom || timePrevious
               ? sql`AND t."timestamp" >= toStartOfInterval(
-                  toDateTime(${unixFrom || timePrevious}),
+                  ${
+                    last24H
+                      ? sql`addDays(NOW(), -1)`
+                      : sql`toDateTime(${unixFrom || timePrevious})`
+                  },
                   INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                 )`
               : raw('')
           }
           ${
-            unixTo
+            last24H || unixTo
               ? sql`AND t."timestamp" < toStartOfInterval(
-                  toDateTime(${unixTo}),
+                  ${last24H ? sql`NOW()` : sql`toDateTime(${unixTo})`},
                   INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                 )`
               : raw('')
@@ -225,17 +238,23 @@ export const route: Route<Request, Response> = {
           -- filter to symbol and contract start time
           WHERE ("pair_id" = "quote_pair_zero" OR "pair_id" = "quote_pair_one")
           ${
-            unixFrom || timePrevious
-              ? sql`AND "timestamp" >= toStartOfInterval(
-                  toDateTime(${unixFrom || timePrevious}),
+            last24H || unixFrom || timePrevious
+              ? sql`AND t."timestamp" >= toStartOfInterval(
+                  -- todo: fix with height_to >= heightAtTime(time) - 1 logic
+                  -- add some breathing room (10 minutes) to get previous prices
+                  addMinutes(${
+                    last24H
+                      ? sql`addDays(NOW(), -1)`
+                      : sql`toDateTime(${unixFrom || timePrevious})`
+                  }, -10),
                   INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                 )`
               : raw('')
           }
           ${
-            unixTo
-              ? sql`AND "timestamp" < toStartOfInterval(
-                  toDateTime(${unixTo}),
+            last24H || unixTo
+              ? sql`AND t."timestamp" < toStartOfInterval(
+                  ${last24H ? sql`NOW()` : sql`toDateTime(${unixTo})`},
                   INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                 )`
               : raw('')
