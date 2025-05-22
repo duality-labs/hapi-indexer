@@ -17,62 +17,18 @@ export default function dexSwapVolumeTimeseries(
           -- pool index
           "TokenZero",
           "TokenOne",
+          "TokenIn",
           "TickIndex",
           "Fee",
           -- values
           "total_shares_delta" * "is_address" as "address_shares_delta",
           if ("credit" = 1, "shares", -"shares") as "total_shares_delta"
-        FROM spacebox.dex_shares
+        FROM spacebox.dex_shares_by_pool
         -- filter data early to reduce processing
         WHERE
           -- filter to pair
           "TokenZero" = ${denom0} AND
           "TokenOne" = ${denom1}
-      ),
-      address_shares_zero_deltas AS (
-        WITH "Receiver" = ${address} as "is_address"
-        SELECT
-          -- sorting
-          "timestamp",
-          "height",
-          "sort_key",
-          -- pool index
-          "TokenZero",
-          "TokenOne",
-          -- choose side as TokenZero
-          "TokenZero" as "TokenIn",
-          -- shift central tick index to "TickIndexZero" side
-          "Fee" - "TickIndex" as "TickIndex",
-          "Fee",
-          -- values
-          "address_shares_delta",
-          "total_shares_delta"
-        FROM address_shares_deltas
-      ),
-      address_shares_one_deltas AS (
-        WITH "Receiver" = ${address} as "is_address"
-        SELECT
-          -- sorting
-          "timestamp",
-          "height",
-          "sort_key",
-          -- pool index
-          "TokenZero",
-          "TokenOne",
-          -- choose side as TokenOne
-          "TokenOne" as "TokenIn",
-          -- shift central tick index to "TickIndexOne" side
-          "Fee" + "TickIndex" as "TickIndex",
-          "Fee",
-          -- values
-          "address_shares_delta",
-          "total_shares_delta"
-        FROM address_shares_deltas
-      ),
-      address_shares_deltas_union AS (
-        SELECT * FROM address_shares_zero_deltas
-        UNION ALL
-        SELECT * FROM address_shares_one_deltas
       ),
       dex_volumes AS (
         SELECT
@@ -136,7 +92,7 @@ export default function dexSwapVolumeTimeseries(
           0 as "total_fees",
           "address_shares_delta",
           "total_shares_delta"
-        FROM address_shares_deltas_union
+        FROM address_shares_deltas
       ),
       address_volumes as (
         WITH
