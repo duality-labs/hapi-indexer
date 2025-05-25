@@ -58,6 +58,10 @@ interface Response {
   timestamp_stale: string;
   paused: false;
   denom: string;
+  amount_0: string;
+  amount_1: string;
+  tvl_0: number;
+  tvl_1: number;
 }
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
