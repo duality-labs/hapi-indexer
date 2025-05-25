@@ -291,8 +291,8 @@ export const route: Route<
               volumeRoute.handler(
                 {
                   params: { contract: vault.contract_address },
-                  // default to last month (5 weeks + one day rounding) in days
-                  query: { period: 'day', limit: '1' },
+                  // default to last 24H
+                  query: {},
                 },
                 abortSignal,
                 previousResponse
