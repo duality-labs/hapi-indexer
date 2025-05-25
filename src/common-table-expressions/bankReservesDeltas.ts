@@ -66,6 +66,7 @@ export function bankReservesDeltasAtHeightTimeseries(
         FROM spacebox.bank_transfer_by_height
         WHERE "address" = ${address}
           AND "denom" = ${denom0}
+          AND "amount_delta" != 0
       ),
       bank_balance_token_one_deltas AS (
         SELECT
@@ -81,6 +82,7 @@ export function bankReservesDeltasAtHeightTimeseries(
         FROM spacebox.bank_transfer_by_height
         WHERE "address" = ${address}
           AND "denom" = ${denom1}
+          AND "amount_delta" != 0
       )
       SELECT * FROM bank_balance_token_zero_deltas
       UNION ALL
