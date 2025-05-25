@@ -21,7 +21,11 @@ export default function dexVaultReservesTimeseries(
         "TokenOne",
         "TokenIn",
         -- values
-        if ("TokenIn" = "TokenZero", "token_0_balance", "token_1_balance") as "Reserves"
+        -- note: fix difference between intended and actual balance later
+        --       intended balance does not account for "swap on deposit"
+        --       or failed deposit events: the intended balance will be 100%
+        --       of the vault's available tokens, but actual value may differ
+        if ("TokenIn" = "TokenZero", "intended_token_0_balance", "intended_token_1_balance") as "Reserves"
       FROM spacebox.dex_vaults_dex_balance
       ARRAY JOIN [${denom0}, ${denom1}] as "TokenIn"
       -- filter data early to reduce processing

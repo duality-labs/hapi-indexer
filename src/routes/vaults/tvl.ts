@@ -345,11 +345,14 @@ export const route: Route<Request, Response> = {
           ORDER BY "timestamp" ASC
         ),
         tvl_amount_timeseries AS (
+          -- note: use intended deposits fix instead of actual on chain reserves
+          WITH
+            amounts."ReservesZero" > 0 OR amounts."ReservesOne" > 0 as "has_intended_deposits"
           SELECT
             amounts."timestamp" as "timestamp",
             amounts."height" as "height",
-            toFloat64(amounts."BalanceZero") as "BalanceZero",
-            toFloat64(amounts."BalanceOne") as "BalanceOne",
+            toFloat64(if("has_intended_deposits" = 1, 0, amounts."BalanceZero")) as "BalanceZero",
+            toFloat64(if("has_intended_deposits" = 1, 0, amounts."BalanceOne")) as "BalanceOne",
             toFloat64(amounts."ReservesZero") as "ReservesZero",
             toFloat64(amounts."ReservesOne") as "ReservesOne",
             toFloat64(p0."price") * exp10(-(${
