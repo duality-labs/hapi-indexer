@@ -292,8 +292,8 @@ export const route: Route<Request, Response> = {
             -- get last known reserves values within group
             argMax("height", t."timestamp") AS "height",
             -- protect against possible negative balances due to possible missing rows
-            argMaxIf("BalanceZero", t."timestamp", "BalanceZero" > 0) AS "BalanceZero",
-            argMaxIf("BalanceOne", t."timestamp", "BalanceOne" > 0) AS "BalanceOne",
+            greatest(argMax("BalanceZero", t."timestamp"), 0) AS "BalanceZero",
+            greatest(argMax("BalanceOne", t."timestamp"), 0) AS "BalanceOne",
             argMax("ReservesZero", t."timestamp") AS "ReservesZero",
             argMax("ReservesOne", t."timestamp") AS "ReservesOne"
           FROM grouped_vault_reserves_at_height as t
