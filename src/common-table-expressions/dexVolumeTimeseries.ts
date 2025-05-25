@@ -7,72 +7,34 @@ export default function dexSwapVolumeTimeseries(
 ) {
   return sql`
     WITH
-      address_shares_deltas AS (
-        WITH "Receiver" = ${address} as "is_address"
+      dex_shares AS (
         SELECT
           -- sorting
           "timestamp",
           "height",
           "sort_key",
+          (
+            "event_index"        * toUInt256(1))
+            + ("tx_index"         * toUInt256(4294967296))              -- + shift by 32 event_index bits (2^32)
+            + ("block_part_index" * toUInt256(18446744073709551616))    -- + shift by 32 tx_index bits (2^64)
+            + ("height"           * toUInt256(4722366482869645213696)
+          ) as "version",
+          -- user
+          "Receiver",
           -- pool index
           "TokenZero",
           "TokenOne",
           "TickIndex",
           "Fee",
           -- values
-          "total_shares_delta" * "is_address" as "address_shares_delta",
-          if ("credit" = 1, "shares", -"shares") as "total_shares_delta"
-        FROM spacebox.dex_shares
+          "user_shares",
+          "total_shares"
+        FROM spacebox.dex_shares_by_pool_agg
         -- filter data early to reduce processing
         WHERE
           -- filter to pair
           "TokenZero" = ${denom0} AND
           "TokenOne" = ${denom1}
-      ),
-      address_shares_zero_deltas AS (
-        WITH "Receiver" = ${address} as "is_address"
-        SELECT
-          -- sorting
-          "timestamp",
-          "height",
-          "sort_key",
-          -- pool index
-          "TokenZero",
-          "TokenOne",
-          -- choose side as TokenZero
-          "TokenZero" as "TokenIn",
-          -- shift central tick index to "TickIndexZero" side
-          "Fee" - "TickIndex" as "TickIndex",
-          "Fee",
-          -- values
-          "address_shares_delta",
-          "total_shares_delta"
-        FROM address_shares_deltas
-      ),
-      address_shares_one_deltas AS (
-        WITH "Receiver" = ${address} as "is_address"
-        SELECT
-          -- sorting
-          "timestamp",
-          "height",
-          "sort_key",
-          -- pool index
-          "TokenZero",
-          "TokenOne",
-          -- choose side as TokenOne
-          "TokenOne" as "TokenIn",
-          -- shift central tick index to "TickIndexOne" side
-          "Fee" + "TickIndex" as "TickIndex",
-          "Fee",
-          -- values
-          "address_shares_delta",
-          "total_shares_delta"
-        FROM address_shares_deltas
-      ),
-      address_shares_deltas_union AS (
-        SELECT * FROM address_shares_zero_deltas
-        UNION ALL
-        SELECT * FROM address_shares_one_deltas
       ),
       dex_volumes AS (
         SELECT
@@ -80,102 +42,87 @@ export default function dexSwapVolumeTimeseries(
           "timestamp",
           "height",
           "sort_key",
+          (
+            "event_index"        * toUInt256(1))
+            + ("tx_index"         * toUInt256(4294967296))              -- + shift by 32 event_index bits (2^32)
+            + ("block_part_index" * toUInt256(18446744073709551616))    -- + shift by 32 tx_index bits (2^64)
+            + ("height"           * toUInt256(4722366482869645213696)
+          ) as "version",
           -- pool index
           "TokenZero",
           "TokenOne",
-          "TokenIn",
           "TickIndex",
           "Fee",
           -- get swap volume+fees in token in units
-          "SwapAmountIn" as "total_volume_and_fees",
+          "ReservesInZero",
+          "ReservesInOne",
           -- fee basis is 1 point = 0.001%
-          "SwapAmountIn" * "Fee" / 100000 as "total_fees"
-        FROM spacebox.dex_message_event_tick_update
+          "ReservesInZero" * "Fee" / 100000 as "FeesZero",
+          "ReservesInOne" * "Fee" / 100000 as "FeesOne",
+          -- mark if this is active or passive volume
+          "action" != 'TickUpdate' as "active"
+        FROM spacebox.dex_swaps
+        -- ensure no double counting
+        FINAL
         -- filter data early to reduce processing
         WHERE
-          -- filter to swaps
-          "is_swap" = 1 AND
           -- filter to pair
           "TokenZero" = ${denom0} AND
           "TokenOne" = ${denom1} AND
           -- do not include tranches (limit order liquidity)
-          empty("TrancheKey")
+          "TrancheKey" IS NULL
       ),
-      address_volumes_union AS (
+      swaps_with_shares AS (
         SELECT
-          -- sorting
-          "timestamp",
-          "height",
-          "sort_key",
+          swap."timestamp" as "timestamp",
+          swap."height" as "height",
+          swap."sort_key" as "sort_key",
           -- pool index
-          "TokenZero",
-          "TokenOne",
-          "TokenIn",
-          "TickIndex",
-          "Fee",
+          swap."TokenZero" as "TokenZero",
+          swap."TokenOne" as "TokenOne",
+          swap."TickIndex" as "TickIndex",
+          swap."Fee" as "Fee",
           -- values
-          "total_volume_and_fees",
-          "total_fees",
-          0 as "address_shares_delta",
-          0 as "total_shares_delta"
-        FROM dex_volumes
-        UNION ALL
-        SELECT
-          -- sorting
-          "timestamp",
-          "height",
-          "sort_key",
-          -- pool index
-          "TokenZero",
-          "TokenOne",
-          "TokenIn",
-          "TickIndex",
-          "Fee",
-          -- values
-          0 as "total_volume_and_fees",
-          0 as "total_fees",
-          "address_shares_delta",
-          "total_shares_delta"
-        FROM address_shares_deltas_union
-      ),
-      address_volumes as (
-        WITH
-          -- perform cumulative sum of address shares of all pools within the pair
-          sum("address_shares_delta") OVER cumulative_events as "address_shares",
-          sum("total_shares_delta") OVER cumulative_events as "total_shares"
-        SELECT
-          "timestamp",
-          "height",
-          "sort_key",
-          -- pool index
-          "TokenZero",
-          "TokenOne",
-          "TokenIn",
-          "TickIndex",
-          "Fee",
-          -- values
-          if (
-            "address_shares" > 0 AND "total_shares" > 0,
-            toFloat64("total_volume_and_fees") * ("address_shares" / "total_shares"),
-            0
-          ) as "address_volume_and_fees",
-          if (
-            "address_shares" > 0 AND "total_shares" > 0,
-            "total_fees" * ("address_shares" / "total_shares"),
-            0
-          ) as "address_fees",
-          "total_volume_and_fees",
-          "total_fees"
-        FROM address_volumes_union
-        WINDOW cumulative_events AS (
-          -- partition sums to each pool
-          PARTITION BY "TokenZero", "TokenOne", "TokenIn", "TickIndex", "Fee"
-          ORDER BY "sort_key" ASC
-          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-        )
-      )
-    SELECT *
-    FROM address_volumes
-    WHERE "address_volume_and_fees" > 0
+          swap."ReservesInZero" as "ReservesInZero",
+          swap."ReservesInOne" as "ReservesInOne",
+          swap."FeesZero" as "FeesZero",
+          swap."FeesOne" as "FeesOne",
+          swap."active" as "active",
+          COALESCE(user_shares."user_shares", 0) as "user_shares",
+          COALESCE(dex_shares."total_shares", 0) as "total_shares"
+        FROM dex_volumes as swap
+        -- join to closest available user_shares
+        ASOF LEFT JOIN dex_shares as user_shares
+          ON dex_shares."TokenZero" = swap."TokenZero"
+          AND dex_shares."TokenOne" = swap."TokenOne"
+          AND dex_shares."TickIndex" = swap."TickIndex"
+          AND dex_shares."Fee" = swap."Fee"
+          AND dex_shares."Receiver" = ${address} -- <-- get user's last shares
+          AND dex_shares."version" <= swap."version"
+        -- join to closest available total_shares
+        ASOF LEFT JOIN dex_shares
+          ON dex_shares."TokenZero" = swap."TokenZero"
+          AND dex_shares."TokenOne" = swap."TokenOne"
+          AND dex_shares."TickIndex" = swap."TickIndex"
+          AND dex_shares."Fee" = swap."Fee"
+          AND dex_shares."version" <= swap."version"
+        ),
+    "user_shares" / "total_shares" as "user_fraction"
+    SELECT
+      "timestamp",
+      "height",
+      -- pool index
+      "TokenZero",
+      "TokenOne",
+      "TickIndex",
+      "Fee",
+      -- values
+      "user_fraction" * toFloat64("ReservesInZero") as "volume_zero",
+      "user_fraction" * toFloat64("ReservesInOne") as "volume_one",
+      "user_fraction" * "FeesZero" as "fees_zero",
+      "user_fraction" * "FeesOne" as "fees_one",
+      "active"
+    FROM swaps_with_shares
+    WHERE "user_shares" > 0
   `;
 }

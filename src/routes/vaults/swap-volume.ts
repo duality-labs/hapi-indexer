@@ -194,10 +194,12 @@ export const route: Route<Request, Response> = {
             "quote_pair_zero" as "PairZero",
             "quote_pair_one" as "PairOne",
             -- values
-            sumIf("address_volume_and_fees", "TokenIn" = "TokenOne") as "VolumeZero",
-            sumIf("address_volume_and_fees", "TokenIn" = "TokenZero") as "VolumeOne",
-            sumIf("address_fees", "TokenIn" = "TokenOne") as "FeesZero",
-            sumIf("address_fees", "TokenIn" = "TokenZero") as "FeesOne"
+            sumIf("volume_zero", "active" = 1) as "ActiveVolumeZero",
+            sumIf("volume_one", "active" = 1) as "ActiveVolumeOne",
+            sumIf("volume_zero", "active" = 0) as "PassiveVolumeZero",
+            sumIf("volume_one", "active" = 0) as "PassiveVolumeOne",
+            sum("fees_zero") as "FeesZero",
+            sum("fees_one") as "FeesOne"
           FROM address_swap_volume as t
           WHERE 1 = 1
           ${
@@ -266,16 +268,24 @@ export const route: Route<Request, Response> = {
           SELECT
             amounts."timestamp" as "timestamp",
             amounts."height" as "height",
-            toFloat64(amounts."VolumeZero") as "VolumeZero",
-            toFloat64(amounts."VolumeOne") as "VolumeOne",
+            toFloat64(amounts."ActiveVolumeZero") as "active_volume_zero",
+            toFloat64(amounts."ActiveVolumeOne") as "active_volume_one",
+            toFloat64(amounts."PassiveVolumeZero") as "passive_volume_zero",
+            toFloat64(amounts."PassiveVolumeOne") as "passive_volume_one",
             amounts."FeesZero" as "FeesZero",
             amounts."FeesOne" as "FeesOne",
-            "VolumeZero" * toFloat64(p0."price") * exp10(-(p0."decimals" + ${
+            "active_volume_zero" * toFloat64(p0."price") * exp10(-(p0."decimals" + ${
               token0.decimals
-            })) as "volume_0",
-            "VolumeOne" * toFloat64(p1."price") * exp10(-(p1."decimals" + ${
+            })) as "active_volume_0",
+            "active_volume_one" * toFloat64(p1."price") * exp10(-(p1."decimals" + ${
               token1.decimals
-            })) as "volume_1",
+            })) as "active_volume_1",
+            "passive_volume_zero" * toFloat64(p0."price") * exp10(-(p0."decimals" + ${
+              token0.decimals
+            })) as "passive_volume_0",
+            "passive_volume_one" * toFloat64(p1."price") * exp10(-(p1."decimals" + ${
+              token1.decimals
+            })) as "passive_volume_1",
             "FeesZero" * toFloat64(p0."price") * exp10(-(p0."decimals" + ${
               token0.decimals
             })) as "fees_0",
@@ -286,12 +296,18 @@ export const route: Route<Request, Response> = {
           -- join to closest available price or token zero
           -- todo: can improve accuracy by joining on exact event prices
           ASOF LEFT JOIN grouped_prices as p0
-            ON (amounts."FeesZero" > 0 OR amounts."VolumeZero" > 0)
+            ON (
+              amounts."ActiveVolumeZero" > 0 OR
+              amounts."PassiveVolumeZero" > 0
+            )
             AND p0."pair_id" = amounts."PairZero"
             AND p0."timestamp" <= amounts."timestamp"
           -- join to closest available price or token one
           ASOF LEFT JOIN grouped_prices as p1
-            ON (amounts."FeesOne" > 0 OR amounts."VolumeOne" > 0)
+          ON (
+              amounts."ActiveVolumeOne" > 0 OR
+              amounts."PassiveVolumeOne" > 0
+            )
             AND p1."pair_id" = amounts."PairOne"
             AND p1."timestamp" <= amounts."timestamp"
         )
@@ -299,17 +315,15 @@ export const route: Route<Request, Response> = {
         SELECT
           "timestamp" as "time",
           "height",
-          "volume_0" as "volume_0_maker",
-          0 as "volume_0_taker",
-          "volume_1" as "volume_1_maker",
-          0 as "volume_1_taker",
+          "passive_volume_0" as "volume_0_maker",
+          "active_volume_0" as "volume_0_taker",
+          "passive_volume_1" as "volume_1_maker",
+          "active_volume_1" as "volume_1_taker",
           "fees_0" as "fees_0_maker",
           0 as "fees_0_taker",
           "fees_1" as "fees_1_maker",
           0 as "fees_1_taker"
         FROM swap_volume_amount_timeseries
-        WHERE "volume_0" > 0
-            OR "volume_1" > 0
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined
