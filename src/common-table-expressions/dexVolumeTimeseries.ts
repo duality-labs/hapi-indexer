@@ -126,3 +126,13 @@ export default function dexSwapVolumeTimeseries(
     WHERE "user_shares" > 0
   `;
 }
+
+/*
+  plan: make "swaps_with_shares" table to hold vault volume timeseries data
+    - make one resfreshable materialized view for EACH vault, with hard-coded address
+    - group to hourly periods over the last 30 days = 720 (+1) hours
+    - use single ReplacingMergeTree
+      - set MV to APPEND: rows will replace each other
+    - update every hour? 10 minutes? offset 3 minutes?
+    - should reduce from ~6s to ~0.1s
+*/
