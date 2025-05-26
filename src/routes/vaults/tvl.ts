@@ -167,6 +167,312 @@ export const route: Route<Request, Response> = {
         -- but we alread filter to the required IDs in the following CTEs
         ${pair0} as "quote_pair_zero",
         ${pair1} as "quote_pair_one",
+        -- define start and end times of the measurement
+        -- WITH
+        -- price_ids AS (
+        --   WITH price_ids_by_height AS (
+        --     SELECT
+        --       "base",
+        --       "quote",
+        --       "id",
+        --       maxMerge("height_to") as "height"
+        --     FROM spacebox.slinky_pairs
+        --     GROUP BY "base", "quote", "id"
+        --   )
+        --   SELECT
+        --     "base",
+        --     "quote",
+        --     argMax("id", "height") as "id"
+        --   FROM price_ids_by_height
+        --   GROUP BY "base", "quote"
+        -- ),
+        -- (
+        --   SELECT "id"
+        --   FROM price_ids
+        --   WHERE "base" = 'USDC'
+        --     AND "quote" = 'USD'
+        --   LIMIT 1
+        -- ) as "price_id_0",
+        -- (
+        --   SELECT "id"
+        --   FROM price_ids
+        --   WHERE "base" = 'NTRN'
+        --     AND "quote" = 'USD'
+        --   LIMIT 1
+        -- ) as "price_id_1",
+        -- toStartOfHour( addMinutes( now(), -10 ) ) as "time_end",
+        -- addDays("time_end", -30) as "time_start",
+        -- -- define CTEs
+        -- vault_reserves AS (
+        --   SELECT
+        --     -- sorting
+        --     "timestamp",
+        --     "height",
+        --     -- values
+        --     -- note: fix difference between intended and actual balance later
+        --     --       intended balance does not account for "swap on deposit"
+        --     --       or failed deposit events: the intended balance will be 100%
+        --     --       of the vault's available tokens, but actual value may differ
+        --     "intended_token_0_balance" as "balance_0",
+        --     "intended_token_1_balance" as "balance_1"
+        --   FROM spacebox.dex_vaults_dex_balance_by_height
+        --   -- filter data early to reduce processing
+        --   WHERE "contract_address" = 'neutron16jdl03kz2ggrdm90lu3t4hdqj3tpc808r06nrcpnf0xun9wuqaws7qw42x'
+        --   ORDER BY "contract_address" ASC, "timestamp" DESC
+        -- ),
+        -- balance_basis AS (
+        --   SELECT *
+        --   FROM vault_reserves
+        --   WHERE "timestamp" < "time_end"
+        --   LIMIT 1
+        -- )
+        -- SELECT * FROM balance_basis
+        -- define start and end times of the measurement
+        WITH
+        toStartOfHour(addMinutes(now(), -10)) as "time_end",
+        addDays("time_end", -30) as "time_start",
+        -- (
+        --   SELECT "timestamp"
+        --   FROM spacebox.dex_vaults_dex_balance
+        --   -- filter data early to reduce processing
+        --   WHERE "contract_address" = 'neutron16jdl03kz2ggrdm90lu3t4hdqj3tpc808r06nrcpnf0xun9wuqaws7qw42x'
+        --     AND "timestamp" < "time_start"
+        --   -- keep original table order but descending
+        --   ORDER BY "height" DESC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
+        --   LIMIT 1
+        -- ) as "time_balance_start",
+        balance_start_row AS (
+          SELECT
+            "time_start" AS "timestamp",
+            "height",
+            "intended_token_0_balance",
+            "intended_token_1_balance"
+          FROM spacebox.dex_vaults_dex_balance as b
+          -- filter data early to reduce processing
+          WHERE "contract_address" = 'neutron16jdl03kz2ggrdm90lu3t4hdqj3tpc808r06nrcpnf0xun9wuqaws7qw42x'
+            AND b."timestamp" <= "time_start"
+          -- keep original table order but descending
+          ORDER BY "height" DESC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
+          LIMIT 1
+        ),
+        balance_end_row AS (
+          SELECT
+            "time_end" AS "timestamp",
+            "height",
+            "intended_token_0_balance",
+            "intended_token_1_balance"
+          FROM spacebox.dex_vaults_dex_balance as b
+          -- filter data early to reduce processing
+          WHERE "contract_address" = 'neutron16jdl03kz2ggrdm90lu3t4hdqj3tpc808r06nrcpnf0xun9wuqaws7qw42x'
+            AND b."timestamp" <= "time_end"
+          -- keep original table order but descending
+          ORDER BY "height" DESC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
+          LIMIT 1
+        ),
+        -- somehow grouping here uses 50% of time and 20% of memory than the projection
+        balance_by_height AS (
+          SELECT
+            "timestamp",
+            "height",
+            argMax("intended_token_0_balance", "sort_key") as "intended_token_0_balance",
+            argMax("intended_token_1_balance", "sort_key") as "intended_token_1_balance"
+          FROM spacebox.dex_vaults_dex_balance
+          WHERE "contract_address" = 'neutron16jdl03kz2ggrdm90lu3t4hdqj3tpc808r06nrcpnf0xun9wuqaws7qw42x'
+            AND "timestamp" > "time_start"
+            AND "timestamp" < "time_end"
+          GROUP BY "height", "timestamp"
+          ORDER BY "timestamp" ASC
+        ),
+        price_ids AS (
+          WITH price_ids_by_height AS (
+            SELECT
+              "base",
+              "quote",
+              "id",
+              maxMerge("height_to") as "height"
+            FROM spacebox.slinky_pairs
+            GROUP BY "base", "quote", "id"
+          )
+          SELECT
+            "base",
+            "quote",
+            argMax("id", "height") as "id"
+          FROM price_ids_by_height
+          GROUP BY "base", "quote"
+        ),
+        (
+          SELECT "id"
+          FROM price_ids
+          WHERE "base" = 'USDC'
+            AND "quote" = 'USD'
+          LIMIT 1
+        ) as "price_id_0",
+        (
+          SELECT "id"
+          FROM price_ids
+          WHERE "base" = 'NTRN'
+            AND "quote" = 'USD'
+          LIMIT 1
+        ) as "price_id_1",
+        balance_by_height_union AS (
+          SELECT *, "price_id_0", "price_id_1"
+          FROM (
+            SELECT * FROM balance_start_row
+            UNION ALL
+            SELECT * FROM balance_by_height
+            UNION ALL
+            SELECT * FROM balance_end_row
+          )
+          ORDER BY "timestamp" ASC
+        ),
+        price_0_start_row AS (
+          SELECT
+            "time_start" AS "timestamp",
+            "price",
+            "decimals"
+          FROM spacebox.slinky_prices as p
+          -- filter data early to reduce processing
+          WHERE "id" = "price_id_0"
+            AND p."timestamp" <= "time_start"
+          -- keep original table order but descending
+          ORDER BY "id" ASC, p."timestamp" DESC
+          LIMIT 1
+        ),
+        slinky_prices_0 AS (
+          SELECT *
+          FROM spacebox.slinky_prices
+          WHERE "id" = (
+            SELECT "id"
+            FROM price_ids
+            WHERE "base" = 'USDC'
+              AND "quote" = 'USD'
+            LIMIT 1
+          )
+        ),
+        slinky_prices_1 AS (
+          SELECT *
+          FROM spacebox.slinky_prices
+          WHERE "id" = (
+            SELECT "id"
+            FROM price_ids
+            WHERE "base" = 'NTRN'
+              AND "quote" = 'USD'
+            LIMIT 1
+          )
+        ),
+        price_0_first_row AS (
+          SELECT
+            0 AS "timestamp",
+            "price",
+            "decimals"
+          FROM spacebox.slinky_prices as p
+          -- filter data early to reduce processing
+          WHERE "id" = (
+            SELECT "id"
+            FROM price_ids
+            WHERE "base" = 'USDC'
+              AND "quote" = 'USD'
+            LIMIT 1
+          )
+          ORDER BY "id" ASC, p."timestamp" ASC
+          LIMIT 1
+        ),
+        price_1_first_row AS (
+          SELECT
+            0 AS "timestamp",
+            "price",
+            "decimals"
+          FROM spacebox.slinky_prices as p
+          -- filter data early to reduce processing
+          WHERE "id" = (
+            SELECT "id"
+            FROM price_ids
+            WHERE "base" = 'NTRN'
+              AND "quote" = 'USD'
+            LIMIT 1
+          )
+          ORDER BY "id" ASC, p."timestamp" ASC
+          LIMIT 1
+        ),
+        balance_with_prices AS (
+          WITH
+            (SELECT "price" FROM price_0_first_row) as "first_price_0",
+            (SELECT "decimals" FROM price_0_first_row) as "first_decimals_0",
+            (SELECT "price" FROM price_1_first_row) as "first_price_1",
+            (SELECT "decimals" FROM price_1_first_row) as "first_decimals_1"
+          SELECT
+            b."timestamp" as "timestamp",
+            b."height" as "height",
+            b."intended_token_0_balance" as "intended_token_0_balance",
+            b."intended_token_1_balance" as "intended_token_1_balance",
+            COALESCE(p0."price", "first_price_0") as "price_0",
+            COALESCE(p0."decimals", "first_decimals_0") as "decimals_0",
+            COALESCE(p1."price", "first_price_1") as "price_1",
+            COALESCE(p1."decimals", "first_decimals_1") as "decimals_1"
+          FROM balance_by_height_union as b
+          -- join to closest available price of token zero
+          ASOF LEFT JOIN slinky_prices_0 as p0
+            ON (b."price_id_0" = p0."id")
+            AND p0."timestamp" <= b."timestamp"
+          -- join to closest available price of token one
+          ASOF LEFT JOIN slinky_prices_1 as p1
+            ON (b."price_id_1" = p1."id")
+            AND p1."timestamp" <= b."timestamp"
+        )
+        SELECT * FROM balance_with_prices ORDER BY "timestamp" ASC LIMIT 3
+        SETTINGS join_use_nulls=1
+        -- dex_vaults_dex_balance_by_height AS (
+        --   SELECT
+        --     "timestamp",
+        --     "height",
+        --     "intended_token_0_balance",
+        --     "intended_token_1_balance"
+        --   FROM spacebox.dex_vaults_dex_balance_by_height
+        --   WHERE "contract_address" = 'neutron16jdl03kz2ggrdm90lu3t4hdqj3tpc808r06nrcpnf0xun9wuqaws7qw42x'
+        --     AND "timestamp" >= "time_balance_start"
+        --     AND "timestamp" < "time_end"
+        --   ORDER BY "timestamp" DESC
+        -- )
+        -- SELECT count(*) FROM dex_vaults_dex_balance_by_height
+        ,
+        vault_reserves AS (
+          SELECT
+            -- sorting
+            "timestamp",
+            "height",
+            -- values
+            -- note: fix difference between intended and actual balance later
+            --       intended balance does not account for "swap on deposit"
+            --       or failed deposit events: the intended balance will be 100%
+            --       of the vault's available tokens, but actual value may differ
+            "intended_token_0_balance" as "balance_0",
+            "intended_token_1_balance" as "balance_1"
+          FROM spacebox.dex_vaults_dex_balance_by_height
+          -- filter data early to reduce processing
+          WHERE "contract_address" = 'neutron16jdl03kz2ggrdm90lu3t4hdqj3tpc808r06nrcpnf0xun9wuqaws7qw42x'
+        ),
+        -- get balance basis from original table: actually faster, doesn't need to scan projection
+        balance_basis AS (
+          SELECT
+            -- sorting
+            "timestamp",
+            "height",
+            -- values
+            -- note: fix difference between intended and actual balance later
+            --       intended balance does not account for "swap on deposit"
+            --       or failed deposit events: the intended balance will be 100%
+            --       of the vault's available tokens, but actual value may differ
+            "intended_token_0_balance" as "balance_0",
+            "intended_token_1_balance" as "balance_1"
+          FROM spacebox.dex_vaults_dex_balance
+          -- filter data early to reduce processing
+          WHERE "contract_address" = 'neutron16jdl03kz2ggrdm90lu3t4hdqj3tpc808r06nrcpnf0xun9wuqaws7qw42x'
+          AND "timestamp" < "time_end"
+          -- keep original table order but descending
+          ORDER BY "height" DESC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
+          LIMIT 1
+        )
+        SELECT * FROM balance_basis
         cumulative_bank_balances_at_height AS (
           SELECT
             "timestamp",
@@ -317,11 +623,9 @@ export const route: Route<Request, Response> = {
         grouped_prices AS (
           SELECT
             "pair_id",
-            toStartOfInterval(t."timestamp", INTERVAL ${raw(
-              timePeriods.toFixed(0)
-            )} ${raw(timePeriod)}) AS "timestamp",
-            argMax("price", t."timestamp") AS "price",
-            argMax("decimals", t."timestamp") AS "decimals"
+            "timestamp",
+            "price",
+            "decimals"
           FROM spacebox.raw_slinky_prices as t
           -- filter to symbol and contract start time
           WHERE ("pair_id" = "quote_pair_zero" OR "pair_id" = "quote_pair_one")
@@ -341,8 +645,8 @@ export const route: Route<Request, Response> = {
                 )`
               : raw('')
           }
-          GROUP BY "pair_id", "timestamp"
-          ORDER BY "timestamp" ASC
+          -- GROUP BY "pair_id", "timestamp"
+          -- ORDER BY "timestamp" ASC
         ),
         tvl_amount_timeseries AS (
           -- note: use intended deposits fix instead of actual on chain reserves
@@ -355,6 +659,12 @@ export const route: Route<Request, Response> = {
             toFloat64(if("has_intended_deposits" = 1, 0, amounts."BalanceOne")) as "BalanceOne",
             toFloat64(amounts."ReservesZero") as "ReservesZero",
             toFloat64(amounts."ReservesOne") as "ReservesOne",
+            toFloat64(p0."price") * exp10(-(${
+              token0.decimals
+            } + p0."decimals")) as "p_0",
+            toFloat64(p1."price") * exp10(-(${
+              token1.decimals
+            } + p1."decimals")) as "p_1",
             toFloat64(p0."price") * exp10(-(${
               token0.decimals
             } + p0."decimals")) * ("ReservesZero" + "BalanceZero") as "tvl_0",
@@ -399,9 +709,7 @@ export const route: Route<Request, Response> = {
         -- return renamed fields of rows where liquidity value exists
         SELECT
           "timestamp" as "time",
-          "height",
-          "tvl_0",
-          "tvl_1"
+          *
         FROM tvl_amount_timeseries
         -- default sort reverse chronologically
         ORDER BY "time" DESC
@@ -411,7 +719,10 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-        getRow: ({ time, tvl_0, tvl_1 }) => ({ time, tvl_0, tvl_1 }),
+        getRow: ({ time, tvl_0, tvl_1, ...rest }) =>
+          time.startsWith('2025-04-28')
+            ? { time, tvl_0, tvl_1, tvl: tvl_0 + tvl_1, ...rest }
+            : [],
         getHeight: (data) =>
           Number(data.find((row) => Number(row.height) > 0)?.height),
         getMetadata: (metadata) => {
