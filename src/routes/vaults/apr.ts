@@ -1,17 +1,14 @@
-import sql, { raw } from 'sql-template-tag';
+import sql from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import {
-  getFillableTimePeriod,
   hours,
   inMs,
   minutes,
   WithFillTimePeriod,
   toUnixTime,
 } from '../../utils/units';
-import dexSwapTimeseries from '../../common-table-expressions/dexSwapTimeseries';
-import bankReservesDeltasTimeseries from '../../common-table-expressions/bankReservesDeltas';
 import {
   selectVaultConfigs,
   VaultResponse,
@@ -29,16 +26,13 @@ export interface Request {
 }
 export interface Response {
   time: string;
-  apr_0: number;
-  apr_1: number;
+  apr: number;
 }
-const DEFAULT_ROWS = 100;
-const MAX_ROWS = 1000;
 
 export const route: Route<Request, Response> = {
   method: 'get',
   path: '/vaults/apr/:contract',
-  handler: async (request, abortSignal, previousResponse) => {
+  handler: async (request, abortSignal) => {
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`
         SELECT max("height") AS "height"
@@ -111,7 +105,7 @@ export const route: Route<Request, Response> = {
               argMax("timestamp", t."height") as "time"
             FROM spacebox.bank_transfer as t
             WHERE "address" = ${request.params.contract}
-              AND ("denom" = ${denom0} OR "denom" = ${denom1})
+              AND "denom" IN (${denom0}, ${denom1})
         `,
         abortSignal
       ),
@@ -144,257 +138,433 @@ export const route: Route<Request, Response> = {
       })
       .at(0);
 
-    // get requested time period or default
-    const timePeriods = Number(request.query.periods) || 1;
-    const timePeriod = getFillableTimePeriod(request.query.period) || 'day';
-    // get previous query limit
-    const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
-    // get contract start time
-    const timeContractStart = toUnixTime(data.created_at);
     // ClickHouse will compare either native strings or Unix timestamps
-    const unixFrom = Math.max(
-      timeContractStart,
-      Number(request.query.from) || 0
-    );
     const unixTo = Number(request.query.to) || 0;
 
     // get timeseries data
-    return await getCachedResponse<Response & { height: string }, Response>(
+    return await getCachedResponse<
+      Response & { height: number; apr_percentage: number },
+      Response
+    >(
       sql`
         WITH
-        -- add fake columns to join the price data across
-        -- without some specific ID rows ClickHouse will complain: "ASOF join needs at least one equi-join column"
-        -- but we alread filter to the required IDs in the following CTEs
-        ${pair0} as "quote_pair_zero",
-        ${pair1} as "quote_pair_one",
-        bank_balance_deltas_union AS (${bankReservesDeltasTimeseries(
-          contract,
-          denom0,
-          denom1
-        )}),
-        address_swap_volume AS (${dexSwapTimeseries(contract, denom0, denom1)}),
-        amount_timeseries_at_event AS (
-          SELECT
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pair side
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            -- values
-            sum(t."address_reserves") as "address_reserves",
-            sum(t."address_volume_and_fees") as "address_volume_and_fees",
-            sum(t."address_fees") as "address_fees"
-          FROM address_swap_volume as t
-          WHERE t."address_reserves" > 0
-          -- order by event time
-          GROUP BY "TokenZero", "TokenOne", "TokenIn", "timestamp", "height", "sort_key"
-          ORDER BY "TokenZero", "TokenOne", "TokenIn", "timestamp", "height", "sort_key" ASC
-        ),
-        amount_timeseries_at_event_with_bank_balance_deltas AS (
-          SELECT
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pair side
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            -- values
-            0 as "address_reserves",
-            0 as "address_volume_and_fees",
-            0 as "address_fees",
-            "balance_delta"
-          FROM bank_balance_deltas_union
-          UNION ALL
-          SELECT
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pair side
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            -- values
-            "address_reserves",
-            "address_volume_and_fees",
-            "address_fees",
-            0 as "balance_delta"
-          FROM amount_timeseries_at_event
-        ),
-        amount_timeseries_at_event_with_bank_balance AS (
-          SELECT
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pair side
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            -- values
-            "address_reserves",
-            "address_volume_and_fees",
-            "address_fees",
-            sum("balance_delta") OVER cumulative_events as "address_balance"
-          FROM amount_timeseries_at_event_with_bank_balance_deltas
-          WINDOW cumulative_events AS (
-            -- partition sums to each pool
-            PARTITION BY "TokenZero", "TokenOne", "TokenIn"
+          30 as "days",
+          ${contract} as "_contract_address",
+          toStartOfHour(addMinutes(now(), -10)) as "time_end",
+          addDays("time_end", -"days") as "time_start",
+          (
+            SELECT "height"
+            FROM spacebox.raw_block_results
+            WHERE "timestamp" <= "time_start"
+            ORDER BY "height" DESC
+            LIMIT 1
+          ) as "height_start",
+          (
+            SELECT "height"
+            FROM spacebox.raw_block_results
+            WHERE "timestamp" <= "time_end"
+            ORDER BY "height" DESC
+            LIMIT 1
+          ) as "height_end",
+          vaults AS (${selectVaultConfigs}),
+          vault_config AS (
+            SELECT * FROM vaults
+            WHERE "contract_address" = "_contract_address"
+            ORDER BY "updated_at" DESC
+            LIMIT 1
+          ),
+          block_range AS (
+            SELECT
+              "timestamp",
+              "height",
+              1 as "match_all"
+            FROM spacebox.raw_block_results
+            WHERE "height" >= "height_start"
+              AND "height" <= "height_end"
+            ORDER BY "height" ASC
+          ),
+          balance_start_row AS (
+            WITH
+              balace_before_start_height as (
+                SELECT
+                  "time_start" AS "timestamp",
+                  "height_start" as "height",
+                  "sort_key",
+                  "intended_token_0_balance",
+                  "intended_token_1_balance"
+                FROM spacebox.dex_vaults_dex_balance as b
+                -- filter data early to reduce processing
+                WHERE "contract_address" = "_contract_address"
+                  AND b."height" <= "height_start"
+                -- keep original table order but descending
+                ORDER BY b."height" DESC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
+                LIMIT 1
+              ),
+              balace_after_start_height as (
+                SELECT
+                  "time_start" AS "timestamp",
+                  "height_start" as "height",
+                  "sort_key",
+                  "intended_token_0_balance",
+                  "intended_token_1_balance"
+                FROM spacebox.dex_vaults_dex_balance as b
+                -- filter data early to reduce processing
+                WHERE "contract_address" = "_contract_address"
+                  AND b."height" > "height_start"
+                -- keep original table order but descending
+                ORDER BY b."height" ASC, "block_part_index" ASC, "tx_index" ASC, "event_index" ASC
+                LIMIT 1
+              )
+            -- we union before start height and after start height because balace_before_start_height may be empty
+            SELECT *, "sort_key", 1 as "match_all"
+            FROM balace_before_start_height
+            UNION ALL
+            SELECT *, "sort_key", 1 as "match_all"
+            FROM balace_after_start_height
             ORDER BY "sort_key" ASC
-            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            LIMIT 1
+          ),
+          balance_end_row AS (
+            SELECT
+              "time_end" AS "timestamp",
+              "height_end" as "height",
+              "sort_key",
+              "intended_token_0_balance",
+              "intended_token_1_balance",
+              1 as "match_all"
+            FROM spacebox.dex_vaults_dex_balance as b
+            -- filter data early to reduce processing
+            WHERE "contract_address" = "_contract_address"
+              AND b."height" <= "height_end"
+            -- keep original table order but descending
+            ORDER BY b."height" DESC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
+            LIMIT 1
+          ),
+          price_ids AS (
+            WITH price_ids_by_height AS (
+              SELECT
+                "base",
+                "quote",
+                "id",
+                maxMerge("height_to") as "height"
+              FROM spacebox.slinky_pairs
+              GROUP BY "base", "quote", "id"
+            )
+            SELECT
+              "base",
+              "quote",
+              argMax("id", "height") as "id"
+            FROM price_ids_by_height
+            GROUP BY "base", "quote"
+          ),
+          (
+            SELECT "id"
+            FROM price_ids
+            WHERE "base" = (SELECT "token_0_symbol" FROM vault_config)
+              AND "quote" = 'USD'
+            LIMIT 1
+          ) as "price_id_0",
+          (
+            SELECT "id"
+            FROM price_ids
+            WHERE "base" = (SELECT "token_1_symbol" FROM vault_config)
+              AND "quote" = 'USD'
+            LIMIT 1
+          ) as "price_id_1",
+          balance_increase_rows AS (
+            WITH
+              balance_transfers as (
+                SELECT
+                  "height",
+                  "sort_key",
+                  "token_0_deposited",
+                  "token_1_deposited"
+                FROM spacebox.dex_vaults_shares
+                WHERE "action" = 'deposit'
+                  AND "contract_address" = "_contract_address"
+                  AND "height" >= "height_start"
+                  AND "height" <= "height_end"
+                ORDER BY "sort_key" ASC
+              ),
+              balance_union AS (
+                SELECT
+                  "height",
+                  "sort_key",
+                  "intended_token_0_balance" as "token_0_deposited",
+                  "intended_token_1_balance" as "token_1_deposited"
+                FROM balance_start_row
+                UNION ALL
+                SELECT
+                  "height",
+                  "sort_key",
+                  -- calculate deposit value by amount increased
+                  "token_0_deposited",
+                  "token_1_deposited"
+                FROM balance_transfers
+              )
+              -- add high resolution timestamps and price ids
+              SELECT
+                r."timestamp" as "timestamp",
+                b."height" as "height",
+                b."sort_key" as "sort_key",
+                b."token_0_deposited" as "token_0_deposited",
+                b."token_1_deposited" as "token_1_deposited",
+                "price_id_0",
+                "price_id_1"
+              FROM balance_union as b
+              JOIN block_range as r
+              ON (b."height" = r."height")
+              ORDER BY "sort_key" ASC
+          ),
+          balance_decrease_rows AS (
+            SELECT
+              r."timestamp" as "timestamp",
+              "height",
+              "sort_key",
+              -- calculate withdrawal value by percentage reduction of vault
+              -- note: using calculated USD value may make cumulative balance negative
+              "shares_out",
+              "total_shares"
+            FROM spacebox.dex_vaults_shares as s
+            JOIN block_range as r
+            ON (s."height" = r."height")
+            WHERE "action" = 'withdrawal'
+              AND "contract_address" = "_contract_address"
+              AND "height" >= "height_start"
+              AND "height" <= "height_end"
+            ORDER BY "sort_key" ASC
+          ),
+          slinky_prices_0 AS (
+            SELECT *
+            FROM spacebox.slinky_prices
+            WHERE "id" = (
+              SELECT "id"
+              FROM price_ids
+              WHERE "base" = 'USDC'
+                AND "quote" = 'USD'
+              LIMIT 1
+            )
+          ),
+          slinky_prices_1 AS (
+            SELECT *
+            FROM spacebox.slinky_prices
+            WHERE "id" = (
+              SELECT "id"
+              FROM price_ids
+              WHERE "base" = 'NTRN'
+                AND "quote" = 'USD'
+              LIMIT 1
+            )
+          ),
+          price_0_first_row AS (
+            SELECT
+              "price",
+              "decimals"
+            FROM slinky_prices_0
+            ORDER BY "id" ASC, "timestamp" ASC
+            LIMIT 1
+          ),
+          price_1_first_row AS (
+            SELECT
+              "price",
+              "decimals"
+            FROM slinky_prices_1
+            ORDER BY "id" ASC, "timestamp" ASC
+            LIMIT 1
+          ),
+          balance_hold_amount AS (
+            WITH
+              hold_amount_increases AS (
+                WITH
+                  (SELECT "token_0_decimals" FROM vault_config) as "token_decimals_0",
+                  (SELECT "token_1_decimals" FROM vault_config) as "token_decimals_1",
+                  (SELECT "price" FROM price_0_first_row) as "first_price_0",
+                  (SELECT "price" FROM price_1_first_row) as "first_price_1",
+                  (SELECT "decimals" FROM price_0_first_row) as "first_decimals_0",
+                  (SELECT "decimals" FROM price_1_first_row) as "first_decimals_1",
+                  if(p0.timestamp = 0 AND "first_price_0" > 0, "first_price_0", p0."price") as "slinky_price_0",
+                  if(p1.timestamp = 0 AND "first_price_1" > 0, "first_price_1", p1."price") as "slinky_price_1",
+                  if(p0.timestamp = 0 AND "first_decimals_0" > 0, "first_decimals_0", p0."decimals") as "decimals_0",
+                  if(p1.timestamp = 0 AND "first_decimals_1" > 0, "first_decimals_1", p1."decimals") as "decimals_1",
+                  toFloat64("slinky_price_0") * exp10(-("token_decimals_0" + "decimals_0")) as "token_price_0",
+                  toFloat64("slinky_price_1") * exp10(-("token_decimals_1" + "decimals_1")) as "token_price_1",
+                  "token_price_0" * toFloat64(b."token_0_deposited") as "value_0",
+                  "token_price_1" * toFloat64(b."token_1_deposited") as "value_1",
+                  "value_0" + "value_1" as "value"
+                SELECT
+                  b."timestamp" as "timestamp",
+                  b."height" as "height",
+                  "value" / 2 / "token_price_0" as "hold_amount_increase_0",
+                  "value" / 2 / "token_price_1" as "hold_amount_increase_1",
+                  b."sort_key"
+                FROM balance_increase_rows as b
+                -- join to closest available price of token zero
+                ASOF LEFT JOIN slinky_prices_0 as p0
+                  ON (b."price_id_0" = p0."id")
+                  AND p0."timestamp" <= b."timestamp"
+                -- join to closest available price of token one
+                ASOF LEFT JOIN slinky_prices_1 as p1
+                  ON (b."price_id_1" = p1."id")
+                  AND p1."timestamp" <= b."timestamp"
+              ),
+              hold_amount_decreases AS (
+                SELECT
+                  "timestamp",
+                  "height",
+                  "sort_key",
+                  toFloat64("shares_out" / ("shares_out" + "total_shares")) as "share_fraction_reduction"
+                FROM balance_decrease_rows
+              ),
+              hold_adjustments_union AS (
+                SELECT
+                  "timestamp",
+                  "height",
+                  "sort_key",
+                  "hold_amount_increase_0",
+                  "hold_amount_increase_1",
+                  0 as "share_fraction_reduction"
+                FROM hold_amount_increases
+                UNION ALL
+                SELECT
+                  "timestamp",
+                  "height",
+                  "sort_key",
+                  0 as "hold_amount_increase_0",
+                  0 as "hold_amount_increase_1",
+                  "share_fraction_reduction"
+                FROM hold_amount_decreases
+              ),
+              -- ensure there are no duplicate events for each event index before SUM
+              hold_adjustments_by_event AS (
+                SELECT
+                  "timestamp",
+                  "height",
+                  "sort_key",
+                  anyLast("hold_amount_increase_0") as "hold_amount_increase_0",
+                  anyLast("hold_amount_increase_1") as "hold_amount_increase_1",
+                  anyLast("share_fraction_reduction") as "share_fraction_reduction"
+                FROM hold_adjustments_union
+                GROUP BY "height", "timestamp", "sort_key"
+              ),
+              hold_amount_by_event AS (
+                WITH
+                  /* ---- 1. build the running product (P_i) ---- */
+                  prod AS (
+                    SELECT
+                      "timestamp",
+                      "height",
+                      "sort_key",
+                      "hold_amount_increase_0",
+                      "hold_amount_increase_1",
+
+                      /* prefix-product P_i  =  exp( Σ log(mult) ) */
+                      exp(
+                        sum( log( toFloat64(1 - "share_fraction_reduction") ) ) OVER (
+                          ORDER BY "sort_key"
+                          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                        )
+                      ) AS "P_i"
+                    FROM hold_adjustments_by_event
+                  ),
+                  /* ---- 2. derive scaled increases ---- */
+                  calc AS (
+                    SELECT
+                      "timestamp",
+                      "height",
+                      "sort_key",
+                      "P_i",
+                      /* scaled add_k / P */
+                      toFloat64("hold_amount_increase_0") / "P_i" AS "scaled_hold_amount_increase_0",
+                      toFloat64("hold_amount_increase_1") / "P_i" AS "scaled_hold_amount_increase_1"
+                    FROM prod
+                  )
+                  /* ---- 3. get running sum, final total ---- */
+                SELECT
+                  "timestamp",
+                  "height",
+                  "sort_key",
+                  /* running sum of scaled_add = Σ add_k / P */
+                  /* final cumulative total is prefix-product * running-sum */
+                  "P_i" * sum("scaled_hold_amount_increase_0") OVER cumulative_events AS "hold_amount_0",
+                  "P_i" * sum("scaled_hold_amount_increase_1") OVER cumulative_events AS "hold_amount_1"
+                FROM calc
+                WINDOW cumulative_events AS (
+                  ORDER BY "sort_key" ASC
+                  ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                )
+                ORDER BY "sort_key"
+              )
+              -- get the last value at each height
+              SELECT
+                argMax("hold_amount_0", "sort_key") as "hold_amount_0",
+                argMax("hold_amount_1", "sort_key") as "hold_amount_1",
+                "price_id_0",
+                "price_id_1",
+                1 as "match_all"
+              FROM hold_amount_by_event
+          ),
+          vault_end_state AS (
+            WITH
+              (SELECT "token_0_decimals" FROM vault_config) as "token_decimals_0",
+              (SELECT "token_1_decimals" FROM vault_config) as "token_decimals_1",
+              (SELECT "price" FROM price_0_first_row) as "first_price_0",
+              (SELECT "price" FROM price_1_first_row) as "first_price_1",
+              (SELECT "decimals" FROM price_0_first_row) as "first_decimals_0",
+              (SELECT "decimals" FROM price_1_first_row) as "first_decimals_1",
+              if(p0.timestamp = 0 AND "first_price_0" > 0, "first_price_0", p0."price") as "slinky_price_0",
+              if(p1.timestamp = 0 AND "first_price_1" > 0, "first_price_1", p1."price") as "slinky_price_1",
+              if(p0.timestamp = 0 AND "first_decimals_0" > 0, "first_decimals_0", p0."decimals") as "decimals_0",
+              if(p1.timestamp = 0 AND "first_decimals_1" > 0, "first_decimals_1", p1."decimals") as "decimals_1",
+              toFloat64("slinky_price_0") * exp10(-("token_decimals_0" + "decimals_0")) as "token_price_0",
+              toFloat64("slinky_price_1") * exp10(-("token_decimals_1" + "decimals_1")) as "token_price_1",
+              "token_price_0" * toFloat64(h."hold_amount_0") as "hold_value_0",
+              "token_price_1" * toFloat64(h."hold_amount_1") as "hold_value_1",
+              COALESCE("hold_value_0" + "hold_value_1", 0) as "hold_value",
+              "token_price_0" * toFloat64(b."vault_amount_0") as "vault_value_0",
+              "token_price_1" * toFloat64(b."vault_amount_1") as "vault_value_1",
+              COALESCE("vault_value_0" + "vault_value_1", 0) as "vault_value"
+            SELECT
+              b."timestamp" as "timestamp",
+              b."height" as "height",
+              h."hold_amount_0" as "hold_amount_0",
+              h."hold_amount_1" as "hold_amount_1",
+              b."vault_amount_0" as "vault_amount_0",
+              b."vault_amount_1" as "vault_amount_1",
+              "hold_value",
+              "vault_value"
+            FROM (
+              SELECT
+                "timestamp",
+                "height",
+                "intended_token_0_balance" as "vault_amount_0",
+                "intended_token_1_balance" as "vault_amount_1"
+              FROM balance_end_row
+            ) as b
+            JOIN  (
+              SELECT
+                "hold_amount_0",
+                "hold_amount_1",
+                "price_id_0",
+                "price_id_1"
+              FROM balance_hold_amount
+            ) as h
+            ON 1 = 1
+            -- join to closest available price of token zero
+            ASOF LEFT JOIN slinky_prices_0 as p0
+              ON (h."price_id_0" = p0."id")
+              AND p0."timestamp" <= b."timestamp"
+            -- join to closest available price of token one
+            ASOF LEFT JOIN slinky_prices_1 as p1
+              ON (h."price_id_1" = p1."id")
+              AND p1."timestamp" <= b."timestamp"
           )
-        ),
-        -- get a standard period time of how much the vault has per time period
-        apr_timeseries AS (
-          WITH
-            if("TokenIn" = "TokenZero", "address_balance", 0) as "BalanceZero",
-            if("TokenIn" = "TokenOne",  "address_balance", 0) as "BalanceOne",
-            if("TokenIn" = "TokenZero", "address_reserves", 0) as "ReservesZero",
-            if("TokenIn" = "TokenOne",  "address_reserves", 0) as "ReservesOne",
-            if("TokenIn" = "TokenZero", "address_volume_and_fees", 0) as "VolumeZero",
-            if("TokenIn" = "TokenOne",  "address_volume_and_fees", 0) as "VolumeOne",
-            if("TokenIn" = "TokenZero", "address_fees", 0) as "FeesZero",
-            if("TokenIn" = "TokenOne",  "address_fees", 0) as "FeesOne"
-          SELECT
-            "timestamp",
-            "height",
-            "sort_key",
-            -- pair
-            "TokenZero",
-            "TokenOne",
-            -- values
-            if (
-              "ReservesZero" > 0 OR "BalanceZero" > 0,
-              "FeesZero" / ("ReservesZero" + toFloat64("BalanceZero")),
-              0
-            ) as "AprZero",
-            if (
-              "ReservesOne" > 0 OR "BalanceOne" > 0,
-              "FeesOne" / ("ReservesOne" + toFloat64("BalanceOne")),
-              0
-            ) as "AprOne"
-          FROM amount_timeseries_at_event_with_bank_balance as t
-          WHERE "address_fees" > 0 AND (
-            "address_balance" > 0 OR
-            "address_reserves" > 0
-          )
-        ),
-        -- get a standard period time of how much the vault has per time period
-        apr_timeseries_of_period AS (
-          SELECT
-            toStartOfInterval(t."timestamp", INTERVAL ${raw(
-              timePeriods.toFixed(0)
-            )} ${raw(timePeriod)}) AS "timestamp",
-            max(t."height") AS "height",
-            -- now that we will split the value fields to two sides:
-            -- bring in the contract value sides
-            "quote_pair_zero" as "PairZero",
-            "quote_pair_one" as "PairOne",
-            -- values
-            sum(t."AprZero") as "AprZero",
-            sum(t."AprOne") as "AprOne"
-          FROM apr_timeseries as t
-          WHERE 1 = 1
-          ${
-            unixFrom || timePrevious
-              ? sql`AND t."timestamp" >= toStartOfInterval(
-                  toDateTime(${unixFrom || timePrevious}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          ${
-            unixTo
-              ? sql`AND t."timestamp" < toStartOfInterval(
-                  toDateTime(${unixTo}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          -- order by time
-          GROUP BY "PairZero", "PairOne", "timestamp"
-          ORDER BY "PairZero", "PairOne", "timestamp" ASC
-        ),
-        -- pre-aggregate specific pair prices to output time periods
-        -- note: this dramatically reduces the ASOF join times
-        grouped_prices AS (
-          SELECT
-            "pair_id",
-            toStartOfInterval(t."timestamp", INTERVAL ${raw(
-              timePeriods.toFixed(0)
-            )} ${raw(timePeriod)}) AS "timestamp",
-            argMax("price", t."timestamp") AS "price",
-            argMax("decimals", t."timestamp") AS "decimals"
-          FROM spacebox.raw_slinky_prices as t
-          -- filter to symbol and contract start time
-          WHERE ("pair_id" = "quote_pair_zero" OR "pair_id" = "quote_pair_one")
-          ${
-            unixFrom || timePrevious
-              ? sql`AND "timestamp" >= toStartOfInterval(
-                  toDateTime(${unixFrom || timePrevious}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          ${
-            unixTo
-              ? sql`AND "timestamp" < toStartOfInterval(
-                  toDateTime(${unixTo}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          GROUP BY "pair_id", "timestamp"
-          ORDER BY "timestamp" ASC
-        ),
-        swap_volume_amount_timeseries AS (
-          SELECT
-            amounts."timestamp" as "timestamp",
-            amounts."height" as "height",
-            amounts."AprZero" as "AprZero",
-            amounts."AprOne" as "AprOne",
-            (
-              toFloat64(p0."price") * exp10(-p0."decimals") * ("AprZero")
-            ) as "apr_0",
-            (
-              toFloat64(p0."price") * exp10(-p0."decimals") * ("AprZero")
-            ) as "apr_1"
-          FROM apr_timeseries_of_period as amounts
-          -- join to closest available price or token zero
-          -- todo: can improve accuracy by joining on exact event prices
-          ASOF LEFT JOIN grouped_prices as p0
-            ON amounts."AprZero" > 0
-            AND p0."pair_id" = amounts."PairZero"
-            AND p0."timestamp" <= amounts."timestamp"
-          -- join to closest available price or token one
-          ASOF LEFT JOIN grouped_prices as p1
-            ON amounts."AprOne" > 0
-            AND p1."pair_id" = amounts."PairOne"
-            AND p1."timestamp" <= amounts."timestamp"
-        )
-        -- return renamed fields of rows where liquidity value exists
-        SELECT
-          "timestamp" as "time",
-          "height",
-          "apr_0",
-          "apr_1"
-        FROM swap_volume_amount_timeseries
-        WHERE "apr_0" > 0
-            OR "apr_1" > 0
-        -- default sort reverse chronologically
-        ORDER BY "time" DESC
-        -- cap limit to max, set default if not well defined
-        LIMIT ${Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS}
+          SELECT ("vault_value" - "hold_value") / "hold_value" / "days" * 365 as "apr"
+          FROM vault_end_state
       `,
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-        getRow: ({ time, apr_0, apr_1 }) => ({
-          time,
-          apr_0,
-          apr_1,
-        }),
+        getRow: ({ time, apr }) => ({ time, apr }),
         getHeight: (data) =>
           Number(data.find((row) => Number(row.height) > 0)?.height),
         getMetadata: (metadata) => {
@@ -404,12 +574,12 @@ export const route: Route<Request, Response> = {
               ?.filter(({ name }) => name !== 'height')
               // add reserve field denoms
               ?.map((row) =>
-                row.name === 'apr_0'
+                row.name === 'tvl_0'
                   ? { ...row, units: token0.quoteCurrency }
                   : row
               )
               ?.map((row) =>
-                row.name === 'apr_1'
+                row.name === 'tvl_1'
                   ? { ...row, units: token1.quoteCurrency }
                   : row
               )
@@ -425,7 +595,9 @@ export const route: Route<Request, Response> = {
         isComplete:
           !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
         cacheTime: 1 * hours * inMs,
-        cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+        cacheVersion: allUpdateHeights
+          .map((res) => Number(res.data.at(0)?.height) || 0)
+          .reduce((acc, v) => acc + v, 0),
       }
     );
   },
