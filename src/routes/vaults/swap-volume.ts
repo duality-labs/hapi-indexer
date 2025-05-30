@@ -354,7 +354,8 @@ export const route: Route<Request, Response> = {
         isComplete:
           !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
         cacheTime: 1 * hours * inMs,
-        cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+        // force hour cache for these results for now
+        cacheVersion: 0,
       }
     );
   },

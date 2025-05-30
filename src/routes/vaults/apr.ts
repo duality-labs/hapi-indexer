@@ -595,9 +595,8 @@ export const route: Route<Request, Response> = {
         isComplete:
           !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
         cacheTime: 1 * hours * inMs,
-        cacheVersion: allUpdateHeights
-          .map((res) => Number(res.data.at(0)?.height) || 0)
-          .reduce((acc, v) => acc + v, 0),
+        // force caching to an hour for now
+        cacheVersion: 0,
       }
     );
   },

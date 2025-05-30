@@ -227,6 +227,8 @@ const init = async () => {
         key: SSL_PRIVATE_KEY,
         cert: SSL_PUBLIC_KEY,
         allowHTTP1: ALLOW_HTTP_1 === 'true',
+        // set high limit, just in case we're being limited
+        settings: { maxConcurrentStreams: 500 },
       },
       handler as unknown as undefined
     ) as Http2SecureServer & Partial<Server>;
