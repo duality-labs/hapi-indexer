@@ -141,8 +141,9 @@ export const route: Route<
           config."timestamp_stale" as "timestamp_stale",
           config."paused" as "paused",
           config."denom" as "denom",
-          (bank_0."balance" + deposited."token_0_balance") as "amount_0",
-          (bank_1."balance" + deposited."token_1_balance") as "amount_1",
+          -- if balance is "on dex" use that value, if withdrawn (0 on dex) quote bank balance
+          if (deposited."token_0_balance" > 0, deposited."token_0_balance", bank_0."balance") as "amount_0",
+          if (deposited."token_1_balance" > 0, deposited."token_1_balance", bank_1."balance") as "amount_1",
           toFloat64("amount_0") * toFloat64(price_0."price") * exp10(-(config."token_0_decimals" + price_0."decimals")) as "tvl_0",
           toFloat64("amount_1") * toFloat64(price_1."price") * exp10(-(config."token_1_decimals" + price_1."decimals")) as "tvl_1"
         FROM (${selectVaultConfigs}) as config
