@@ -76,8 +76,6 @@ export const route: Route<Request, Response> = {
 
     const denom0 = token0.denom;
     const denom1 = token1.denom;
-    const pair0 = `${token0.symbol}-${token0.quoteCurrency}`;
-    const pair1 = `${token1.symbol}-${token1.quoteCurrency}`;
 
     // get timeseries data height (quick query to determine cache version)
     const allUpdateHeights = await Promise.all([
@@ -89,11 +87,12 @@ export const route: Route<Request, Response> = {
             SELECT
               max(t."height") AS "height",
               argMax("timestamp", t."height") as "time"
-            FROM spacebox."dex_message_event_tick_update" as t
+            FROM spacebox.dex_message_event_tick_state as t
             WHERE "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
         `,
-        abortSignal
+        abortSignal,
+        { cacheTime: 1 * minutes * inMs }
       ),
       getCachedResponse<{
         height: string;
@@ -103,11 +102,12 @@ export const route: Route<Request, Response> = {
             SELECT
               max(t."height") AS "height",
               argMax("timestamp", t."height") as "time"
-            FROM spacebox.bank_transfer as t
+            FROM spacebox.bank_transfer_state as t
             WHERE "address" = ${request.params.contract}
               AND "denom" IN (${denom0}, ${denom1})
         `,
-        abortSignal
+        abortSignal,
+        { cacheTime: 1 * minutes * inMs }
       ),
       getCachedResponse<{
         height: string;
@@ -115,13 +115,21 @@ export const route: Route<Request, Response> = {
       }>(
         sql`
             SELECT
-              max(t."height") AS "height",
-              argMax("timestamp", t."height") as "time"
-            FROM spacebox."raw_slinky_prices" as t
-            WHERE "pair_id" = ${pair0}
-              OR "pair_id" = ${pair1}
+              argMax("height_to", t."timestamp") as "height",
+              max(t."timestamp") as "time"
+            FROM spacebox.slinky_prices as t
+            WHERE "id" IN (
+              SELECT "id"
+              FROM spacebox.slinky_pairs
+              WHERE (
+                "base" = ${token0.symbol} AND "quote" = ${token0.quoteCurrency}
+                OR
+                "base" = ${token1.symbol} AND "quote" = ${token1.quoteCurrency}
+              )
+            )
         `,
-        abortSignal
+        abortSignal,
+        { cacheTime: 1 * minutes * inMs }
       ),
     ]);
 
