@@ -96,7 +96,7 @@ export const route: Route<Request, Response> = {
             SELECT
               max(t."height") AS "height",
               argMax("timestamp", t."height") as "time"
-            FROM spacebox."dex_message_event_tick_update" as t
+            FROM spacebox.dex_message_event_tick_state as t
             WHERE "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
         `,
@@ -110,7 +110,7 @@ export const route: Route<Request, Response> = {
             SELECT
               max(t."height") AS "height",
               argMax("timestamp", t."height") as "time"
-            FROM spacebox.bank_transfer as t
+            FROM spacebox.bank_transfer_state as t
             WHERE "address" = ${request.params.contract}
               AND ("denom" = ${denom0} OR "denom" = ${denom1})
         `,
@@ -120,13 +120,21 @@ export const route: Route<Request, Response> = {
         height: string;
         time: string;
       }>(
+        // todo: read directly from spacebox.slinky_pairs when timestamp information is available there
         sql`
             SELECT
-              max(t."height") AS "height",
-              argMax("timestamp", t."height") as "time"
-            FROM spacebox."raw_slinky_prices" as t
-            WHERE "pair_id" = ${pair0}
-              OR "pair_id" = ${pair1}
+              max(t."timestamp") as "time",
+              argMax("height_to", t."timestamp") as "height"
+            FROM spacebox.slinky_prices as t
+            WHERE "id" IN (
+              SELECT "id"
+              FROM spacebox.slinky_pairs
+              WHERE (
+                "base" = ${token0.symbol} AND "quote" = ${token0.quoteCurrency}
+                OR
+                "base" = ${token1.symbol} AND "quote" = ${token1.quoteCurrency}
+              )
+            )
         `,
         abortSignal
       ),
