@@ -100,7 +100,8 @@ export const route: Route<Request, Response> = {
             WHERE "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
         `,
-        abortSignal
+        abortSignal,
+        { cacheTime: 1 * minutes * inMs }
       ),
       getCachedResponse<{
         height: string;
@@ -114,7 +115,8 @@ export const route: Route<Request, Response> = {
             WHERE "address" = ${request.params.contract}
               AND ("denom" = ${denom0} OR "denom" = ${denom1})
         `,
-        abortSignal
+        abortSignal,
+        { cacheTime: 1 * minutes * inMs }
       ),
       getCachedResponse<{
         height: string;
@@ -136,7 +138,8 @@ export const route: Route<Request, Response> = {
               )
             )
         `,
-        abortSignal
+        abortSignal,
+        { cacheTime: 1 * minutes * inMs }
       ),
     ]);
 
