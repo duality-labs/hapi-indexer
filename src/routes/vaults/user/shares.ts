@@ -12,7 +12,8 @@ export interface Request {
   };
 }
 export interface Response {
-  time: string;
+  contract_address: string;
+  user_fraction: number;
 }
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
