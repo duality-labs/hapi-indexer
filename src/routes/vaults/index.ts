@@ -206,6 +206,8 @@ export const route: Route<
           );
         },
         cacheTime: 1 * minutes * inMs,
+        staleTimeMax: 1 * minutes * inMs,
+        staleTimeMin: 0.2 * minutes * inMs,
         cacheVersion: currentHeight,
       }
     );

@@ -27,6 +27,10 @@ interface QueryCacheOptions {
   cacheKey?: string;
   cacheVersion?: number;
   cacheTime?: number;
+  // how long to allow data to be used after it is stored
+  staleTimeMax?: number;
+  // how long before new data can be generated it stale data was returned
+  staleTimeMin?: number;
 }
 export interface ExtendedResponseJSON<T = unknown>
   extends Pick<ResponseJSON<T>, 'data' | 'statistics'> {
@@ -102,6 +106,8 @@ export async function getCachedResponse<
     cacheKey = JSON.stringify([query.sql, query.values]),
     cacheVersion = 0,
     cacheTime = DEFAULT_CACHE_TIME,
+    staleTimeMax = 0,
+    staleTimeMin = 0,
     showStatistics = SHOW_STATISTICS === 'true',
   }: ResponseOptions<Row, RowResponse> = {}
 ): Promise<ExtendedResponseJSON<RowResponse> | ResponseJSON<RowResponse>> {
@@ -114,36 +120,51 @@ export async function getCachedResponse<
   // get cached value now
   const cachedResponse = requestCache.get(cacheKey);
   // return matching cache request/response or fetch new value
+
+  const isCurrent = {
+    byExpiryTime:
+      cachedResponse &&
+      // item is not expired
+      cachedResponse.expires > now &&
+      // item is not older than new query cache time
+      cachedResponse.created + cacheTime > now,
+    byStaleTimeMin:
+      cachedResponse &&
+      // item is not older than new query stale time (min)
+      cachedResponse.created + staleTimeMin > now,
+    byStaleTimeMax:
+      cachedResponse &&
+      // item is not older than new query stale time (max)
+      cachedResponse.created + staleTimeMax > now,
+    byVersion: cachedResponse && cachedResponse.version >= (cacheVersion || 0),
+  };
+
   const response = await (cachedResponse &&
-  // item is not expired
-  cachedResponse.expires > now &&
-  // item is not older than new query cache time
-  cachedResponse.created + cacheTime > now &&
-  // item is at least the requested version
-  cachedResponse.version >= (cacheVersion || 0)
+  isCurrent.byExpiryTime &&
+  (isCurrent.byStaleTimeMax || isCurrent.byVersion)
     ? // note: only the query is cached all transformations are applied post-cache
       (cachedResponse.value as Promise<ResponseJSON<Row>>)
-    : (function getNewResponse() {
-        // create a new request to cache
-        const newResponse = {
-          value: new Promise<ResponseJSON<Row>>((resolve, reject) => {
-            client
-              .query({
-                ...toClickHouseSQL(query, 'JSON'),
-                // allow query to be cancelled
-                abort_signal: abortSignal,
-              })
-              .then((response) => response.json<Row>())
-              .then(resolve)
-              .catch(reject);
-          }),
-          version: cacheVersion || 0,
-          created: now,
-          expires: now + cacheTime,
-        };
-        requestCache.set(cacheKey, newResponse);
-        return newResponse.value;
-      })());
+    : getNewResponse(abortSignal));
+
+  // if the returned value is a stale value and a newer version exists
+  // and enough time has passed to generate a newer version
+  if (
+    cachedResponse &&
+    isCurrent.byExpiryTime &&
+    isCurrent.byStaleTimeMax &&
+    !isCurrent.byVersion &&
+    !isCurrent.byStaleTimeMin
+  ) {
+    // do not pass abort signal to possibly long-running async request
+    getNewResponse(undefined)
+      .then(() => {
+        logger.info('Generated new data from stale data request');
+      })
+      .catch((e) => {
+        logger.error('Generated new data from stale data request error', e);
+      });
+  }
+
   // add heartbeat data to cached response (may not show data to user)
   return {
     heartbeat,
@@ -156,4 +177,26 @@ export async function getCachedResponse<
     statistics: showStatistics ? response.statistics : undefined,
     isComplete,
   };
+
+  function getNewResponse(abortSignal: AbortSignal | undefined) {
+    // create a new request to cache
+    const newResponse = {
+      value: new Promise<ResponseJSON<Row>>((resolve, reject) => {
+        client
+          .query({
+            ...toClickHouseSQL(query, 'JSON'),
+            // allow query to be cancelled
+            abort_signal: abortSignal,
+          })
+          .then((response) => response.json<Row>())
+          .then(resolve)
+          .catch(reject);
+      }),
+      version: cacheVersion || 0,
+      created: now,
+      expires: now + cacheTime,
+    };
+    requestCache.set(cacheKey, newResponse);
+    return newResponse.value;
+  }
 }

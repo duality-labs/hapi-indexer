@@ -452,6 +452,8 @@ export const route: Route<Request, Response> = {
         isComplete:
           !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
         cacheTime: 1 * hours * inMs,
+        staleTimeMax: 1 * hours * inMs,
+        staleTimeMin: 0.1 * hours * inMs,
         cacheVersion: allUpdateHeights
           .map((res) => Number(res.data.at(0)?.height) || 0)
           .reduce((acc, v) => acc + v, 0),
