@@ -93,10 +93,15 @@ export const route: Route<
           `,
         abortSignal
       ),
+      // note: use changes in user deposits/withdrawals to the vault
+      //       as a better indicator of major updates to TVL
+      //       although the query depends on spacebox.bank_transfer_state
+      //       and spacebox.dex_vaults_dex_balance_state: this changes TVL
+      //       very little compared to user deposits and withdrawals
       getCachedResponse<{ height: string }>(
         sql`
             SELECT max("height") AS "height"
-            FROM spacebox."dex_vaults_dex_balance_state"
+            FROM spacebox."dex_vaults_shares"
           `,
         abortSignal
       ),
