@@ -13,6 +13,8 @@ export interface Request {
 }
 export interface Response {
   contract_address: string;
+  user_shares: string;
+  total_shares: string;
   user_fraction: number;
 }
 const DEFAULT_ROWS = 100;
@@ -74,6 +76,8 @@ export const route: Route<Request, Response> = {
         SELECT
           "height",
           "contract_address",
+          "user_shares",
+          "total_shares",
           "user_shares" / "total_shares" as "user_fraction"
         FROM contract_shares
         WHERE
