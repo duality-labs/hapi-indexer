@@ -62,6 +62,9 @@ interface Response {
   amount_1: string;
   tvl_0: number;
   tvl_1: number;
+  apr_30d: number;
+  volume_1d: number;
+  volume_30d: number;
 }
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
@@ -145,7 +148,11 @@ export const route: Route<
           if (deposited."token_0_balance" > 0, deposited."token_0_balance", bank_0."balance") as "amount_0",
           if (deposited."token_1_balance" > 0, deposited."token_1_balance", bank_1."balance") as "amount_1",
           toFloat64("amount_0") * toFloat64(price_0."price") * exp10(-(config."token_0_decimals" + price_0."decimals")) as "tvl_0",
-          toFloat64("amount_1") * toFloat64(price_1."price") * exp10(-(config."token_1_decimals" + price_1."decimals")) as "tvl_1"
+          toFloat64("amount_1") * toFloat64(price_1."price") * exp10(-(config."token_1_decimals" + price_1."decimals")) as "tvl_1",
+          -- todo: remove when real JOIN is ready
+          (rand() % 100)/100 * ("tvl_0" + "tvl_1") as "volume_1d",
+          30*(1+(10-rand() % 20)/100) * ("tvl_0" + "tvl_1") as "volume_30d",
+          (rand() % 1000000)/ 1000000 as "apr_30d"
         FROM (${selectVaultConfigs}) as config
         -- join to current wallet (off-dex) balance
         LEFT JOIN spacebox.bank_transfer_state as bank_0
