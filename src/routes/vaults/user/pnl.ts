@@ -29,8 +29,8 @@ export interface Request {
 }
 export interface Response {
   time: string;
-  tvl_0: number;
-  tvl_1: number;
+  value_0: number;
+  value_1: number;
   hold: number;
 }
 const DEFAULT_ROWS = 100;
@@ -412,8 +412,8 @@ export const route: Route<Request, Response> = {
         SELECT
           "timestamp" as "time",
           "height",
-          "tvl_0",
-          "tvl_1",
+          "tvl_0" as "value_0",
+          "tvl_1" as "value_1",
           (1 - "order" * rand() % 100 / 5000) * ("tvl_0" + "tvl_1") as "hold"
         FROM tvl_amount_timeseries
         -- default sort reverse chronologically
@@ -424,10 +424,10 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-        getRow: ({ time, tvl_0, tvl_1, hold }) => ({
+        getRow: ({ time, value_0, value_1, hold }) => ({
           time,
-          tvl_0,
-          tvl_1,
+          value_0,
+          value_1,
           hold,
         }),
         getHeight: (data) =>
@@ -439,14 +439,17 @@ export const route: Route<Request, Response> = {
               ?.filter(({ name }) => name !== 'height')
               // add reserve field denoms
               ?.map((row) =>
-                row.name === 'tvl_0'
+                row.name === 'value_0'
                   ? { ...row, units: token0.quoteCurrency }
                   : row
               )
               ?.map((row) =>
-                row.name === 'tvl_1'
+                row.name === 'value_1'
                   ? { ...row, units: token1.quoteCurrency }
                   : row
+              )
+              .map((row) =>
+                row.name === 'hold' ? { ...row, units: 'USD' } : row
               )
               // add time units, convert tick index units
               ?.map((row) =>
