@@ -414,7 +414,7 @@ export const route: Route<Request, Response> = {
           "height",
           "tvl_0" as "value_0",
           "tvl_1" as "value_1",
-          (1 - "order" * rand() % 100 / 5000) * ("tvl_0" + "tvl_1") as "hold"
+          (1 - "order" * rand() % 100 / 500) * ("tvl_0" + "tvl_1") as "hold"
         FROM tvl_amount_timeseries
         -- default sort reverse chronologically
         ORDER BY "time" DESC
