@@ -539,6 +539,7 @@ export const route: Route<Request, Response> = {
           )
           SELECT *
           FROM timeseries
+          ORDER BY "time" DESC
       `,
       abortSignal,
       {
