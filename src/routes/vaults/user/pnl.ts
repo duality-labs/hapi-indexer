@@ -376,7 +376,11 @@ export const route: Route<Request, Response> = {
                   0 as "hold_amount_increase_1",
                   "user_shares",
                   "total_shares",
-                  toFloat64("shares_out" / ("shares_out" + "total_shares")) as "share_fraction_reduction"
+                  if (
+                    "shares_out" > 0 OR "total_shares" > 0,
+                    toFloat64("shares_out" / ("shares_out" + "total_shares")),
+                    0
+                  ) as "share_fraction_reduction"
                 FROM balance_decrease_rows
               ),
               -- ensure there are no duplicate events for each event index before SUM
@@ -390,10 +394,19 @@ export const route: Route<Request, Response> = {
                   anyLast("hold_amount_increase_1") as "hold_amount_increase_1",
                   anyLast("user_shares") as "user_shares",
                   anyLast("total_shares") as "total_shares",
-                  anyLast("share_fraction_reduction") as "share_fraction_reduction"
+                  anyLast(1 - "share_fraction_reduction") as "share_fraction_multiplier"
                 FROM hold_adjustments_union
                 GROUP BY "sort_key", "height", "timestamp"
                 ORDER BY "sort_key" ASC
+              ),
+              hold_adjustments_with_sequence_marker AS (
+                SELECT
+                  *,
+                  sum(if("share_fraction_multiplier" > 0, 0, 1)) OVER  (
+                    ORDER BY "sort_key"
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                  ) as "marker"
+                FROM hold_adjustments_by_event
               ),
               hold_amount_by_event AS (
                 WITH
@@ -402,6 +415,7 @@ export const route: Route<Request, Response> = {
                     SELECT
                       "timestamp",
                       "height",
+                      "marker",
                       "sort_key",
                       "contract_address",
                       "hold_amount_increase_0",
@@ -410,33 +424,43 @@ export const route: Route<Request, Response> = {
                       "total_shares",
 
                       /* prefix-product P_i  =  exp( Σ log(mult) ) */
-                      exp(
-                        sum( log( toFloat64(1 - "share_fraction_reduction") ) ) OVER (
-                          ORDER BY "sort_key"
-                          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                        )
+                      if (
+                        "share_fraction_multiplier" > 0,
+                        exp(
+                          sumIf(
+                            log( toFloat64("share_fraction_multiplier") ),
+                            "share_fraction_multiplier" > 0
+                          ) OVER (
+                            PARTITION BY "marker"
+                            ORDER BY "sort_key"
+                            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                          )
+                        ),
+                        0
                       ) AS "P_i"
-                    FROM hold_adjustments_by_event
+                    FROM hold_adjustments_with_sequence_marker
                   ),
                   /* ---- 2. derive scaled increases ---- */
                   calc AS (
                     SELECT
                       "timestamp",
                       "height",
+                      "marker",
                       "sort_key",
                       "contract_address",
                       "user_shares",
                       "total_shares",
                       "P_i",
                       /* scaled add_k / P */
-                      toFloat64("hold_amount_increase_0") / "P_i" AS "scaled_hold_amount_increase_0",
-                      toFloat64("hold_amount_increase_1") / "P_i" AS "scaled_hold_amount_increase_1"
+                      if ("P_i" > 0, toFloat64("hold_amount_increase_0") / "P_i", 0) AS "scaled_hold_amount_increase_0",
+                      if ("P_i" > 0, toFloat64("hold_amount_increase_1") / "P_i", 0) AS "scaled_hold_amount_increase_1"
                     FROM prod
                   )
                   /* ---- 3. get running sum, final total ---- */
                 SELECT
                   "timestamp",
                   "height",
+                  "marker",
                   "sort_key",
                   "contract_address",
                   "user_shares",
@@ -447,6 +471,7 @@ export const route: Route<Request, Response> = {
                   "P_i" * sum("scaled_hold_amount_increase_1") OVER cumulative_events AS "hold_amount_1"
                 FROM calc
                 WINDOW cumulative_events AS (
+                  PARTITION BY "marker"
                   ORDER BY "sort_key" ASC
                   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                 )
@@ -476,7 +501,7 @@ export const route: Route<Request, Response> = {
               --       by ensuring that the "token_0/1_balance" field is the correct "in wallet" amount
               if (vault."intended_token_0_balance" > 0, vault."intended_token_0_balance", vault."token_0_balance") as "vault_amount_0",
               if (vault."intended_token_1_balance" > 0, vault."intended_token_1_balance", vault."token_1_balance") as "vault_amount_1",
-              user."user_shares" / user."total_shares" as "user_fraction_of_tvl"
+              if (user."total_shares" > 0, user."user_shares" / user."total_shares", 0) as "user_fraction_of_tvl"
             SELECT
               greatest(vault."height", user."height", p_0."height", p_1."height") as "height",
               -- note: timeseries periods capture events up to (<) the *end* of the period
