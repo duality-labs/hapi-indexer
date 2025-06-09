@@ -535,6 +535,10 @@ export const route: Route<Request, Response> = {
                   "sort_key"
                 FROM spacebox.dex_vaults_dex_balance
                 WHERE "contract_address" = "_contract_address"
+                  -- TODO: when calculating vault balances correctly allow
+                  --       dex_withdrawals to set dex balance to zero and read
+                  --       the account token0/1 tokens from the bank module
+                  AND "action" = 'dex_deposit'
               ) as vault
               ON (vault."contract_address" = t."contract_address")
               AND vault."timestamp" < t."timestamp"
