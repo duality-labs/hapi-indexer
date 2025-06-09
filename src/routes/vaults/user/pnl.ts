@@ -163,6 +163,8 @@ export const route: Route<Request, Response> = {
           return 30 * 24; // a ~month
         case 'day':
           return 365; // a ~year
+        case 'week':
+          return 52 * 3; // ~3 years
         default:
           return 12;
       }

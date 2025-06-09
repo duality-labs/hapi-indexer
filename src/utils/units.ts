@@ -12,10 +12,11 @@ const fillableTimePeriods = [
   'minute',
   'hour',
   'day',
+  'week',
 ] as const;
 export type WithFillTimePeriod = (typeof fillableTimePeriods)[number];
 
-const timePeriods = [...fillableTimePeriods, 'week', 'month'] as const;
+const timePeriods = [...fillableTimePeriods, 'month'] as const;
 export type TimePeriod = (typeof timePeriods)[number];
 
 // whitelist user given time period
