@@ -193,7 +193,7 @@ export const route: Route<Request, Response> = {
           ),
           balance_start_row AS (
             WITH
-              balace_before_start_height as (
+              balance_before_start_height as (
                 SELECT
                   "time_start" AS "timestamp",
                   "height_start" as "height",
@@ -208,7 +208,7 @@ export const route: Route<Request, Response> = {
                 ORDER BY b."height" DESC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
                 LIMIT 1
               ),
-              balace_after_start_height as (
+              balance_after_start_height as (
                 SELECT
                   "time_start" AS "timestamp",
                   "height_start" as "height",
@@ -219,16 +219,24 @@ export const route: Route<Request, Response> = {
                 -- filter data early to reduce processing
                 WHERE "contract_address" = "_contract_address"
                   AND b."height" > "height_start"
-                -- keep original table order but descending
-                ORDER BY b."height" ASC, "block_part_index" ASC, "tx_index" ASC, "event_index" ASC
+                -- get last event of first block containing a new event
+                ORDER BY b."height" ASC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
                 LIMIT 1
+              ),
+              balance_start_row_union AS (
+                -- we union before start height and after start height because balance_before_start_height may be empty
+                SELECT *
+                FROM balance_before_start_height
+                UNION ALL
+                SELECT *
+                FROM balance_after_start_height
               )
-            -- we union before start height and after start height because balace_before_start_height may be empty
             SELECT *, "sort_key", 1 as "match_all"
-            FROM balace_before_start_height
-            UNION ALL
-            SELECT *, "sort_key", 1 as "match_all"
-            FROM balace_after_start_height
+            FROM balance_start_row_union
+            WHERE (
+              "intended_token_0_balance" > 0 OR
+              "intended_token_1_balance" > 0
+            )
             ORDER BY "sort_key" ASC
             LIMIT 1
           ),
