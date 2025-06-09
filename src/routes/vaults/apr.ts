@@ -160,23 +160,23 @@ export const route: Route<Request, Response> = {
           ${contract} as "_contract_address",
           toStartOfHour(addMinutes(now(), -10)) as "time_end",
           addDays("time_end", -"days") as "time_start",
-          (
-            SELECT "height"
+          COALESCE(
+            (SELECT "height"
             FROM spacebox.raw_block_results
             WHERE "timestamp" <= "time_start"
             ORDER BY "height" DESC
-            LIMIT 1
+            LIMIT 1),
+            0
           ) as "height_start",
-          (
-            SELECT "height"
+          COALESCE(
+            (SELECT "height"
             FROM spacebox.raw_block_results
             WHERE "timestamp" <= "time_end"
             ORDER BY "height" DESC
-            LIMIT 1
+            LIMIT 1), 0
           ) as "height_end",
-          vaults AS (${selectVaultConfigs}),
           vault_config AS (
-            SELECT * FROM vaults
+            SELECT * FROM spacebox.dex_vaults_config_state
             WHERE "contract_address" = "_contract_address"
             ORDER BY "updated_at" DESC
             LIMIT 1
@@ -191,6 +191,52 @@ export const route: Route<Request, Response> = {
               AND "height" <= "height_end"
             ORDER BY "height" ASC
           ),
+          slinky_price_ids AS (
+            WITH
+              (
+                SELECT "id"
+                FROM spacebox.slinky_pairs_state
+                WHERE "base" = (SELECT "token_0_symbol" FROM vault_config)
+                  AND "quote" = (SELECT "token_0_quote_currency" FROM vault_config)
+                LIMIT 1
+              ) as "price_id_0",
+              (
+                SELECT "id"
+                FROM spacebox.slinky_pairs_state
+                WHERE "base" = (SELECT "token_1_symbol" FROM vault_config)
+                  AND "quote" = (SELECT "token_1_quote_currency" FROM vault_config)
+                LIMIT 1
+              ) as "price_id_1"
+            SELECT "price_id_0", "price_id_1"
+          ),
+          slinky_prices_0 AS (
+            SELECT *
+            FROM spacebox.slinky_prices
+            WHERE "id" = (SELECT "price_id_0" FROM slinky_price_ids)
+          ),
+          slinky_prices_1 AS (
+            SELECT *
+            FROM spacebox.slinky_prices
+            WHERE "id" = (SELECT "price_id_1" FROM slinky_price_ids)
+          ),
+          price_0_first_row AS (
+            SELECT
+              "price",
+              "decimals"
+            FROM spacebox.slinky_prices_first_state
+            WHERE "base" = (SELECT "token_0_symbol" FROM vault_config)
+            LIMIT 1
+          ),
+          price_1_first_row AS (
+            SELECT
+              "price",
+              "decimals"
+            FROM spacebox.slinky_prices_first_state
+            WHERE "base" = (SELECT "token_1_symbol" FROM vault_config)
+            LIMIT 1
+          ),
+          -- note: start row is the row of the first dex deposit within (or before) the time frame
+          --       this may be significantly later than some initial deposits
           balance_start_row AS (
             WITH
               balance_before_start_height as (
@@ -198,6 +244,7 @@ export const route: Route<Request, Response> = {
                   "time_start" AS "timestamp",
                   "height_start" as "height",
                   "sort_key",
+                  "contract_address",
                   "intended_token_0_balance",
                   "intended_token_1_balance"
                 FROM spacebox.dex_vaults_dex_balance as b
@@ -210,9 +257,10 @@ export const route: Route<Request, Response> = {
               ),
               balance_after_start_height as (
                 SELECT
-                  "time_start" AS "timestamp",
-                  "height_start" as "height",
+                  "timestamp",
+                  "height",
                   "sort_key",
+                  "contract_address",
                   "intended_token_0_balance",
                   "intended_token_1_balance"
                 FROM spacebox.dex_vaults_dex_balance as b
@@ -230,167 +278,23 @@ export const route: Route<Request, Response> = {
                 UNION ALL
                 SELECT *
                 FROM balance_after_start_height
-              )
-            SELECT *, "sort_key", 1 as "match_all"
-            FROM balance_start_row_union
-            WHERE (
-              "intended_token_0_balance" > 0 OR
-              "intended_token_1_balance" > 0
-            )
-            ORDER BY "sort_key" ASC
-            LIMIT 1
-          ),
-          balance_end_row AS (
-            SELECT
-              "time_end" AS "timestamp",
-              "height_end" as "height",
-              "sort_key",
-              "intended_token_0_balance",
-              "intended_token_1_balance",
-              1 as "match_all"
-            FROM spacebox.dex_vaults_dex_balance as b
-            -- filter data early to reduce processing
-            WHERE "contract_address" = "_contract_address"
-              AND b."height" <= "height_end"
-            -- keep original table order but descending
-            ORDER BY b."height" DESC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
-            LIMIT 1
-          ),
-          price_ids AS (
-            WITH price_ids_by_height AS (
-              SELECT
-                "base",
-                "quote",
-                "id",
-                maxMerge("height_to") as "height"
-              FROM spacebox.slinky_pairs
-              GROUP BY "base", "quote", "id"
-            )
-            SELECT
-              "base",
-              "quote",
-              argMax("id", "height") as "id"
-            FROM price_ids_by_height
-            GROUP BY "base", "quote"
-          ),
-          (
-            SELECT "id"
-            FROM price_ids
-            WHERE "base" = (SELECT "token_0_symbol" FROM vault_config)
-              AND "quote" = 'USD'
-            LIMIT 1
-          ) as "price_id_0",
-          (
-            SELECT "id"
-            FROM price_ids
-            WHERE "base" = (SELECT "token_1_symbol" FROM vault_config)
-              AND "quote" = 'USD'
-            LIMIT 1
-          ) as "price_id_1",
-          balance_increase_rows AS (
-            WITH
-              balance_transfers as (
-                SELECT
-                  "height",
-                  "sort_key",
-                  "token_0_deposited",
-                  "token_1_deposited"
-                FROM spacebox.dex_vaults_shares
-                WHERE "action" = 'deposit'
-                  AND "contract_address" = "_contract_address"
-                  AND "height" >= "height_start"
-                  AND "height" <= "height_end"
-                ORDER BY "sort_key" ASC
               ),
-              balance_union AS (
+              balance_start_row_single AS (
                 SELECT
-                  "height",
-                  "sort_key",
-                  "intended_token_0_balance" as "token_0_deposited",
-                  "intended_token_1_balance" as "token_1_deposited"
-                FROM balance_start_row
-                UNION ALL
-                SELECT
-                  "height",
-                  "sort_key",
-                  -- calculate deposit value by amount increased
-                  "token_0_deposited",
-                  "token_1_deposited"
-                FROM balance_transfers
-              )
-              -- add high resolution timestamps and price ids
-              SELECT
-                r."timestamp" as "timestamp",
-                b."height" as "height",
-                b."sort_key" as "sort_key",
-                b."token_0_deposited" as "token_0_deposited",
-                b."token_1_deposited" as "token_1_deposited",
-                "price_id_0",
-                "price_id_1"
-              FROM balance_union as b
-              JOIN block_range as r
-              ON (b."height" = r."height")
-              ORDER BY "sort_key" ASC
-          ),
-          balance_decrease_rows AS (
-            SELECT
-              r."timestamp" as "timestamp",
-              "height",
-              "sort_key",
-              -- calculate withdrawal value by percentage reduction of vault
-              -- note: using calculated USD value may make cumulative balance negative
-              "shares_out",
-              "total_shares"
-            FROM spacebox.dex_vaults_shares as s
-            JOIN block_range as r
-            ON (s."height" = r."height")
-            WHERE "action" = 'withdrawal'
-              AND "contract_address" = "_contract_address"
-              AND "height" >= "height_start"
-              AND "height" <= "height_end"
-            ORDER BY "sort_key" ASC
-          ),
-          slinky_prices_0 AS (
-            SELECT *
-            FROM spacebox.slinky_prices
-            WHERE "id" = (
-              SELECT "id"
-              FROM price_ids
-              WHERE "base" = (SELECT "token_0_symbol" FROM vault_config)
-                AND "quote" = (SELECT "token_0_quote_currency" FROM vault_config)
-              LIMIT 1
-            )
-          ),
-          slinky_prices_1 AS (
-            SELECT *
-            FROM spacebox.slinky_prices
-            WHERE "id" = (
-              SELECT "id"
-              FROM price_ids
-              WHERE "base" = (SELECT "token_1_symbol" FROM vault_config)
-                AND "quote" = (SELECT "token_1_quote_currency" FROM vault_config)
-              LIMIT 1
-            )
-          ),
-          price_0_first_row AS (
-            SELECT
-              "price",
-              "decimals"
-            FROM slinky_prices_0
-            ORDER BY "id" ASC, "timestamp" ASC
-            LIMIT 1
-          ),
-          price_1_first_row AS (
-            SELECT
-              "price",
-              "decimals"
-            FROM slinky_prices_1
-            ORDER BY "id" ASC, "timestamp" ASC
-            LIMIT 1
-          ),
-          balance_hold_amount AS (
-            WITH
-              hold_amount_increases AS (
+                  *,
+                  -- TODO: use proper high-resolution timestamp
+                  "timestamp" + 1 as "timestamp",
+                  (SELECT "price_id_0" FROM slinky_price_ids) as "price_id_0",
+                  (SELECT "price_id_1" FROM slinky_price_ids) as "price_id_1"
+                FROM balance_start_row_union
+                WHERE (
+                  "intended_token_0_balance" > 0 OR
+                  "intended_token_1_balance" > 0
+                )
+                ORDER BY "sort_key" ASC
+                LIMIT 1
+              ),
+              balance_start_row_valued AS (
                 WITH
                   (SELECT "token_0_decimals" FROM vault_config) as "token_decimals_0",
                   (SELECT "token_1_decimals" FROM vault_config) as "token_decimals_1",
@@ -404,16 +308,16 @@ export const route: Route<Request, Response> = {
                   if(p1.timestamp = 0 AND "first_decimals_1" > 0, "first_decimals_1", p1."decimals") as "decimals_1",
                   toFloat64("slinky_price_0") * exp10(-("token_decimals_0" + "decimals_0")) as "token_price_0",
                   toFloat64("slinky_price_1") * exp10(-("token_decimals_1" + "decimals_1")) as "token_price_1",
-                  "token_price_0" * toFloat64(b."token_0_deposited") as "value_0",
-                  "token_price_1" * toFloat64(b."token_1_deposited") as "value_1",
+                  "token_price_0" * toFloat64(b."intended_token_0_balance") as "value_0",
+                  "token_price_1" * toFloat64(b."intended_token_1_balance") as "value_1",
                   "value_0" + "value_1" as "value"
                 SELECT
-                  b."timestamp" as "timestamp",
+                  *,
                   b."height" as "height",
-                  "value" / 2 / "token_price_0" as "hold_amount_increase_0",
-                  "value" / 2 / "token_price_1" as "hold_amount_increase_1",
-                  b."sort_key"
-                FROM balance_increase_rows as b
+                  b."timestamp" as "timestamp",
+                  "value" / 2 / "token_price_0" as "hold_equivalent_0",
+                  "value" / 2 / "token_price_1" as "hold_equivalent_1"
+                FROM balance_start_row_single as b
                 -- join to closest available price of token zero
                 ASOF LEFT JOIN slinky_prices_0 as p0
                   ON (b."price_id_0" = p0."id")
@@ -422,33 +326,156 @@ export const route: Route<Request, Response> = {
                 ASOF LEFT JOIN slinky_prices_1 as p1
                   ON (b."price_id_1" = p1."id")
                   AND p1."timestamp" <= b."timestamp"
+              )
+            SELECT *
+            FROM balance_start_row_valued
+          ),
+          balance_end_row AS (
+            WITH
+              balance_after_end_height as (
+                SELECT
+                  "time_end" AS "timestamp",
+                  "height_end" as "height",
+                  "sort_key",
+                  "contract_address",
+                  "intended_token_0_balance",
+                  "intended_token_1_balance"
+                FROM spacebox.dex_vaults_dex_balance as b
+                -- filter data early to reduce processing
+                WHERE "contract_address" = "_contract_address"
+                  AND b."height" > "height_end"
+                -- keep original table order but descending
+                ORDER BY b."height" ASC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
+                LIMIT 1
               ),
-              hold_amount_decreases AS (
+              balance_before_end_height as (
                 SELECT
                   "timestamp",
                   "height",
                   "sort_key",
-                  toFloat64("shares_out" / ("shares_out" + "total_shares")) as "share_fraction_reduction"
-                FROM balance_decrease_rows
+                  "contract_address",
+                  "intended_token_0_balance",
+                  "intended_token_1_balance"
+                FROM spacebox.dex_vaults_dex_balance as b
+                -- filter data early to reduce processing
+                WHERE "contract_address" = "_contract_address"
+                  AND b."height" <= "height_end"
+                -- get last event of first block containing a new event
+                ORDER BY b."height" DESC, "block_part_index" DESC, "tx_index" DESC, "event_index" DESC
+                LIMIT 1
               ),
+              balance_end_row_union AS (
+                -- we union before start height and after start height because balance_before_start_height may be empty
+                SELECT *
+                FROM balance_after_end_height
+                UNION ALL
+                SELECT *
+                FROM balance_before_end_height
+              ),
+              balance_end_row_single AS (
+                SELECT
+                  *,
+                  -- TODO: use proper high-resolution timestamp
+                  "timestamp" + 1 as "timestamp",
+                  (SELECT "price_id_0" FROM slinky_price_ids) as "price_id_0",
+                  (SELECT "price_id_1" FROM slinky_price_ids) as "price_id_1"
+                FROM balance_end_row_union
+                WHERE (
+                  "intended_token_0_balance" > 0 OR
+                  "intended_token_1_balance" > 0
+                )
+                ORDER BY "sort_key" ASC
+                LIMIT 1
+              )
+            SELECT *
+            FROM balance_end_row_single
+          ),
+          balance_increase_rows AS (
+            WITH
+              balance_transfers as (
+                SELECT
+                  "height",
+                  "timestamp",
+                  "sort_key",
+                  "contract_address",
+                  "hold_equivalent_0",
+                  "hold_equivalent_1",
+                FROM spacebox.dex_vaults_shares_valued
+                WHERE "action" = 'deposit'
+                  AND "contract_address" = "_contract_address"
+                  AND "height" > greatest("height_start", (SELECT "height" FROM balance_start_row))
+                  AND "height" <= least("height_end", (SELECT "height" FROM balance_end_row))
+                ORDER BY "sort_key" ASC
+              ),
+              balance_union AS (
+                SELECT
+                  "height",
+                  "timestamp",
+                  "sort_key",
+                  "contract_address",
+                  "hold_equivalent_0",
+                  "hold_equivalent_1"
+                FROM balance_start_row
+                UNION ALL
+                SELECT
+                  "height",
+                  "timestamp",
+                  "sort_key",
+                  "contract_address",
+                  "hold_equivalent_0",
+                  "hold_equivalent_1"
+                FROM balance_transfers
+              )
+              -- add high resolution timestamps and price ids
+              SELECT
+                "height",
+                "timestamp",
+                "sort_key",
+                "contract_address",
+                "hold_equivalent_0",
+                "hold_equivalent_1"
+              FROM balance_union
+              ORDER BY "sort_key" ASC
+          ),
+          balance_decrease_rows AS (
+            SELECT
+              "timestamp",
+              "height",
+              "sort_key",
+              "contract_address",
+              -- calculate withdrawal value by percentage reduction of vault
+              -- note: using calculated USD value may make cumulative balance negative
+              "shares_out",
+              "total_shares"
+            FROM spacebox.dex_vaults_shares_valued
+            WHERE "action" = 'withdrawal'
+              AND "contract_address" = "_contract_address"
+              AND "height" > greatest("height_start", (SELECT "height" FROM balance_start_row))
+              AND "height" <= least("height_end", (SELECT "height" FROM balance_end_row))
+            ORDER BY "sort_key" ASC
+          ),
+          balance_hold_amount AS (
+            WITH
               hold_adjustments_union AS (
                 SELECT
                   "timestamp",
                   "height",
                   "sort_key",
-                  "hold_amount_increase_0",
-                  "hold_amount_increase_1",
+                  "contract_address",
+                  "hold_equivalent_0" as "hold_amount_increase_0",
+                  "hold_equivalent_1" as "hold_amount_increase_1",
                   0 as "share_fraction_reduction"
-                FROM hold_amount_increases
+                FROM balance_increase_rows
                 UNION ALL
                 SELECT
                   "timestamp",
                   "height",
                   "sort_key",
+                  "contract_address",
                   0 as "hold_amount_increase_0",
                   0 as "hold_amount_increase_1",
-                  "share_fraction_reduction"
-                FROM hold_amount_decreases
+                  toFloat64("shares_out" / ("shares_out" + "total_shares")) as "share_fraction_reduction"
+                FROM balance_decrease_rows
               ),
               -- ensure there are no duplicate events for each event index before SUM
               hold_adjustments_by_event AS (
@@ -456,11 +483,13 @@ export const route: Route<Request, Response> = {
                   "timestamp",
                   "height",
                   "sort_key",
+                  anyLast("contract_address") as "contract_address",
                   anyLast("hold_amount_increase_0") as "hold_amount_increase_0",
                   anyLast("hold_amount_increase_1") as "hold_amount_increase_1",
                   anyLast("share_fraction_reduction") as "share_fraction_reduction"
                 FROM hold_adjustments_union
-                GROUP BY "height", "timestamp", "sort_key"
+                GROUP BY "sort_key", "height", "timestamp"
+                ORDER BY "sort_key" ASC
               ),
               hold_amount_by_event AS (
                 WITH
@@ -470,6 +499,7 @@ export const route: Route<Request, Response> = {
                       "timestamp",
                       "height",
                       "sort_key",
+                      "contract_address",
                       "hold_amount_increase_0",
                       "hold_amount_increase_1",
 
@@ -488,6 +518,7 @@ export const route: Route<Request, Response> = {
                       "timestamp",
                       "height",
                       "sort_key",
+                      "contract_address",
                       "P_i",
                       /* scaled add_k / P */
                       toFloat64("hold_amount_increase_0") / "P_i" AS "scaled_hold_amount_increase_0",
@@ -499,6 +530,7 @@ export const route: Route<Request, Response> = {
                   "timestamp",
                   "height",
                   "sort_key",
+                  "contract_address",
                   /* running sum of scaled_add = Σ add_k / P */
                   /* final cumulative total is prefix-product * running-sum */
                   "P_i" * sum("scaled_hold_amount_increase_0") OVER cumulative_events AS "hold_amount_0",
@@ -512,11 +544,9 @@ export const route: Route<Request, Response> = {
               )
               -- get the last value at each height
               SELECT
+                argMax("contract_address", "sort_key") as "contract_address",
                 argMax("hold_amount_0", "sort_key") as "hold_amount_0",
-                argMax("hold_amount_1", "sort_key") as "hold_amount_1",
-                "price_id_0",
-                "price_id_1",
-                1 as "match_all"
+                argMax("hold_amount_1", "sort_key") as "hold_amount_1"
               FROM hold_amount_by_event
           ),
           vault_end_state AS (
@@ -536,45 +566,34 @@ export const route: Route<Request, Response> = {
               "token_price_0" * toFloat64(h."hold_amount_0") as "hold_value_0",
               "token_price_1" * toFloat64(h."hold_amount_1") as "hold_value_1",
               COALESCE("hold_value_0" + "hold_value_1", 0) as "hold_value",
-              "token_price_0" * toFloat64(b."vault_amount_0") as "vault_value_0",
-              "token_price_1" * toFloat64(b."vault_amount_1") as "vault_value_1",
+              "token_price_0" * toFloat64(b."intended_token_0_balance") as "vault_value_0",
+              "token_price_1" * toFloat64(b."intended_token_1_balance") as "vault_value_1",
               COALESCE("vault_value_0" + "vault_value_1", 0) as "vault_value"
             SELECT
               b."timestamp" as "timestamp",
               b."height" as "height",
-              h."hold_amount_0" as "hold_amount_0",
+              b."contract_address" as "contract_address",
               h."hold_amount_1" as "hold_amount_1",
-              b."vault_amount_0" as "vault_amount_0",
-              b."vault_amount_1" as "vault_amount_1",
+              h."hold_amount_0" as "hold_amount_0",
+              b."intended_token_0_balance" as "vault_amount_0",
+              b."intended_token_1_balance" as "vault_amount_1",
               "hold_value",
               "vault_value"
-            FROM (
-              SELECT
-                "timestamp",
-                "height",
-                "intended_token_0_balance" as "vault_amount_0",
-                "intended_token_1_balance" as "vault_amount_1"
-              FROM balance_end_row
-            ) as b
-            JOIN  (
-              SELECT
-                "hold_amount_0",
-                "hold_amount_1",
-                "price_id_0",
-                "price_id_1"
-              FROM balance_hold_amount
-            ) as h
-            ON 1 = 1
+            FROM balance_end_row as b
+            JOIN balance_hold_amount as h
+            ON (b."contract_address" = h."contract_address")
             -- join to closest available price of token zero
             ASOF LEFT JOIN slinky_prices_0 as p0
-              ON (h."price_id_0" = p0."id")
+              ON (b."price_id_0" = p0."id")
               AND p0."timestamp" <= b."timestamp"
             -- join to closest available price of token one
             ASOF LEFT JOIN slinky_prices_1 as p1
-              ON (h."price_id_1" = p1."id")
+              ON (b."price_id_1" = p1."id")
               AND p1."timestamp" <= b."timestamp"
           )
-          SELECT ("vault_value" - "hold_value") / "hold_value" / "days" * 365 as "apr"
+          SELECT
+            "contract_address",
+            ("vault_value" - "hold_value") / "hold_value" / "days" * 365 as "apr"
           FROM vault_end_state
       `,
       abortSignal,
