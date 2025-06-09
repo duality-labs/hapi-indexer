@@ -356,8 +356,8 @@ export const route: Route<Request, Response> = {
             WHERE "id" = (
               SELECT "id"
               FROM price_ids
-              WHERE "base" = 'USDC'
-                AND "quote" = 'USD'
+              WHERE "base" = (SELECT "token_0_symbol" FROM vault_config)
+                AND "quote" = (SELECT "token_0_quote_currency" FROM vault_config)
               LIMIT 1
             )
           ),
@@ -367,8 +367,8 @@ export const route: Route<Request, Response> = {
             WHERE "id" = (
               SELECT "id"
               FROM price_ids
-              WHERE "base" = 'NTRN'
-                AND "quote" = 'USD'
+              WHERE "base" = (SELECT "token_1_symbol" FROM vault_config)
+                AND "quote" = (SELECT "token_1_quote_currency" FROM vault_config)
               LIMIT 1
             )
           ),
