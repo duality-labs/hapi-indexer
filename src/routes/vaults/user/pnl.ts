@@ -191,7 +191,6 @@ export const route: Route<Request, Response> = {
           ${unixFrom} as "unix_from",
           ${unixTo} as "unix_to",
           ${contract} as "_contract_address",
-          ${request.params.address} as "_user_address",
           if(
             "unix_to" > 0,
             toDateTime("unix_to"),
@@ -329,12 +328,25 @@ export const route: Route<Request, Response> = {
               "sort_key",
               "action",
               "contract_address",
-              if("creator" = "_user_address", "hold_equivalent_0", 0) as "hold_equivalent_0",
-              if("creator" = "_user_address", "hold_equivalent_1", 0) as "hold_equivalent_1",
               "shares_in",
               "shares_out",
-              sumIf("shares_in" - "shares_out", "creator" = "_user_address") OVER cumulative_events as "user_shares",
-              sum("shares_in" - "shares_out") OVER cumulative_events as "total_shares"
+              ${
+                request.params.address
+                  ? // fetch user's share of vault
+                    sql`
+                  if("creator" = ${request.params.address}, "hold_equivalent_0", 0) as "hold_equivalent_0",
+                  if("creator" = ${request.params.address}, "hold_equivalent_1", 0) as "hold_equivalent_1",
+                  sumIf("shares_in" - "shares_out", "creator" = ${request.params.address}) OVER cumulative_events as "user_shares",
+                  sum("shares_in" - "shares_out") OVER cumulative_events as "total_shares"
+                `
+                  : // use all of vault for calculations
+                    sql`
+                  "hold_equivalent_0",
+                  "hold_equivalent_1",
+                  1 as "user_shares",
+                  1 as "total_shares"
+                `
+              }
             FROM deduplicated_shares
             WINDOW cumulative_events AS (
               -- partition sums to each pool
