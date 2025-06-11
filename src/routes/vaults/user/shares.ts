@@ -62,6 +62,7 @@ export const route: Route<Request, Response> = {
           contract_shares as (
             SELECT
               max(bank."height") as "height",
+              max(bank."timestamp") as "timestamp",
               config."contract_address" as "contract_address",
               config."denom" as "denom",
               sumIf(bank."balance", bank."address" = ${
@@ -75,6 +76,7 @@ export const route: Route<Request, Response> = {
           )
         SELECT
           "height",
+          "timestamp" as "time",
           "contract_address",
           "user_shares",
           "total_shares",
@@ -108,6 +110,12 @@ export const route: Route<Request, Response> = {
             metadata
               // remove height field
               ?.filter(({ name }) => name !== 'height')
+              // add time units
+              ?.map((row) =>
+                row.name === 'time'
+                  ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
+                  : row
+              )
           );
         },
         cacheTime: 1 * minutes * inMs,
