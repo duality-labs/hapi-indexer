@@ -3,7 +3,6 @@ import sql from 'sql-template-tag';
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import { inMs, minutes } from '../../utils/units';
-import { selectVaultConfigs } from '../../common-table-expressions/vaultConfigs';
 import {
   route as tvlRoute,
   Request as TvlRequest,
@@ -38,17 +37,17 @@ interface Response {
   created_at: string;
   updated_at: string;
   contract_address: string;
-  owner: string[];
+  whitelist: string;
   token_0_denom: string;
   token_0_decimals: number;
   token_0_symbol: string;
   token_0_quote_currency: string;
-  token_0_max_blocks_stale: string;
+  token_0_max_blocks_old: string;
   token_1_denom: string;
   token_1_decimals: number;
   token_1_symbol: string;
   token_1_quote_currency: string;
-  token_1_max_blocks_stale: string;
+  token_1_max_blocks_old: string;
   token_order: string[];
   pool_id: string;
   deposit_cap: string;
@@ -119,23 +118,96 @@ export const route: Route<
     // get timeseries data
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
+        WITH
+          vault_config as (
+            SELECT * FROM spacebox.dex_vaults_config_state
+          ),
+          swaps_valued AS (
+            SELECT *
+            FROM spacebox.dex_swaps_valued as s
+            WHERE timestamp > addDays(NOW(), -30) AND (
+              notEmpty("Receiver") OR (
+                ("TrancheKey" IS NULL) AND (
+                  -- temp estimation of vault DEX pools by excluding normal DEX users
+                  ("Fee" NOT IN (1, 5, 10, 20, 50, 100, 150, 200)) OR
+                  ("block_part_index" = 1)
+                )
+              )
+            )
+          ),
+          volume_30d AS (
+            SELECT
+              "TokenZero",
+              "TokenOne",
+              "Receiver",
+              sum("value_in_1" - "value_fee_1" + "value_out_0") / 2 as "avg_value_0",
+              sum("value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value_1"
+            FROM (SELECT * FROM swaps_valued WHERE timestamp > addDays(NOW(), -30))
+            GROUP BY
+              "TokenZero",
+              "TokenOne",
+              "Receiver"
+          ),
+          volume_1d AS (
+            SELECT
+              "TokenZero",
+              "TokenOne",
+              "Receiver",
+              sum("value_in_1" - "value_fee_1" + "value_out_0") / 2 as "avg_value_0",
+              sum("value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value_1"
+              -- OR
+              -- sum("value_in_1" - "value_fee_1" + "value_out_0" + "value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value"
+            FROM (SELECT * FROM swaps_valued WHERE timestamp > addDays(NOW(), -1))
+            GROUP BY
+              "TokenZero",
+              "TokenOne",
+              "Receiver"
+          ),
+          vault_volume as (
+            WITH vault_volumes AS (
+              SELECT v.*,
+                v."contract_address" = v_30d."Receiver" as "is_30d_active",
+                v_30d."avg_value_0" + v_30d."avg_value_1" as "volume_30d_value",
+                v."contract_address" = v_1d."Receiver" as "is_1d_active",
+                v_1d."avg_value_0" + v_1d."avg_value_1" as "volume_1d_value"
+              FROM vault_config as v
+              LEFT JOIN volume_30d as v_30d
+                ON v."token_0_denom" = v_30d."TokenZero"
+                AND v."token_1_denom" = v_30d."TokenOne"
+              LEFT JOIN volume_1d as v_1d
+                ON v."token_0_denom" = v_1d."TokenZero"
+                AND v."token_1_denom" = v_1d."TokenOne"
+            )
+            SELECT
+              "contract_address",
+              -- note: active and passive are exclusive and should be added
+              --       the vault may swap "actively" on deposit (against passive LPs that are not itself)
+              --       it is exclusive because it withdraws all its liquidity before deposit+swap
+              --       so it will not be a passive LP against its own trade (trading against itself)
+              COALESCE(any(if("is_30d_active" = 1, "volume_30d_value", NULL)), 0) as "active_volume_30d_value",
+              COALESCE(any(if("is_30d_active" IS NULL, "volume_30d_value", NULL)), 0) as "passive_volume_30d_value",
+              COALESCE(any(if("is_1d_active" = 1, "volume_1d_value", NULL)), 0) as "active_volume_1d_value",
+              COALESCE(any(if("is_1d_active" IS NULL, "volume_1d_value", NULL)), 0) as "passive_volume_1d_value"
+            FROM vault_volumes
+            GROUP BY
+              "contract_address"
+          )
         SELECT
-          config."height" as "height",
+          config."updated_at_height" as "height",
           config."created_at" as "created_at",
           config."updated_at" as "updated_at",
           config."contract_address" as "contract_address",
-          config."owner" as "owner",
+          config."whitelist" as "whitelist",
           config."token_0_denom" as "token_0_denom",
           config."token_0_decimals" as "token_0_decimals",
           config."token_0_symbol" as "token_0_symbol",
           config."token_0_quote_currency" as "token_0_quote_currency",
-          config."token_0_max_blocks_stale" as "token_0_max_blocks_stale",
+          config."token_0_max_blocks_old" as "token_0_max_blocks_old",
           config."token_1_denom" as "token_1_denom",
           config."token_1_decimals" as "token_1_decimals",
           config."token_1_symbol" as "token_1_symbol",
           config."token_1_quote_currency" as "token_1_quote_currency",
-          config."token_1_max_blocks_stale" as "token_1_max_blocks_stale",
-          config."estimated_token_order" as "estimated_token_order",
+          config."token_1_max_blocks_old" as "token_1_max_blocks_old",
           config."pool_id" as "pool_id",
           config."deposit_cap" as "deposit_cap",
           config."oracle_contract" as "oracle_contract",
@@ -150,28 +222,30 @@ export const route: Route<
           toFloat64("amount_0") * toFloat64(price_0."price") * exp10(-(config."token_0_decimals" + price_0."decimals")) as "tvl_0",
           toFloat64("amount_1") * toFloat64(price_1."price") * exp10(-(config."token_1_decimals" + price_1."decimals")) as "tvl_1",
           -- todo: remove when real JOIN is ready
-          (rand() % 100)/100 * ("tvl_0" + "tvl_1") as "volume_1d",
-          30*(1+(10-rand() % 20)/100) * ("tvl_0" + "tvl_1") as "volume_30d",
+          vol."active_volume_1d_value" + vol."passive_volume_1d_value" as "volume_1d",
+          vol."active_volume_30d_value" + vol."passive_volume_30d_value" as "volume_30d",
           (rand() % 1000000)/ 1000000 as "apr_30d"
-        FROM (${selectVaultConfigs}) as config
+        FROM vault_config as config
         -- join to current wallet (off-dex) balance
-        LEFT JOIN spacebox.bank_transfer_state as bank_0
+        ANY LEFT JOIN spacebox.bank_transfer_state as bank_0
           ON config."contract_address" = bank_0."address"
           AND config."token_0_denom" = bank_0."denom"
-        LEFT JOIN spacebox.bank_transfer_state as bank_1
+        ANY LEFT JOIN spacebox.bank_transfer_state as bank_1
           ON config."contract_address" = bank_1."address"
           AND config."token_1_denom" = bank_1."denom"
         -- join to current reserves (on-dex) balance
-        LEFT JOIN spacebox.dex_vaults_dex_balance_state as deposited
+        ANY LEFT JOIN spacebox.dex_vaults_dex_balance_state as deposited
           ON config."contract_address" = deposited."contract_address"
         -- join to current slinky prices
         -- note: this should eventually be replaced with deposited.price attributes
-        LEFT JOIN spacebox.slinky_prices_state as price_0
+        ANY LEFT JOIN spacebox.slinky_prices_state as price_0
           ON price_0."quote" = 'USD'
           AND price_0."base" = config."token_0_symbol"
-        LEFT JOIN spacebox.slinky_prices_state as price_1
+        ANY LEFT JOIN spacebox.slinky_prices_state as price_1
           ON price_1."quote" = 'USD'
           AND price_1."base" = config."token_1_symbol"
+        ANY LEFT JOIN vault_volume as vol
+          ON config."contract_address" = vol."contract_address"
         ${
           previousResponse
             ? // if this is an incremental update, get changes since known height
