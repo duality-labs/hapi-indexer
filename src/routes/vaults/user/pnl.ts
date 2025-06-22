@@ -513,8 +513,8 @@ export const route: Route<Request, Response> = {
               user."hold_amount_1" as "hold_amount_1",
               -- TODO: fill in the times where the vault has removed shares from the dex (but kept them in wallet)
               --       by ensuring that the "token_0/1_balance" field is the correct "in wallet" amount
-              if (vault."intended_token_0_balance" > 0, vault."intended_token_0_balance", vault."token_0_balance") as "vault_amount_0",
-              if (vault."intended_token_1_balance" > 0, vault."intended_token_1_balance", vault."token_1_balance") as "vault_amount_1",
+              if (vault."token_0_balance_before_deposit" > 0, vault."token_0_balance_before_deposit", vault."token_0_balance") as "vault_amount_0",
+              if (vault."token_1_balance_before_deposit" > 0, vault."token_1_balance_before_deposit", vault."token_1_balance") as "vault_amount_1",
               if (user."total_shares" > 0, user."user_shares" / user."total_shares", 0) as "user_fraction_of_tvl"
             SELECT
               greatest(vault."height", user."height", p_0."height", p_1."height") as "height",
@@ -540,8 +540,8 @@ export const route: Route<Request, Response> = {
                   "height",
                   "timestamp",
                   "contract_address",
-                  "intended_token_0_balance",
-                  "intended_token_1_balance",
+                  "token_0_balance_before_deposit",
+                  "token_1_balance_before_deposit",
                   "token_0_balance",
                   "token_1_balance",
                   "sort_key"

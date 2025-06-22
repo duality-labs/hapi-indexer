@@ -245,8 +245,8 @@ export const route: Route<Request, Response> = {
                   "height_start" as "height",
                   "sort_key",
                   "contract_address",
-                  "intended_token_0_balance",
-                  "intended_token_1_balance"
+                  "token_0_balance_before_deposit",
+                  "token_1_balance_before_deposit"
                 FROM spacebox.dex_vaults_dex_balance as b
                 -- filter data early to reduce processing
                 WHERE "contract_address" = "_contract_address"
@@ -261,8 +261,8 @@ export const route: Route<Request, Response> = {
                   "height",
                   "sort_key",
                   "contract_address",
-                  "intended_token_0_balance",
-                  "intended_token_1_balance"
+                  "token_0_balance_before_deposit",
+                  "token_1_balance_before_deposit"
                 FROM spacebox.dex_vaults_dex_balance as b
                 -- filter data early to reduce processing
                 WHERE "contract_address" = "_contract_address"
@@ -288,8 +288,8 @@ export const route: Route<Request, Response> = {
                   (SELECT "price_id_1" FROM slinky_price_ids) as "price_id_1"
                 FROM balance_start_row_union
                 WHERE (
-                  "intended_token_0_balance" > 0 OR
-                  "intended_token_1_balance" > 0
+                  "token_0_balance_before_deposit" > 0 OR
+                  "token_1_balance_before_deposit" > 0
                 )
                 ORDER BY "sort_key" ASC
                 LIMIT 1
@@ -308,8 +308,8 @@ export const route: Route<Request, Response> = {
                   if(p1.timestamp = 0 AND "first_decimals_1" > 0, "first_decimals_1", p1."decimals") as "decimals_1",
                   toFloat64("slinky_price_0") * exp10(-("token_decimals_0" + "decimals_0")) as "token_price_0",
                   toFloat64("slinky_price_1") * exp10(-("token_decimals_1" + "decimals_1")) as "token_price_1",
-                  "token_price_0" * toFloat64(b."intended_token_0_balance") as "value_0",
-                  "token_price_1" * toFloat64(b."intended_token_1_balance") as "value_1",
+                  "token_price_0" * toFloat64(b."token_0_balance_before_deposit") as "value_0",
+                  "token_price_1" * toFloat64(b."token_1_balance_before_deposit") as "value_1",
                   "value_0" + "value_1" as "value"
                 SELECT
                   *,
@@ -338,8 +338,8 @@ export const route: Route<Request, Response> = {
                   "height_end" as "height",
                   "sort_key",
                   "contract_address",
-                  "intended_token_0_balance",
-                  "intended_token_1_balance"
+                  "token_0_balance_before_deposit",
+                  "token_1_balance_before_deposit"
                 FROM spacebox.dex_vaults_dex_balance as b
                 -- filter data early to reduce processing
                 WHERE "contract_address" = "_contract_address"
@@ -354,8 +354,8 @@ export const route: Route<Request, Response> = {
                   "height",
                   "sort_key",
                   "contract_address",
-                  "intended_token_0_balance",
-                  "intended_token_1_balance"
+                  "token_0_balance_before_deposit",
+                  "token_1_balance_before_deposit"
                 FROM spacebox.dex_vaults_dex_balance as b
                 -- filter data early to reduce processing
                 WHERE "contract_address" = "_contract_address"
@@ -381,8 +381,8 @@ export const route: Route<Request, Response> = {
                   (SELECT "price_id_1" FROM slinky_price_ids) as "price_id_1"
                 FROM balance_end_row_union
                 WHERE (
-                  "intended_token_0_balance" > 0 OR
-                  "intended_token_1_balance" > 0
+                  "token_0_balance_before_deposit" > 0 OR
+                  "token_1_balance_before_deposit" > 0
                 )
                 ORDER BY "sort_key" ASC
                 LIMIT 1
@@ -566,8 +566,8 @@ export const route: Route<Request, Response> = {
               "token_price_0" * toFloat64(h."hold_amount_0") as "hold_value_0",
               "token_price_1" * toFloat64(h."hold_amount_1") as "hold_value_1",
               COALESCE("hold_value_0" + "hold_value_1", 0) as "hold_value",
-              "token_price_0" * toFloat64(b."intended_token_0_balance") as "vault_value_0",
-              "token_price_1" * toFloat64(b."intended_token_1_balance") as "vault_value_1",
+              "token_price_0" * toFloat64(b."token_0_balance_before_deposit") as "vault_value_0",
+              "token_price_1" * toFloat64(b."token_1_balance_before_deposit") as "vault_value_1",
               COALESCE("vault_value_0" + "vault_value_1", 0) as "vault_value"
             SELECT
               b."timestamp" as "timestamp",
@@ -575,8 +575,8 @@ export const route: Route<Request, Response> = {
               b."contract_address" as "contract_address",
               h."hold_amount_1" as "hold_amount_1",
               h."hold_amount_0" as "hold_amount_0",
-              b."intended_token_0_balance" as "vault_amount_0",
-              b."intended_token_1_balance" as "vault_amount_1",
+              b."token_0_balance_before_deposit" as "vault_amount_0",
+              b."token_1_balance_before_deposit" as "vault_amount_1",
               "hold_value",
               "vault_value"
             FROM balance_end_row as b
