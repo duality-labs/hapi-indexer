@@ -130,6 +130,7 @@ export const route: Route<
               argMax("token_0_balance_before_deposit_value", "sort_key") as "token_0_value",
               argMax("token_1_balance_before_deposit_value", "sort_key") as "token_1_value"
             FROM spacebox.dex_vaults_dex_balance_valued
+            WHERE "action" = 'dex_deposit'
             GROUP BY "contract_address"
           ),
           swaps_valued AS (
