@@ -17,6 +17,7 @@ interface CacheEnvelope {
 
 interface ResponseOptions<T, U> extends QueryCacheOptions {
   heartbeat?: number;
+  heartbeatTime?: string;
   getHeight?: (array: T[]) => number;
   getRow?: (value: T, index: number, array: T[]) => U | U[];
   getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<U>['meta'];
@@ -42,6 +43,7 @@ export interface ExtendedResponseJSON<T = unknown>
   height: number;
   // - "heartbeat": block height from source data table
   heartbeat: number;
+  heartbeatTime?: string;
   isComplete: boolean;
 }
 
@@ -99,6 +101,7 @@ export async function getCachedResponse<
   abortSignal: AbortSignal,
   {
     heartbeat,
+    heartbeatTime,
     getHeight,
     getRow,
     getMetadata,
@@ -120,6 +123,8 @@ export async function getCachedResponse<
   // get cached value now
   const cachedResponse = requestCache.get(cacheKey);
   // return matching cache request/response or fetch new value
+
+  // console.log('query:', query.sql)
 
   const isCurrent = {
     byExpiryTime:
@@ -168,6 +173,7 @@ export async function getCachedResponse<
   // add heartbeat data to cached response (may not show data to user)
   return {
     heartbeat,
+    heartbeatTime,
     meta: getMetadata ? getMetadata(response.meta) : response.meta,
     data: getRow
       ? response.data.flatMap<RowResponse>(getRow)

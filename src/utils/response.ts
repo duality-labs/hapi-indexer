@@ -199,13 +199,14 @@ export function handleResponse<
                     }
                   }
                   // send heartbeat data to report changes in source data height
-                  else if (
+                  if (
                     !isEqual(lastResult?.heartbeat, newResultData.heartbeat)
                   ) {
                     res.write(
                       formatChunk({
                         event: 'heartbeat',
                         id: getLabel(newResultData.heartbeat),
+                        data: newResultData.heartbeatTime,
                       })
                     );
                     // add stats info if available
@@ -315,6 +316,7 @@ export function handleResponse<
             data: result.data,
             meta: result.meta,
             height: result.height,
+            time: result.heartbeatTime,
             statistics: result.statistics,
           })
         );

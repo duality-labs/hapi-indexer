@@ -48,7 +48,16 @@ export function getFillableTimePeriod(
  * @param dateTime
  * @returns unix time in seconds
  */
+export function toDate(dateTime: string | undefined): Date {
+  return new Date(`${dateTime}Z`);
+}
+
+/**
+ * Convert ClickHouse DateTime string ("YYYY-MM-DD hh:mm:ss") to unixTime
+ * @param dateTime
+ * @returns unix time in seconds
+ */
 export function toUnixTime(dateTime: string | undefined): number {
-  const date = new Date(`${dateTime}Z`);
+  const date = toDate(dateTime);
   return date.valueOf() > 0 ? Math.floor(date.valueOf() / 1000) : 0;
 }

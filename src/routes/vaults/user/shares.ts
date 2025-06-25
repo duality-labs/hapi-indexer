@@ -2,7 +2,7 @@ import sql from 'sql-template-tag';
 
 import { Route } from '../../../types';
 import { getCachedResponse } from '../../../utils/cache-query';
-import { inMs, minutes } from '../../../utils/units';
+import { inMs, minutes, toDate } from '../../../utils/units';
 import { selectVaultConfigs } from '../../../common-table-expressions/vaultConfigs';
 
 export interface Request {
@@ -24,11 +24,13 @@ export const route: Route<Request, Response> = {
   method: 'get',
   path: '/vaults/user/:address/shares',
   handler: async (request, abortSignal, previousResponse) => {
-    const sourceTableHeight = await getCachedResponse<{ height: string }>(
+    const sourceTableHeight = await getCachedResponse<{ height: string, time: string }>(
       sql`
-        SELECT max("height") AS "height"
-        FROM spacebox."raw_block_results"
-      `,
+          SELECT
+            max(r."height") AS "height",
+            argMax(r."timestamp", r."height") as "time"
+          FROM spacebox."raw_block_results" as r
+        `,
       abortSignal
     );
 
@@ -101,6 +103,7 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
+        heartbeatTime: sourceTableHeight.data.at(0)?.time,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         getRow: ({ height, ...rest }) => rest,
         getHeight: (data) =>

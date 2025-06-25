@@ -2,7 +2,7 @@ import sql from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
-import { hours, inMs } from '../../utils/units';
+import { hours, inMs, toDate } from '../../utils/units';
 
 interface Request {
   params: { denomA: string; denomB: string };
@@ -47,21 +47,41 @@ export const route: Route<Request, Response> = {
       { index: string; reserves_0?: string; reserves_1?: string }
     >(
       sql`
+        WITH
+          latest_tick_state AS (
+            SELECT
+              argMax("timestamp", "version") as "timestamp",
+              argMax("height", "version") as "height",
+              "TokenZero",
+              "TokenOne",
+              "TokenIn",
+              "TickIndex",
+              "Fee",
+              "TrancheKey",
+              argMax("Reserves", "version") as "Reserves",
+              argMax("ReservesZero", "version") as "ReservesZero"
+            FROM spacebox.dex_message_event_tick_state
+            GROUP BY
+              "TokenZero",
+              "TokenOne",
+              "TokenIn",
+              "TickIndex",
+              "Fee",
+              "TrancheKey"
+          )
         SELECT
           max("height") as "max_height",
           "TokenIn" = "TokenOne" as "token",
           "TickIndex" as "index",
-          sumIf("Reserves", "Reserves" >= ${threshold}) as "reserves"
-        FROM (${selectLatestTickState})
-        WHERE "TokenZero" = ${denom0}
-          AND "TokenOne" = ${denom1}
-          AND ${
-            previousResponse
-              ? // if this is an incremental update, get changes since known height
-                sql`"height" > ${previousResponse.height}`
-              : // if this is an initial request, ignore unhelpful zero reserve rows
-                sql`"Reserves" >= ${threshold}`
-          }
+          sumIf("Reserves", "Reserves" > 0) as "reserves"
+        FROM latest_tick_state
+        WHERE "TokenZero" = 'ibc/B559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E4F81'
+          AND "TokenOne" = 'untrn'
+          -- AND "Reserves" > 0
+          AND "height" > ((
+            SELECT max("height") AS "height"
+            FROM spacebox."raw_block_results"
+          ) - 3)
         -- group reserves from all tick index fees and tranche keys together
         GROUP BY
           "TokenZero",
