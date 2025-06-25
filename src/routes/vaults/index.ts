@@ -122,10 +122,22 @@ export const route: Route<
           vault_config as (
             SELECT * FROM spacebox.dex_vaults_config_state
           ),
+          tvl AS (
+            SELECT
+              "contract_address",
+              argMax("token_0_balance_before_deposit", "sort_key") as "token_0_amount",
+              argMax("token_1_balance_before_deposit", "sort_key") as "token_1_amount",
+              argMax("token_0_balance_before_deposit_value", "sort_key") as "token_0_value",
+              argMax("token_1_balance_before_deposit_value", "sort_key") as "token_1_value"
+            FROM spacebox.dex_vaults_dex_balance_valued
+            GROUP BY "contract_address"
+          ),
           swaps_valued AS (
             SELECT *
             FROM spacebox.dex_swaps_valued as s
-            WHERE timestamp > addDays(NOW(), -30) AND (
+            WHERE "timestamp" > toStartOfInterval(addDays(addMinutes(NOW(), -5), -30), INTERVAL 5 MINUTE)
+              AND "timestamp" < toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE)
+              AND (
               notEmpty("Receiver") OR (
                 ("TrancheKey" IS NULL) AND (
                   -- temp estimation of vault DEX pools by excluding normal DEX users
@@ -142,7 +154,7 @@ export const route: Route<
               "Receiver",
               sum("value_in_1" - "value_fee_1" + "value_out_0") / 2 as "avg_value_0",
               sum("value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value_1"
-            FROM (SELECT * FROM swaps_valued WHERE timestamp > addDays(NOW(), -30))
+            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > toStartOfInterval(addDays(addMinutes(NOW(), -5), -30), INTERVAL 5 MINUTE))
             GROUP BY
               "TokenZero",
               "TokenOne",
@@ -157,7 +169,7 @@ export const route: Route<
               sum("value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value_1"
               -- OR
               -- sum("value_in_1" - "value_fee_1" + "value_out_0" + "value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value"
-            FROM (SELECT * FROM swaps_valued WHERE timestamp > addDays(NOW(), -1))
+            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > toStartOfInterval(addDays(addMinutes(NOW(), -5), -3), INTERVAL 5 MINUTE))
             GROUP BY
               "TokenZero",
               "TokenOne",
@@ -217,33 +229,17 @@ export const route: Route<
           config."paused" as "paused",
           config."denom" as "denom",
           -- if balance is "on dex" use that value, if withdrawn (0 on dex) quote bank balance
-          if (deposited."token_0_balance" > 0, deposited."token_0_balance", bank_0."balance") as "amount_0",
-          if (deposited."token_1_balance" > 0, deposited."token_1_balance", bank_1."balance") as "amount_1",
-          toFloat64("amount_0") * toFloat64(price_0."price") * exp10(-(config."token_0_decimals" + price_0."decimals")) as "tvl_0",
-          toFloat64("amount_1") * toFloat64(price_1."price") * exp10(-(config."token_1_decimals" + price_1."decimals")) as "tvl_1",
+          tvl."token_0_amount" as "amount_0",
+          tvl."token_1_amount" as "amount_1",
+          tvl."token_0_value" as "tvl_0",
+          tvl."token_1_value" as "tvl_1",
           -- todo: remove when real JOIN is ready
           vol."active_volume_1d_value" + vol."passive_volume_1d_value" as "volume_1d",
           vol."active_volume_30d_value" + vol."passive_volume_30d_value" as "volume_30d",
           (rand() % 1000000)/ 1000000 as "apr_30d"
         FROM vault_config as config
-        -- join to current wallet (off-dex) balance
-        ANY LEFT JOIN spacebox.bank_transfer_state as bank_0
-          ON config."contract_address" = bank_0."address"
-          AND config."token_0_denom" = bank_0."denom"
-        ANY LEFT JOIN spacebox.bank_transfer_state as bank_1
-          ON config."contract_address" = bank_1."address"
-          AND config."token_1_denom" = bank_1."denom"
-        -- join to current reserves (on-dex) balance
-        ANY LEFT JOIN spacebox.dex_vaults_dex_balance_state as deposited
-          ON config."contract_address" = deposited."contract_address"
-        -- join to current slinky prices
-        -- note: this should eventually be replaced with deposited.price attributes
-        ANY LEFT JOIN spacebox.slinky_prices_state as price_0
-          ON price_0."quote" = 'USD'
-          AND price_0."base" = config."token_0_symbol"
-        ANY LEFT JOIN spacebox.slinky_prices_state as price_1
-          ON price_1."quote" = 'USD'
-          AND price_1."base" = config."token_1_symbol"
+        ANY LEFT JOIN tvl
+          ON config."contract_address" = tvl."contract_address"
         ANY LEFT JOIN vault_volume as vol
           ON config."contract_address" = vol."contract_address"
         ${
