@@ -119,7 +119,7 @@ export const route: Route<
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
-          toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE) as time_end,
+          toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE) as "time_end",
           vault_config as (
             SELECT * FROM spacebox.dex_vaults_config_state
           ),
@@ -215,6 +215,102 @@ export const route: Route<
             FROM vault_volumes
             GROUP BY
               "contract_address"
+          ),
+          apr_30d as (
+            WITH
+              30 as "period_in_days",
+              365 as "days_in_year",
+              addDays(time_end, -"period_in_days") as "time_start",
+              balance_start as (
+                SELECT
+                  toDateTime64("time_start", 9) as "timestamp",
+                  "contract_address",
+                  argMax("token_0_balance_before_deposit_value", "height") as "token_0_value",
+                  argMax("token_1_balance_before_deposit_value", "height") as "token_1_value",
+                  argMax("sort_key", "height") as "sort_key"
+                FROM spacebox.dex_vaults_dex_balance_valued as b
+                WHERE "action" = 'dex_deposit'
+                  AND b."timestamp" <= "time_start"
+                GROUP BY "contract_address"
+              ),
+              balance_end as (
+                SELECT
+                  toDateTime64("time_end", 9) as "timestamp",
+                  "contract_address",
+                  argMax("token_0_balance_before_deposit_value", "height") as "token_0_value",
+                  argMax("token_1_balance_before_deposit_value", "height") as "token_1_value",
+                  argMax("sort_key", "height") as "sort_key"
+                FROM spacebox.dex_vaults_dex_balance_valued as b
+                WHERE "action" = 'dex_deposit'
+                  AND b."timestamp" <= "time_end"
+                GROUP BY "contract_address"
+              ),
+              transfers as (
+                SELECT
+                  "timestamp",
+                  "contract_address",
+                  "value_deposited",
+                  "value_withdrawn",
+                  "value_close",
+                  "sort_key"
+                FROM spacebox.dex_vaults_shares_valued
+                WHERE "timestamp" > "time_start"
+                  AND "timestamp" <= "time_end"
+              ),
+              timeseries as (
+                SELECT
+                  "timestamp",
+                  "contract_address",
+                  0 as "value_deposited",
+                  0 as "value_withdrawn",
+                  "token_0_value" + "token_1_value" as "value_close",
+                  "sort_key"
+                FROM balance_start
+                UNION ALL
+                SELECT
+                  "timestamp",
+                  "contract_address",
+                  "value_deposited",
+                  "value_withdrawn",
+                  "value_close",
+                  "sort_key"
+                FROM transfers
+                UNION ALL
+                SELECT
+                  "timestamp",
+                  "contract_address",
+                  0 as "value_deposited",
+                  0 as "value_withdrawn",
+                  "token_0_value" + "token_1_value" as "value_close",
+                  "sort_key"
+                FROM balance_end
+              ),
+              per_event AS (
+                SELECT
+                  "contract_address",
+                  "timestamp",
+                  /* net cash flow at the event */
+                  "value_deposited" - "value_withdrawn" AS F,
+                  /* value just *before* the cash flow is applied */
+                  greatest(0, "value_close" - ("value_deposited" - "value_withdrawn")) AS "value_pre_close",
+
+                  /* previous close inside the same group */
+                  lagInFrame("value_close", 1, toFloat64(0)) OVER ascending_events AS "value_previous",
+                  lagInFrame("timestamp", 1, toDateTime64(0, 0))  OVER ascending_events AS "timestamp_previous",
+
+                  /* exact log-return between successive valuations */
+                  log1p( ( "value_pre_close" - "value_previous" ) / "value_previous" ) AS "ln_return"
+                FROM timeseries
+                WINDOW ascending_events AS (PARTITION BY "contract_address" ORDER BY "sort_key" ASC)
+              )
+            SELECT
+                "contract_address",
+                /* simple-interest annualisation = APR */
+                ( exp( sumKahan( "ln_return" ) ) - 1 ) / "period_in_days" * "days_in_year" AS "apr"
+            FROM per_event
+            WHERE "timestamp_previous" > 0  -- skip the first row per group
+              AND "value_pre_close" > 0     -- skip any full-withdrawal rows per group
+            GROUP BY "contract_address"
           )
         SELECT
           config."updated_at_height" as "height",
@@ -248,12 +344,14 @@ export const route: Route<
           -- todo: remove when real JOIN is ready
           vol."active_volume_1d_value" + vol."passive_volume_1d_value" as "volume_1d",
           vol."active_volume_30d_value" + vol."passive_volume_30d_value" as "volume_30d",
-          (rand() % 1000000)/ 1000000 as "apr_30d"
+          apr."apr" as "apr_30d"
         FROM vault_config as config
         ANY LEFT JOIN tvl
           ON config."contract_address" = tvl."contract_address"
         ANY LEFT JOIN vault_volume as vol
           ON config."contract_address" = vol."contract_address"
+        ANY LEFT JOIN apr_30d as apr
+          ON config."contract_address" = apr."contract_address"
         ${
           previousResponse
             ? // if this is an incremental update, get changes since known height
