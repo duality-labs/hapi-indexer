@@ -132,6 +132,7 @@ export const route: Route<
                 argMax("token_1_price", "height") as "token_1_price"
               FROM spacebox.dex_vaults_dex_balance as b
               WHERE "action" = 'dex_deposit'
+                AND "timestamp" < toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE)
               GROUP BY "contract_address"
             )
             SELECT
