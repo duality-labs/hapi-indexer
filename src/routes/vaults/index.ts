@@ -119,6 +119,7 @@ export const route: Route<
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
+          toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE) as time_end,
           vault_config as (
             SELECT * FROM spacebox.dex_vaults_config_state
           ),
@@ -132,7 +133,7 @@ export const route: Route<
                 argMax("token_1_price", "height") as "token_1_price"
               FROM spacebox.dex_vaults_dex_balance as b
               WHERE "action" = 'dex_deposit'
-                AND "timestamp" < toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE)
+                AND "timestamp" <= time_end
               GROUP BY "contract_address"
             )
             SELECT
@@ -146,8 +147,8 @@ export const route: Route<
           swaps_valued AS (
             SELECT *
             FROM spacebox.dex_swaps_valued as s
-            WHERE "timestamp" > toStartOfInterval(addDays(addMinutes(NOW(), -5), -30), INTERVAL 5 MINUTE)
-              AND "timestamp" < toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE)
+            WHERE "timestamp" > addDays(time_end, -30)
+              AND "timestamp" <= time_end
               AND (
               notEmpty("Receiver") OR (
                 ("TrancheKey" IS NULL) AND (
@@ -165,7 +166,7 @@ export const route: Route<
               "Receiver",
               sum("value_in_1" - "value_fee_1" + "value_out_0") / 2 as "avg_value_0",
               sum("value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value_1"
-            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > toStartOfInterval(addDays(addMinutes(NOW(), -5), -30), INTERVAL 5 MINUTE))
+            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > addDays(time_end, -30))
             GROUP BY
               "TokenZero",
               "TokenOne",
@@ -180,7 +181,7 @@ export const route: Route<
               sum("value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value_1"
               -- OR
               -- sum("value_in_1" - "value_fee_1" + "value_out_0" + "value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value"
-            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > toStartOfInterval(addDays(addMinutes(NOW(), -5), -3), INTERVAL 5 MINUTE))
+            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > addDays(time_end, -1))
             GROUP BY
               "TokenZero",
               "TokenOne",
