@@ -18,6 +18,12 @@ interface Request {
 }
 interface Response {
   time: string;
+  height: string;
+  tx?: string;
+  buy?: string;
+  sell?: string;
+  buy_at?: string;
+  sell_at?: string;
 }
 
 export const route: Route<Request, Response> = {
@@ -73,33 +79,47 @@ export const route: Route<Request, Response> = {
     );
 
     // get timeseries data
-    return await getCachedResponse<
-      {
-        time: string;
-        height: string;
-        tx?: string;
-        buy_last: boolean;
-        buy: string;
-        sell: string;
-        buy_at: string;
-        sell_at: string;
-      },
-      {
-        time: string;
-        height: string;
-        tx?: string;
-        buy?: string;
-        sell?: string;
-        buy_at?: string;
-        sell_at?: string;
-      }
-    >(
+    return await getCachedResponse<Response & { buy_last: boolean }, Response>(
       sql`
           WITH recent_trades as (
+            WITH
+              tick_updates as (
+                SELECT
+                  "timestamp",
+                  "height",
+                  "block_part_index",
+                  "tx_index",
+                  "event_index",
+                  "TokenIn",
+                  "TickIndex",
+                  "SwapAmountIn",
+                  "SwapAmountOut"
+                FROM spacebox.dex_message_event_tick_update
+                WHERE "is_swap" = 1
+                  AND "TokenZero" = ${denom0}
+                  AND "TokenOne" = ${denom1}
+                  -- add optional timestamp filters only if defined
+                  ${unixFrom ? sql`AND "timestamp" >= ${unixFrom}` : raw('')}
+                  ${unixTo ? sql`AND "timestamp" < ${unixTo}` : raw('')}
+              ),
+              deduplicated_tick_updates as (
+                SELECT
+                  any("timestamp") as "timestamp",
+                  "height",
+                  "block_part_index",
+                  "tx_index",
+                  "event_index",
+                  any("TokenIn") as "TokenIn",
+                  any("TickIndex") as "TickIndex",
+                  any("SwapAmountIn") as "SwapAmountIn",
+                  any("SwapAmountOut") as "SwapAmountOut"
+                FROM tick_updates
+                GROUP BY "height", "block_part_index", "tx_index", "event_index"
+              )
             SELECT
               "timestamp" as "time",
               "height",
-              block_txhash.txhash as "tx",
+              block_txhash."txhash" as "tx",
               -- the data at rest should be in ascending event_index order
               -- find the last trade direction by selecting last_value
               last_value("TokenIn") = ${request.params.denomA} as "buy_last",
@@ -115,17 +135,11 @@ export const route: Route<Request, Response> = {
               sumIf("SwapAmountIn", "TokenIn" != ${
                 request.params.denomA
               }) as "sell"
-            FROM spacebox.dex_message_event_tick_update as tick_updates
-            LEFT JOIN spacebox.raw_block_txhash as block_txhash
+            FROM deduplicated_tick_updates as tick_updates
+            ANY LEFT JOIN spacebox.raw_block_txhash as block_txhash
               ON tick_updates."block_part_index" = 2
               AND block_txhash."height" = tick_updates."height"
               AND block_txhash."tx_index" = tick_updates."tx_index"
-            WHERE "is_swap" = 1
-              AND "TokenZero" = ${denom0}
-              AND "TokenOne" = ${denom1}
-              -- add optional timestamp filters only if defined
-              ${unixFrom ? sql`AND "timestamp" >= ${unixFrom}` : raw('')}
-              ${unixTo ? sql`AND "timestamp" < ${unixTo}` : raw('')}
             GROUP BY "height", "block_part_index", "tx_index", "tx", "time"
             ORDER BY
               "height" DESC,
