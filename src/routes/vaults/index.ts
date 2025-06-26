@@ -123,15 +123,24 @@ export const route: Route<
             SELECT * FROM spacebox.dex_vaults_config_state
           ),
           tvl AS (
+            WITH balance AS (
+              SELECT
+                "contract_address",
+                argMax("token_0_balance_before_deposit", "height") as "token_0_amount",
+                argMax("token_1_balance_before_deposit", "height") as "token_1_amount",
+                argMax("token_0_price", "height") as "token_0_price",
+                argMax("token_1_price", "height") as "token_1_price"
+              FROM spacebox.dex_vaults_dex_balance as b
+              WHERE "action" = 'dex_deposit'
+              GROUP BY "contract_address"
+            )
             SELECT
               "contract_address",
-              argMax("token_0_balance_before_deposit", "sort_key") as "token_0_amount",
-              argMax("token_1_balance_before_deposit", "sort_key") as "token_1_amount",
-              argMax("token_0_balance_before_deposit_value", "sort_key") as "token_0_value",
-              argMax("token_1_balance_before_deposit_value", "sort_key") as "token_1_value"
-            FROM spacebox.dex_vaults_dex_balance_valued
-            WHERE "action" = 'dex_deposit'
-            GROUP BY "contract_address"
+              "token_0_amount",
+              "token_1_amount",
+              toFloat64("token_0_amount") * "token_0_price" as "token_0_value",
+              toFloat64("token_1_amount") * "token_1_price" as "token_1_value"
+            FROM balance
           ),
           swaps_valued AS (
             SELECT *
