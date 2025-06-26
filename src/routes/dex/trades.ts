@@ -4,7 +4,8 @@ import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import { hours, inMs, toUnixTime } from '../../utils/units';
 
-const LIMIT_ROWS = 50;
+const DEFAULT_LIMIT_ROWS = 50;
+const MAX_LIMIT_ROWS = 1000;
 const DEFAULT_DUST_LEVEL_AMOUNT = 100;
 
 interface Request {
@@ -149,7 +150,13 @@ export const route: Route<Request, Response> = {
           -- from aggregated trade list, remove tiny row amounts
           SELECT * FROM recent_trades
           WHERE ("buy" + "sell") >= ${amountFilter}
-          LIMIT ${request.query.limit ?? LIMIT_ROWS}
+          LIMIT ${Math.max(
+            1,
+            Math.min(
+              MAX_LIMIT_ROWS,
+              Number(request.query.limit) || DEFAULT_LIMIT_ROWS
+            )
+          )}
         `,
       abortSignal,
       {
