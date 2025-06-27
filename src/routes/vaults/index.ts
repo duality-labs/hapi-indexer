@@ -246,16 +246,28 @@ export const route: Route<
                 GROUP BY "contract_address"
               ),
               transfers as (
+                WITH shares AS (
+                  SELECT
+                    "timestamp",
+                    "contract_address",
+                    "value_deposited",
+                    "value_withdrawn",
+                    "value_close",
+                    "sort_key"
+                  FROM spacebox.dex_vaults_shares_valued
+                  WHERE "timestamp" > "time_start"
+                    AND "timestamp" <= "time_end"
+                )
+                -- make sure the transfer rows are deduplicated to prevent double counting
                 SELECT
-                  "timestamp",
-                  "contract_address",
-                  "value_deposited",
-                  "value_withdrawn",
-                  "value_close",
+                  argMax("timestamp", "sort_key") as "timestamp",
+                  argMax("contract_address", "sort_key") as "contract_address",
+                  argMax("value_deposited", "sort_key") as "value_deposited",
+                  argMax("value_withdrawn", "sort_key") as "value_withdrawn",
+                  argMax("value_close", "sort_key") as "value_close",
                   "sort_key"
-                FROM spacebox.dex_vaults_shares_valued
-                WHERE "timestamp" > "time_start"
-                  AND "timestamp" <= "time_end"
+                FROM shares
+                GROUP BY "sort_key"
               ),
               timeseries as (
                 SELECT
