@@ -2,7 +2,7 @@ import sql from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
-import { inMs, minutes } from '../../utils/units';
+import { inMs, minutes, toUnixTime } from '../../utils/units';
 import {
   route as tvlRoute,
   Request as TvlRequest,
@@ -79,40 +79,28 @@ export const route: Route<
   method: 'get',
   path: '/vaults',
   handler: async (request, abortSignal, previousResponse) => {
+    // cache to specific end time
+    const endTime = sql`toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE)`;
+
+    const cacheTimestamp = await getCachedResponse<{ time: string }>(
+      sql`SELECT ${endTime} as "time"`,
+      abortSignal
+    );
+    const cacheConfig = {
+      cacheTime: 10 * minutes * inMs,
+      staleTimeMax: 10 * minutes * inMs,
+      staleTimeMin: 2 * minutes * inMs,
+      cacheVersion: toUnixTime(cacheTimestamp.data.at(0)?.time),
+    };
+
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`
         SELECT max("height") AS "height"
         FROM spacebox."raw_block_results"
+        WHERE "timestamp" <= ${endTime}
       `,
-      abortSignal
-    );
-
-    const currentHeights = await Promise.all([
-      getCachedResponse<{ height: string }>(
-        sql`
-            SELECT max("height") AS "height"
-            FROM spacebox."dex_vaults_config_tx_event"
-          `,
-        abortSignal
-      ),
-      // note: use changes in user deposits/withdrawals to the vault
-      //       as a better indicator of major updates to TVL
-      //       although the query depends on spacebox.bank_transfer_state
-      //       and spacebox.dex_vaults_dex_balance_state: this changes TVL
-      //       very little compared to user deposits and withdrawals
-      getCachedResponse<{ height: string }>(
-        sql`
-            SELECT max("height") AS "height"
-            FROM spacebox."dex_vaults_shares"
-          `,
-        abortSignal
-      ),
-    ]);
-
-    const currentHeight = Math.max(
-      ...currentHeights.map(
-        (response) => Number(response.data.at(0)?.height) || 0
-      )
+      abortSignal,
+      cacheConfig
     );
 
     // get timeseries data
@@ -404,10 +392,7 @@ export const route: Route<
               )
           );
         },
-        cacheTime: 1 * minutes * inMs,
-        staleTimeMax: 1 * minutes * inMs,
-        staleTimeMin: 0.2 * minutes * inMs,
-        cacheVersion: currentHeight,
+        ...cacheConfig,
       }
     );
   },
