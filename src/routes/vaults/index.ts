@@ -208,44 +208,55 @@ export const route: Route<
             WITH
               30 as "period_in_days",
               365 as "days_in_year",
-              addDays(time_end, -"period_in_days") as "time_start",
-              balance_start as (
+              time_period as (
                 SELECT
-                  toDateTime64("time_start", 9) as "timestamp",
+                  toDateTime64(addDays("time_end", -"period_in_days"), 9) as "time_start",
+                  toDateTime64(toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE), 9) as "time_end"
+              ),
+              balance_start as (
+                WITH
+                  (SELECT "time_start" FROM time_period) as "timestamp"
+                SELECT
+                  "timestamp",
                   "contract_address",
                   argMax("token_0_balance_before_deposit_value", "height") as "token_0_value",
                   argMax("token_1_balance_before_deposit_value", "height") as "token_1_value",
                   argMax("sort_key", "height") as "sort_key"
                 FROM spacebox.dex_vaults_dex_balance_valued as b
                 WHERE "action" = 'dex_deposit'
-                  AND b."timestamp" <= "time_start"
+                  AND b."timestamp" <= "timestamp"
                 GROUP BY "contract_address"
               ),
               balance_end as (
+                WITH
+                  (SELECT "time_end" FROM time_period) as "timestamp"
                 SELECT
-                  toDateTime64("time_end", 9) as "timestamp",
+                  "timestamp",
                   "contract_address",
                   argMax("token_0_balance_before_deposit_value", "height") as "token_0_value",
                   argMax("token_1_balance_before_deposit_value", "height") as "token_1_value",
                   argMax("sort_key", "height") as "sort_key"
                 FROM spacebox.dex_vaults_dex_balance_valued as b
                 WHERE "action" = 'dex_deposit'
-                  AND b."timestamp" <= "time_end"
+                  AND b."timestamp" <= "timestamp"
                 GROUP BY "contract_address"
               ),
               transfers as (
-                WITH shares AS (
-                  SELECT
-                    "timestamp",
-                    "contract_address",
-                    "value_deposited",
-                    "value_withdrawn",
-                    "value_close",
-                    "sort_key"
-                  FROM spacebox.dex_vaults_shares_valued
-                  WHERE "timestamp" > "time_start"
-                    AND "timestamp" <= "time_end"
-                )
+                WITH
+                  (SELECT "time_start" FROM time_period) as "time_start",
+                  (SELECT "time_end" FROM time_period) as "time_end",
+                  shares AS (
+                    SELECT
+                      "timestamp",
+                      "contract_address",
+                      "value_deposited",
+                      "value_withdrawn",
+                      "value_close",
+                      "sort_key"
+                    FROM spacebox.dex_vaults_shares_valued
+                    WHERE "timestamp" > "time_start"
+                      AND "timestamp" <= "time_end"
+                  )
                 -- make sure the transfer rows are deduplicated to prevent double counting
                 SELECT
                   argMax("timestamp", "sort_key") as "timestamp",
