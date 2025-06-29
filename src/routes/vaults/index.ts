@@ -116,6 +116,9 @@ export const route: Route<
           ),
           vault_config as (
             SELECT * FROM spacebox.dex_vaults_config_state
+            -- exclude BTC/BTC for speed
+            WHERE "token_0_symbol" != 'BTC'
+              AND "token_1_symbol" != 'BTC'
           ),
           tvl AS (
             WITH balance AS (
@@ -223,7 +226,7 @@ export const route: Route<
                       c.*,
                       p_0."id" as "token_0_price_id",
                       p_1."id" as "token_1_price_id"
-                    FROM spacebox.dex_vaults_config_state as c
+                    FROM vault_config as c
                     ANY LEFT JOIN spacebox.slinky_pairs_state as p_0
                       ON c."token_0_symbol" = p_0."base"
                       AND c."token_0_quote_currency" = p_0."quote"
@@ -395,7 +398,7 @@ export const route: Route<
                 "vault_return" / "period_in_days" * "days_in_year" AS "vault_apr",
                 "hold_return" / "period_in_days" * "days_in_year" AS "hold_apr",
                 "vault_apr" - "hold_apr" as "apr"
-            FROM spacebox.dex_vaults_config_state as v
+            FROM vault_config as v
             ANY LEFT JOIN vault_returns as r
               ON (v."contract_address" = r."contract_address")
             ANY LEFT JOIN vault_token_prices as p_0
