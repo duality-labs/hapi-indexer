@@ -107,12 +107,19 @@ export const route: Route<
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
-          toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE) as "time_end",
+          30 as "period_in_days",
+          365 as "days_in_year",
+          time_period as (
+            SELECT
+              toDateTime64(addDays("time_end", -"period_in_days"), 9) as "time_start",
+              toDateTime64(toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE), 9) as "time_end"
+          ),
           vault_config as (
             SELECT * FROM spacebox.dex_vaults_config_state
           ),
           tvl AS (
             WITH balance AS (
+              WITH (SELECT "time_end" FROM time_period) as "time_end"
               SELECT
                 "contract_address",
                 argMax("token_0_balance_before_deposit", "height") as "token_0_amount",
@@ -121,7 +128,7 @@ export const route: Route<
                 argMax("token_1_price", "height") as "token_1_price"
               FROM spacebox.dex_vaults_dex_balance as b
               WHERE "action" = 'dex_deposit'
-                AND "timestamp" <= time_end
+                AND "timestamp" <= "time_end"
               GROUP BY "contract_address"
             )
             SELECT
@@ -133,10 +140,11 @@ export const route: Route<
             FROM balance
           ),
           swaps_valued AS (
+            WITH (SELECT "time_end" FROM time_period) as "time_end"
             SELECT *
             FROM spacebox.dex_swaps_valued as s
-            WHERE "timestamp" > addDays(time_end, -30)
-              AND "timestamp" <= time_end
+            WHERE "timestamp" > addDays("time_end", -30)
+              AND "timestamp" <= "time_end"
               AND (
               notEmpty("Receiver") OR (
                 ("TrancheKey" IS NULL) AND (
@@ -148,19 +156,21 @@ export const route: Route<
             )
           ),
           volume_30d AS (
+            WITH (SELECT "time_end" FROM time_period) as "time_end"
             SELECT
               "TokenZero",
               "TokenOne",
               "Receiver",
               sum("value_in_1" - "value_fee_1" + "value_out_0") / 2 as "avg_value_0",
               sum("value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value_1"
-            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > addDays(time_end, -30))
+            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > addDays("time_end", -30))
             GROUP BY
               "TokenZero",
               "TokenOne",
               "Receiver"
           ),
           volume_1d AS (
+            WITH (SELECT "time_end" FROM time_period) as "time_end"
             SELECT
               "TokenZero",
               "TokenOne",
@@ -169,7 +179,7 @@ export const route: Route<
               sum("value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value_1"
               -- OR
               -- sum("value_in_1" - "value_fee_1" + "value_out_0" + "value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value"
-            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > addDays(time_end, -1))
+            FROM (SELECT * FROM swaps_valued WHERE "timestamp" > addDays("time_end", -1))
             GROUP BY
               "TokenZero",
               "TokenOne",
@@ -206,12 +216,63 @@ export const route: Route<
           ),
           apr_30d as (
             WITH
-              30 as "period_in_days",
-              365 as "days_in_year",
-              time_period as (
+              vault_token_prices AS (
+                WITH
+                  vault_config_with_price_ids as (
+                    SELECT
+                      c.*,
+                      p_0."id" as "token_0_price_id",
+                      p_1."id" as "token_1_price_id"
+                    FROM spacebox.dex_vaults_config_state as c
+                    ANY LEFT JOIN spacebox.slinky_pairs_state as p_0
+                      ON c."token_0_symbol" = p_0."base"
+                      AND c."token_0_quote_currency" = p_0."quote"
+                    ANY LEFT JOIN spacebox.slinky_pairs_state as p_1
+                      ON c."token_1_symbol" = p_1."base"
+                      AND c."token_1_quote_currency" = p_1."quote"
+                  ),
+                  vault_tokens AS (
+                    SELECT DISTINCT
+                      token_tuple.1 as "denom",
+                      token_tuple.2 as "symbol",
+                      token_tuple.3 as "decimals",
+                      token_tuple.4 as "quote_currency",
+                      token_tuple.5 as "price_id",
+                      (SELECT "time_start" FROM time_period) as "time_start",
+                      (SELECT "time_end" FROM time_period) as "time_end"
+                    FROM vault_config_with_price_ids
+                    ARRAY JOIN (
+                      [
+                        ("token_0_denom", "token_0_symbol", "token_0_decimals", "token_0_quote_currency", "token_0_price_id"),
+                        ("token_1_denom", "token_1_symbol", "token_1_decimals", "token_1_quote_currency", "token_1_price_id")
+                      ]
+                    ) as token_tuple
+                  ),
+                  filtered_slinky_prices AS (
+                    SELECT "timestamp", "id", "price", "decimals"
+                    FROM spacebox.slinky_prices
+                    WHERE "id" IN (SELECT DISTINCT "price_id" FROM vault_tokens)
+                  )
                 SELECT
-                  toDateTime64(addDays("time_end", -"period_in_days"), 9) as "time_start",
-                  toDateTime64(toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE), 9) as "time_end"
+                  v."denom" as "denom",
+                  v."symbol" as "symbol",
+                  v."quote_currency" as "quote_currency",
+                  if (
+                    p_start."timestamp" > 0,
+                    toFloat64(p_start."price") * exp10(-(v."decimals" + p_start."decimals")),
+                    toFloat64(p_first."price") * exp10(-(v."decimals" + p_first."decimals"))
+                  ) as "price64_start",
+                  toFloat64(p_end."price") * exp10(-(v."decimals" + p_end."decimals")) as "price64_end"
+                FROM vault_tokens as v
+                ASOF LEFT JOIN filtered_slinky_prices as p_start
+                  ON v."price_id" = p_start."id"
+                  AND v."time_start" >= p_start."timestamp"
+                ASOF LEFT JOIN filtered_slinky_prices as p_end
+                  ON v."price_id" = p_end."id"
+                  AND v."time_end" >= p_end."timestamp"
+                ANY LEFT JOIN spacebox.slinky_prices_first_state as p_first
+                  ON v."symbol" = p_first."base"
+                  AND v."quote_currency" = p_first."quote"
               ),
               balance_start as (
                 WITH
@@ -313,15 +374,34 @@ export const route: Route<
                   log1p( ( "value_pre_close" - "value_previous" ) / "value_previous" ) AS "ln_return"
                 FROM timeseries
                 WINDOW ascending_events AS (PARTITION BY "contract_address" ORDER BY "sort_key" ASC)
+              ),
+              vault_returns AS (
+                SELECT
+                    "contract_address",
+                    ( exp( sumKahan( "ln_return" ) ) - 1 ) as "vault_return"
+                FROM per_event
+                WHERE "timestamp_previous" > 0  -- skip the first row per group
+                  AND "value_pre_close" > 0     -- skip any full-withdrawal rows per group
+                GROUP BY "contract_address"
               )
             SELECT
-                "contract_address",
+                v."contract_address" as "contract_address",
+                r."vault_return" as "vault_return",
+                (
+                  0.5 * (p_0."price64_end" / p_0."price64_start") +
+                  0.5 * (p_1."price64_end" / p_1."price64_start") - 1
+                ) as "hold_return",
                 /* simple-interest annualisation = APR */
-                ( exp( sumKahan( "ln_return" ) ) - 1 ) / "period_in_days" * "days_in_year" AS "apr"
-            FROM per_event
-            WHERE "timestamp_previous" > 0  -- skip the first row per group
-              AND "value_pre_close" > 0     -- skip any full-withdrawal rows per group
-            GROUP BY "contract_address"
+                "vault_return" / "period_in_days" * "days_in_year" AS "vault_apr",
+                "hold_return" / "period_in_days" * "days_in_year" AS "hold_apr",
+                "vault_apr" - "hold_apr" as "apr"
+            FROM spacebox.dex_vaults_config_state as v
+            ANY LEFT JOIN vault_returns as r
+              ON (v."contract_address" = r."contract_address")
+            ANY LEFT JOIN vault_token_prices as p_0
+              ON (v."token_0_denom" = p_0."denom")
+            ANY LEFT JOIN vault_token_prices as p_1
+              ON (v."token_1_denom" = p_1."denom")
           )
         SELECT
           config."updated_at_height" as "height",
