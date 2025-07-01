@@ -1,4 +1,4 @@
-import { ResponseJSON } from '@clickhouse/client';
+import { ClickHouseSettings, ResponseJSON } from '@clickhouse/client';
 import { Sql } from 'sql-template-tag';
 
 import { client } from './client';
@@ -22,6 +22,7 @@ interface ResponseOptions<T, U> extends QueryCacheOptions {
   getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<U>['meta'];
   isComplete?: boolean;
   showStatistics?: boolean;
+  clickhouseSettings?: ClickHouseSettings;
 }
 interface QueryCacheOptions {
   cacheKey?: string;
@@ -109,6 +110,7 @@ export async function getCachedResponse<
     staleTimeMax = 0,
     staleTimeMin = 0,
     showStatistics = SHOW_STATISTICS === 'true',
+    clickhouseSettings,
   }: ResponseOptions<Row, RowResponse> = {}
 ): Promise<ExtendedResponseJSON<RowResponse> | ResponseJSON<RowResponse>> {
   const now = Date.now();
@@ -187,6 +189,8 @@ export async function getCachedResponse<
             ...toClickHouseSQL(query, 'JSON'),
             // allow query to be cancelled
             abort_signal: abortSignal,
+            // add settings if defined
+            clickhouse_settings: clickhouseSettings,
           })
           .then((response) => response.json<Row>())
           .then(resolve)

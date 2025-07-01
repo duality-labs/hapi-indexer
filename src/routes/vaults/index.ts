@@ -487,6 +487,10 @@ export const route: Route<
           );
         },
         ...cacheConfig,
+        // allow this route to take longer if required (user has max 300s limit)
+        clickhouseSettings: {
+          max_execution_time: 120,
+        },
       }
     );
   },
