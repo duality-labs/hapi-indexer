@@ -2,7 +2,7 @@ import sql from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
-import { inMs, minutes, toUnixTime } from '../../utils/units';
+import { toUnixTime } from '../../utils/units';
 import {
   route as tvlRoute,
   Request as TvlRequest,
@@ -24,7 +24,7 @@ import {
   Response as VolumeResponse,
 } from './swap-volume';
 import { GetData } from '../../utils/response';
-import { endTime } from './_common';
+import { endTime, endTimeCacheTime } from './_common';
 
 interface Request {
   params: { contract: string };
@@ -86,9 +86,9 @@ export const route: Route<
       abortSignal
     );
     const cacheConfig = {
-      cacheTime: 10 * minutes * inMs,
-      staleTimeMax: 10 * minutes * inMs,
-      staleTimeMin: 2 * minutes * inMs,
+      cacheTime: 2 * endTimeCacheTime,
+      staleTimeMax: 2 * endTimeCacheTime,
+      staleTimeMin: 0.4 * endTimeCacheTime, // attempt regen-while-stale at least twice
       cacheVersion: toUnixTime(cacheTimestamp.data.at(0)?.time),
     };
 
