@@ -24,6 +24,7 @@ import {
   Response as VolumeResponse,
 } from './swap-volume';
 import { GetData } from '../../utils/response';
+import { endTime } from './_common';
 
 interface Request {
   params: { contract: string };
@@ -80,8 +81,6 @@ export const route: Route<
   path: '/vaults',
   handler: async (request, abortSignal, previousResponse) => {
     // cache to specific end time
-    const endTime = sql`toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE)`;
-
     const cacheTimestamp = await getCachedResponse<{ time: string }>(
       sql`SELECT ${endTime} as "time"`,
       abortSignal
@@ -112,7 +111,7 @@ export const route: Route<
           time_period as (
             SELECT
               toDateTime64(addDays("time_end", -"period_in_days"), 9) as "time_start",
-              toDateTime64(toStartOfInterval(addMinutes(NOW(), -5), INTERVAL 5 MINUTE), 9) as "time_end"
+              toDateTime64(${endTime}, 9) as "time_end"
           ),
           vault_config as (
             SELECT * FROM spacebox.dex_vaults_config_state
