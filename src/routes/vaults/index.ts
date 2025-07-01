@@ -2,7 +2,6 @@ import sql from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
-import { toUnixTime } from '../../utils/units';
 import {
   route as tvlRoute,
   Request as TvlRequest,
@@ -24,7 +23,7 @@ import {
   Response as VolumeResponse,
 } from './swap-volume';
 import { GetData } from '../../utils/response';
-import { endTime, endTimeCacheTime } from './_common';
+import { endTime, getEndTimeCacheConfig } from './_common';
 
 interface Request {
   params: { contract: string };
@@ -81,16 +80,7 @@ export const route: Route<
   path: '/vaults',
   handler: async (request, abortSignal, previousResponse) => {
     // cache to specific end time
-    const cacheTimestamp = await getCachedResponse<{ time: string }>(
-      sql`SELECT ${endTime} as "time"`,
-      abortSignal
-    );
-    const cacheConfig = {
-      cacheTime: 2 * endTimeCacheTime,
-      staleTimeMax: 2 * endTimeCacheTime,
-      staleTimeMin: 0.4 * endTimeCacheTime, // attempt regen-while-stale at least twice
-      cacheVersion: toUnixTime(cacheTimestamp.data.at(0)?.time),
-    };
+    const cacheConfig = await getEndTimeCacheConfig(abortSignal);
 
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`
