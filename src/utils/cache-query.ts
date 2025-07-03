@@ -194,7 +194,12 @@ export async function getCachedResponse<
           })
           .then((response) => response.json<Row>())
           .then(resolve)
-          .catch(reject);
+          .catch((err) => {
+            // remove promise from cache immediately
+            // new requests should try for a new result
+            requestCache.delete(cacheKey);
+            reject(err);
+          });
       }),
       version: cacheVersion || 0,
       created: now,
