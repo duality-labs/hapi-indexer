@@ -3,17 +3,11 @@ import sql, { raw } from 'sql-template-tag';
 import { Route } from '../../../types';
 import { getCachedResponse } from '../../../utils/cache-query';
 import {
-  hours,
-  inMs,
-  minutes,
   WithFillTimePeriod,
   toUnixTime,
   getFillableTimePeriod,
 } from '../../../utils/units';
-import {
-  selectVaultConfigs,
-  VaultResponse,
-} from '../../../common-table-expressions/vaultConfigs';
+import { endTime, getEndTimeCacheConfig } from '../_common';
 
 export interface Request {
   params: { contract: string; address: string };
@@ -33,153 +27,85 @@ export interface Response {
   hold_value_1: number;
 }
 
+const DEFAULT_ROWS = 100;
+const MAX_ROWS = 1000;
+
 export const route: Route<Request, Response> = {
   method: 'get',
   path: '/vaults/:contract/user/:address/pnl',
   handler: async (request, abortSignal, previousResponse) => {
+    // cache to specific end time
+    const cacheConfig = await getEndTimeCacheConfig(abortSignal);
+
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`
         SELECT max("height") AS "height"
         FROM spacebox."raw_block_results"
+        WHERE "timestamp" <= ${endTime}
       `,
-      abortSignal
-    );
-
-    // get timeseries data height (quick query to determine cache version)
-    const contractResponse = await getCachedResponse<VaultResponse>(
-      sql`
-          SELECT *
-          FROM (${selectVaultConfigs})
-          WHERE "contract_address" = ${request.params.contract}
-        `,
       abortSignal,
-      {
-        cacheTime: 1 * minutes * inMs,
-      }
+      cacheConfig
     );
-
-    const data = contractResponse.data.at(0);
-    if (!data) {
-      throw new Error('NotFound', { cause: 404 });
-    }
-    const contract = data.contract_address;
-    const token0 = {
-      denom: data.token_0_denom,
-      decimals: data.token_0_decimals,
-      maxBlocksStale: data.token_0_max_blocks_stale,
-      symbol: data.token_0_symbol,
-      quoteCurrency: data.token_0_quote_currency,
-    };
-    const token1 = {
-      denom: data.token_1_denom,
-      decimals: data.token_1_decimals,
-      maxBlocksStale: data.token_1_max_blocks_stale,
-      symbol: data.token_1_symbol,
-      quoteCurrency: data.token_1_quote_currency,
-    };
-
-    const denom0 = token0.denom;
-    const denom1 = token1.denom;
-
-    // get timeseries data height (quick query to determine cache version)
-    const allUpdateHeights = await Promise.all([
-      getCachedResponse<{
-        height: string;
-        time: string;
-      }>(
-        sql`
-            SELECT
-              max(t."height") AS "height",
-              argMax("timestamp", t."height") as "time"
-            FROM spacebox.dex_message_event_tick_state as t
-            WHERE "TokenZero" = ${denom0}
-              AND "TokenOne" = ${denom1}
-        `,
-        abortSignal,
-        { cacheTime: 1 * minutes * inMs }
-      ),
-      getCachedResponse<{
-        height: string;
-        time: string;
-      }>(
-        sql`
-            SELECT
-              max(t."height") AS "height",
-              argMax("timestamp", t."height") as "time"
-            FROM spacebox.bank_transfer_state as t
-            WHERE "address" = ${request.params.contract}
-              AND "denom" IN (${denom0}, ${denom1})
-        `,
-        abortSignal,
-        { cacheTime: 1 * minutes * inMs }
-      ),
-      getCachedResponse<{
-        height: string;
-        time: string;
-      }>(
-        sql`
-            SELECT
-              argMax("height_to", t."timestamp") as "height",
-              max(t."timestamp") as "time"
-            FROM spacebox.slinky_prices as t
-            WHERE "id" IN (
-              SELECT "id"
-              FROM spacebox.slinky_pairs
-              WHERE (
-                "base" = ${token0.symbol} AND "quote" = ${token0.quoteCurrency}
-                OR
-                "base" = ${token1.symbol} AND "quote" = ${token1.quoteCurrency}
-              )
-            )
-        `,
-        abortSignal,
-        { cacheTime: 1 * minutes * inMs }
-      ),
-    ]);
-
-    const currentHeight = allUpdateHeights
-      .slice()
-      .sort((a, b) => {
-        const rowA = a.data.at(0);
-        const rowB = b.data.at(0);
-        return rowA && rowB
-          ? Number(rowB.height) - Number(rowA.height)
-          : rowA
-          ? -1
-          : 1;
-      })
-      .at(0);
 
     // get requested time period or default
-    const timePeriods = Number(request.query.periods) || 1;
-    const timePeriod = getFillableTimePeriod(request.query.period) || 'hour';
-    const timePeriodLimit = (() => {
-      switch (timePeriod) {
-        case 'second':
-          return 60 * 60; // an hour
-        case 'minute':
-          return 60 * 24; // a day
-        case 'hour':
-          return 30 * 24; // a ~month
-        case 'day':
-          return 365; // a ~year
-        case 'week':
-          return 52 * 3; // ~3 years
-        default:
-          return 12;
-      }
-    })();
+    const timePeriods = Math.max(Number(request.query.periods), 0) || 1;
+    const last24H = !getFillableTimePeriod(request.query.period);
+    const timePeriod = getFillableTimePeriod(request.query.period) || 'minute';
+    const limit =
+      Math.round(Math.max(Number(request.query.limit), 0)) ||
+      (last24H ? 60 * 24 : 1);
+
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get contract start time
-    const timeContractStart = toUnixTime(data.created_at);
+    const timeContractV1Start = toUnixTime('2025-06-25 05:36:35');
     // ClickHouse will compare either native strings or Unix timestamps
-    const unixFrom = Math.max(
-      timeContractStart,
-      timePrevious,
-      Number(request.query.from) || 0
-    );
+    const unixFrom = Number(request.query.from) || 0;
     const unixTo = Number(request.query.to) || 0;
+
+    const unixTimes = await getCachedResponse<{
+      time_end: number;
+      time_start: number;
+      time_data_start: number;
+    }>(
+      sql`
+        SELECT
+          toUnixTimestamp(
+            toStartOfInterval(
+              greatest(
+                toDateTime(${unixFrom || timePrevious}),
+                ${
+                  limit
+                    ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
+                        limit.toFixed(0)
+                      )} ${raw(timePeriod)})`
+                    : sql`toDateTime(0)`
+                }
+              ),
+              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+            )
+          ) as "time_start",
+          greatest(
+            "time_start",
+            ${timeContractV1Start}
+          ) as "time_data_start",
+          toUnixTimestamp(
+            toStartOfInterval(
+              least(
+                ${endTime},
+                ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
+              ),
+              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+            )
+          ) as "time_end"
+        `,
+      abortSignal,
+      cacheConfig
+    ).then((r) => r.data.at(0));
+
+    if (!unixTimes) {
+      throw new Error('Invalid start/end times');
+    }
 
     // get timeseries data
     return await getCachedResponse<
@@ -188,35 +114,11 @@ export const route: Route<Request, Response> = {
     >(
       sql`
         WITH
-          ${unixFrom} as "unix_from",
-          ${unixTo} as "unix_to",
-          ${contract} as "_contract_address",
-          if(
-            "unix_to" > 0,
-            toDateTime("unix_to"),
-            toStartOfInterval(
-              addMinutes(now(), -10),
-              INTERVAL ${timePeriods} ${raw(timePeriod)}
-            )
-          ) as "time_end",
-          greatest(
-            if (
-              "unix_from" > 0,
-              toStartOfInterval(
-                toDateTime("unix_from"),
-                INTERVAL ${timePeriods} ${raw(timePeriod)}
-              ),
-              toDateTime(0)
-            ),
-            subDate(
-              "time_end",
-              INTERVAL ${timePeriods * timePeriodLimit} ${raw(timePeriod)}
-            )
-          ) as "time_start",
+          ${request.params.contract} as "_contract_address",
           COALESCE(
             (SELECT "height"
             FROM spacebox.raw_block_results
-            WHERE "timestamp" <= "time_start"
+            WHERE "timestamp" <= toDateTime(${unixTimes.time_start})
             ORDER BY "height" DESC
             LIMIT 1),
             0
@@ -224,7 +126,7 @@ export const route: Route<Request, Response> = {
           COALESCE(
             (SELECT "height"
             FROM spacebox.raw_block_results
-            WHERE "timestamp" <= "time_end"
+            WHERE "timestamp" <= toDateTime(${unixTimes.time_end})
             ORDER BY "height" DESC
             LIMIT 1), 0
           ) as "height_end",
@@ -263,18 +165,24 @@ export const route: Route<Request, Response> = {
             SELECT "price_id_0", "price_id_1"
           ),
           time_range AS (
+            WITH
+              toDateTime(${unixTimes.time_start}) as "time_start",
+              toDateTime(${unixTimes.time_end}) as "time_end"
             SELECT
-              addDate(
-                "time_start",
+              subDate(
+                "time_end" - (
+                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                ),
                 INTERVAL "generate_series" ${raw(timePeriod)}
               ) as "timestamp",
               (SELECT "price_id_0" FROM slinky_price_ids) as "price_id_0",
               (SELECT "price_id_1" FROM slinky_price_ids) as "price_id_1",
               "_contract_address" as "contract_address"
-              FROM generate_series(
-                0,
-                dateDiff(${raw(timePeriod)}, "time_start", "time_end")
-              )
+            FROM generate_series(
+              0,
+              dateDiff(${raw(timePeriod)}, "time_start", "time_end"),
+              ${timePeriods}
+            )
           ),
           slinky_prices_0 AS (
             SELECT *
@@ -521,6 +429,7 @@ export const route: Route<Request, Response> = {
               -- note: timeseries periods capture events up to (<) the *end* of the period
               --       reset it back to show the start of the period time here
               subDate(t."timestamp", INTERVAL 1 ${raw(timePeriod)}) as "time",
+              vault."contract_address" as "contract_address",
               "token_price_0" * toFloat64("hold_amount_0") as "hold_value_0",
               "token_price_1" * toFloat64("hold_amount_1") as "hold_value_1",
               "token_price_0" * toFloat64("vault_amount_0") * "user_fraction_of_tvl" as "vault_value_0",
@@ -555,9 +464,21 @@ export const route: Route<Request, Response> = {
               ON (vault."contract_address" = t."contract_address")
               AND vault."timestamp" < t."timestamp"
           )
-          SELECT *
-          FROM timeseries
-          ORDER BY "time" DESC
+        SELECT
+          time_range."timestamp" as "time",
+          "height",
+          "hold_value_0",
+          "hold_value_1",
+          "vault_value_0",
+          "vault_value_1"
+        FROM time_range
+        ASOF LEFT JOIN timeseries
+          ON (time_range."contract_address" = timeseries."contract_address")
+          AND (time_range."timestamp" >= timeseries."time")
+        -- default sort reverse chronologically
+        ORDER BY "time" DESC
+        -- cap limit to max, set default if not well defined
+        LIMIT ${Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS}
       `,
       abortSignal,
       {
@@ -591,12 +512,8 @@ export const route: Route<Request, Response> = {
           );
         },
         // flag as complete if there will be no data changes after this
-        isComplete:
-          !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
-        cacheTime: 1 * hours * inMs,
-        staleTimeMax: 1 * hours * inMs,
-        staleTimeMin: 0.1 * hours * inMs,
-        cacheVersion: Number(currentHeight?.data.at(0)?.height) || 0,
+        isComplete: !!unixTo && unixTimes.time_end > unixTo,
+        ...cacheConfig,
       }
     );
   },
