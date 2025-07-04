@@ -4,18 +4,39 @@ import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import {
   getFillableTimePeriod,
-  hours,
-  inMs,
-  minutes,
   WithFillTimePeriod,
   toUnixTime,
 } from '../../utils/units';
-import { bankReservesAtHeightTimeseries } from '../../common-table-expressions/bankReservesTimeseries';
-import {
-  selectVaultConfigs,
-  VaultResponse,
-} from '../../common-table-expressions/vaultConfigs';
-import dexVaultReservesTimeseries from '../../common-table-expressions/dexVaultReserves';
+import { endTime, getEndTimeCacheConfig } from './_common';
+
+interface VaultResponse {
+  created_at: string;
+  updated_at: string;
+  created_at_height: string;
+  updated_at_height: string;
+  contract_address: string;
+  whitelist: string[];
+  token_0_denom: string;
+  token_0_decimals: number;
+  token_0_symbol: string;
+  token_0_quote_currency: string;
+  token_0_max_blocks_old: string;
+  token_1_denom: string;
+  token_1_decimals: number;
+  token_1_symbol: string;
+  token_1_quote_currency: string;
+  token_1_max_blocks_old: string;
+  pool_id: string;
+  deposit_cap: string;
+  timestamp_stale: string;
+  fee_tier_config: string;
+  paused: boolean;
+  skew: boolean;
+  imbalance: number;
+  oracle_contract: string;
+  oracle_price_skew: string;
+  denom: string;
+}
 
 export interface Request {
   params: { contract: string };
@@ -39,380 +60,188 @@ export const route: Route<Request, Response> = {
   method: 'get',
   path: '/vaults/tvl/:contract',
   handler: async (request, abortSignal, previousResponse) => {
+    // cache to specific end time
+    const cacheConfig = await getEndTimeCacheConfig(abortSignal);
+
     const sourceTableHeight = await getCachedResponse<{ height: string }>(
       sql`
         SELECT max("height") AS "height"
         FROM spacebox."raw_block_results"
+        WHERE "timestamp" <= ${endTime}
       `,
-      abortSignal
+      abortSignal,
+      cacheConfig
     );
 
     // get timeseries data height (quick query to determine cache version)
     const contractResponse = await getCachedResponse<VaultResponse>(
       sql`
-          SELECT *
-          FROM (${selectVaultConfigs})
-          WHERE "contract_address" = ${request.params.contract}
-        `,
+        SELECT *
+        FROM spacebox.dex_vaults_config_state
+        WHERE "contract_address" = ${request.params.contract}
+      `,
       abortSignal,
-      {
-        cacheTime: 1 * minutes * inMs,
-      }
+      cacheConfig
     );
 
     const data = contractResponse.data.at(0);
     if (!data) {
       throw new Error('NotFound', { cause: 404 });
     }
-    const contract = data.contract_address;
+
     const token0 = {
       denom: data.token_0_denom,
       decimals: data.token_0_decimals,
-      maxBlocksStale: data.token_0_max_blocks_stale,
       symbol: data.token_0_symbol,
       quoteCurrency: data.token_0_quote_currency,
     };
     const token1 = {
       denom: data.token_1_denom,
       decimals: data.token_1_decimals,
-      maxBlocksStale: data.token_1_max_blocks_stale,
       symbol: data.token_1_symbol,
       quoteCurrency: data.token_1_quote_currency,
     };
 
-    const denom0 = token0.denom;
-    const denom1 = token1.denom;
-    const pair0 = `${token0.symbol}-${token0.quoteCurrency}`;
-    const pair1 = `${token1.symbol}-${token1.quoteCurrency}`;
-
-    // get timeseries data height (quick query to determine cache version)
-    const allUpdateHeights = await Promise.all([
-      getCachedResponse<{
-        height: string;
-        time: string;
-      }>(
-        sql`
-            SELECT
-              max(t."height") AS "height",
-              argMax("timestamp", t."height") as "time"
-            FROM spacebox.dex_message_event_tick_state as t
-            WHERE "TokenZero" = ${denom0}
-              AND "TokenOne" = ${denom1}
-        `,
-        abortSignal,
-        { cacheTime: 1 * minutes * inMs }
-      ),
-      getCachedResponse<{
-        height: string;
-        time: string;
-      }>(
-        sql`
-            SELECT
-              max(t."height") AS "height",
-              argMax("timestamp", t."height") as "time"
-            FROM spacebox.bank_transfer_state as t
-            WHERE "address" = ${request.params.contract}
-              AND "denom" IN (${denom0}, ${denom1})
-        `,
-        abortSignal,
-        { cacheTime: 1 * minutes * inMs }
-      ),
-      getCachedResponse<{
-        height: string;
-        time: string;
-      }>(
-        sql`
-            SELECT
-              argMax("height_to", t."timestamp") as "height",
-              max(t."timestamp") as "time"
-            FROM spacebox.slinky_prices as t
-            WHERE "id" IN (
-              SELECT "id"
-              FROM spacebox.slinky_pairs
-              WHERE (
-                "base" = ${token0.symbol} AND "quote" = ${token0.quoteCurrency}
-                OR
-                "base" = ${token1.symbol} AND "quote" = ${token1.quoteCurrency}
-              )
-            )
-        `,
-        abortSignal,
-        { cacheTime: 1 * minutes * inMs }
-      ),
-    ]);
-
-    const currentHeight = allUpdateHeights
-      .slice()
-      .sort((a, b) => {
-        const rowA = a.data.at(0);
-        const rowB = b.data.at(0);
-        return rowA && rowB
-          ? Number(rowB.height) - Number(rowA.height)
-          : rowA
-          ? -1
-          : 1;
-      })
-      .at(0);
-
     // get requested time period or default
-    const timePeriods = Number(request.query.periods) || 1;
-    const timePeriod = getFillableTimePeriod(request.query.period) || 'day';
+    const timePeriods = Math.max(Number(request.query.periods), 0) || 1;
+    const last24H = !getFillableTimePeriod(request.query.period);
+    const timePeriod = getFillableTimePeriod(request.query.period) || 'minute';
+    const limit =
+      Math.round(Math.max(Number(request.query.limit), 0)) ||
+      (last24H ? 60 * 24 : 1);
+
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get contract start time
-    const timeContractStart = toUnixTime(data.created_at);
+    const timeContractV1Start = toUnixTime('2025-06-25 05:36:35');
     // ClickHouse will compare either native strings or Unix timestamps
-    const unixFrom = Math.max(
-      timeContractStart,
-      Number(request.query.from) || 0
-    );
+    const unixFrom = Number(request.query.from) || 0;
     const unixTo = Number(request.query.to) || 0;
+
+    const unixTimes = await getCachedResponse<{
+      time_end: number;
+      time_start: number;
+      time_data_start: number;
+    }>(
+      sql`
+        SELECT
+          toUnixTimestamp(
+            toStartOfInterval(
+              greatest(
+                toDateTime(${unixFrom || timePrevious}),
+                ${
+                  limit
+                    ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
+                        limit.toFixed(0)
+                      )} ${raw(timePeriod)})`
+                    : sql`toDateTime(0)`
+                }
+              ),
+              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+            )
+          ) as "time_start",
+          greatest(
+            "time_start",
+            ${timeContractV1Start}
+          ) as "time_data_start",
+          toUnixTimestamp(
+            toStartOfInterval(
+              least(
+                ${endTime},
+                ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
+              ),
+              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+            )
+          ) as "time_end"
+        `,
+      abortSignal,
+      cacheConfig
+    ).then((r) => r.data.at(0));
+
+    if (!unixTimes) {
+      throw new Error('Invalid start/end times');
+    }
 
     // get timeseries data
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
-        -- add fake columns to join the price data across
-        -- without some specific ID rows ClickHouse will complain: "ASOF join needs at least one equi-join column"
-        -- but we alread filter to the required IDs in the following CTEs
-        ${pair0} as "quote_pair_zero",
-        ${pair1} as "quote_pair_one",
-        cumulative_bank_balances_at_height AS (
-          SELECT
-            "timestamp",
-            "height",
-            -- pool token index
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            -- values
-            "address_balance" as "Balance"
-          FROM (${bankReservesAtHeightTimeseries(
-            contract,
-            denom0,
-            denom1
-          )}) as t
-          -- reduce grouping work by filtering to period first
-          WHERE 1 = 1
-            ${
-              // ensure bank balances are read all the way from start of contract
-              timeContractStart
-                ? sql`AND t."timestamp" >= toStartOfInterval(
-                    toDateTime(${timeContractStart}),
-                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                  )`
-                : raw('')
-            }
-            ${
-              unixTo
-                ? sql`AND t."timestamp" < toStartOfInterval(
-                    toDateTime(${unixTo}),
-                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                  )`
-                : raw('')
-            }
-        ),
-        cumulative_vault_reserves AS (${dexVaultReservesTimeseries(
-          contract,
-          denom0,
-          denom1
-        )}),
-        -- perform cumulative sum across reserves of all pools within the pair
-        cumulative_vault_reserves_at_height AS (
-          SELECT
-            "timestamp",
-            "height",
-            -- pool token index
-            "TokenZero",
-            "TokenOne",
-            "TokenIn",
-            -- get the last row of the matching height
-            "Reserves"
-          FROM (
-            SELECT *,
-              ROW_NUMBER() OVER (
-                -- get all rows matching a certain pool and height
-                PARTITION BY "height", "TokenZero", "TokenOne", "TokenIn"
-                ORDER BY "sort_key" DESC
-              ) AS "row_order"
-            FROM cumulative_vault_reserves as t
-            -- reduce grouping work by filtering to period first
-            WHERE 1 = 1
-              ${
-                // ensure bank balances are read all the way from start of contract
-                timeContractStart
-                  ? sql`AND t."timestamp" >= toStartOfInterval(
-                      toDateTime(${timeContractStart}),
-                      INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                    )`
-                  : raw('')
-              }
-              ${
-                unixTo
-                  ? sql`AND t."timestamp" < toStartOfInterval(
-                      toDateTime(${unixTo}),
-                      INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                    )`
-                  : raw('')
-              }
-          )
-          WHERE "row_order" = 1
-        ),
-        cumulative_all_at_height AS (
-          SELECT
-            v.*,
-            b."Balance" as "Balance"
-          FROM cumulative_vault_reserves_at_height as v
-          LEFT OUTER JOIN cumulative_bank_balances_at_height as b
-          ON v.height = b.height
-          AND v.timestamp = b.timestamp
-          AND v.TokenZero = b.TokenZero
-          AND v.TokenOne = b.TokenOne
-          AND v.TokenIn = b.TokenIn
-        ),
-        grouped_vault_reserves_at_height as (
-          SELECT
-            "timestamp",
-            "height",
-            -- now that we will split the value fields to two sides:
-            -- bring in the contract value sides
-            "quote_pair_zero" as "PairZero",
-            "quote_pair_one" as "PairOne",
-            -- values
-            sumIf("Balance", "TokenIn" = "TokenZero") as "BalanceZero",
-            sumIf("Balance", "TokenIn" = "TokenOne") as "BalanceOne",
-            sumIf("Reserves", "TokenIn" = "TokenZero") as "ReservesZero",
-            sumIf("Reserves", "TokenIn" = "TokenOne") as "ReservesOne"
-          FROM cumulative_all_at_height as reserves
-          GROUP BY
-            "PairZero",
-            "PairOne",
-            "timestamp",
-            "height"
-          ORDER BY "height" ASC
-        ),
-        -- get a standard period time of how much the vault has per time period
-        filled_amount_timeseries_of_period AS (
-          SELECT
-            toStartOfInterval(t."timestamp", INTERVAL ${raw(
-              timePeriods.toFixed(0)
-            )} ${raw(timePeriod)}) AS "timestamp",
-            "PairZero",
-            "PairOne",
-            -- get last known reserves values within group
-            argMax("height", t."timestamp") AS "height",
-            -- protect against possible negative balances due to possible missing rows
-            greatest(argMax("BalanceZero", t."timestamp"), 0) AS "BalanceZero",
-            greatest(argMax("BalanceOne", t."timestamp"), 0) AS "BalanceOne",
-            argMax("ReservesZero", t."timestamp") AS "ReservesZero",
-            argMax("ReservesOne", t."timestamp") AS "ReservesOne"
-          FROM grouped_vault_reserves_at_height as t
-          -- order by time
-          GROUP BY "PairZero", "PairOne", "timestamp"
-          ORDER BY "PairZero", "PairOne", "timestamp" ASC
-          -- but fill timeseries spaces with interpolated values
-          WITH
-            FILL TO NOW()
-            STEP INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-            INTERPOLATE (
-              "height" AS "height",
-              "BalanceZero" AS "BalanceZero",
-              "BalanceOne" AS "BalanceOne",
-              "ReservesZero" AS "ReservesZero",
-              "ReservesOne" AS "ReservesOne"
+          time_range AS (
+            WITH
+              toDateTime(${unixTimes.time_start}) as "time_start",
+              toDateTime(${unixTimes.time_end}) as "time_end"
+            SELECT
+              ${request.params.contract} as "contract_address",
+              subDate(
+                "time_end" - (
+                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                ),
+                INTERVAL "generate_series" ${raw(timePeriod)}
+              ) as "timestamp"
+            FROM generate_series(
+              0,
+              dateDiff(${raw(timePeriod)}, "time_start", "time_end"),
+              ${timePeriods}
             )
-        ),
-        -- pre-aggregate specific pair prices to output time periods
-        -- note: this dramatically reduces the ASOF join times
-        grouped_prices AS (
-          SELECT
-            "pair_id",
-            toStartOfInterval(t."timestamp", INTERVAL ${raw(
-              timePeriods.toFixed(0)
-            )} ${raw(timePeriod)}) AS "timestamp",
-            argMax("price", t."timestamp") AS "price",
-            argMax("decimals", t."timestamp") AS "decimals"
-          FROM spacebox.raw_slinky_prices as t
-          -- filter to symbol and contract start time
-          WHERE ("pair_id" = "quote_pair_zero" OR "pair_id" = "quote_pair_one")
-          ${
-            timeContractStart
-              ? sql`AND t."timestamp" >= toStartOfInterval(
-                  toDateTime(${timeContractStart}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          ${
-            unixTo
-              ? sql`AND t."timestamp" < toStartOfInterval(
-                  toDateTime(${unixTo}),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )`
-              : raw('')
-          }
-          GROUP BY "pair_id", "timestamp"
-          ORDER BY "timestamp" ASC
-        ),
-        tvl_amount_timeseries AS (
-          -- note: use intended deposits fix instead of actual on chain reserves
-          WITH
-            amounts."ReservesZero" > 0 OR amounts."ReservesOne" > 0 as "has_intended_deposits"
-          SELECT
-            amounts."timestamp" as "timestamp",
-            amounts."height" as "height",
-            toFloat64(if("has_intended_deposits" = 1, 0, amounts."BalanceZero")) as "BalanceZero",
-            toFloat64(if("has_intended_deposits" = 1, 0, amounts."BalanceOne")) as "BalanceOne",
-            toFloat64(amounts."ReservesZero") as "ReservesZero",
-            toFloat64(amounts."ReservesOne") as "ReservesOne",
-            toFloat64(p0."price") * exp10(-(${
-              token0.decimals
-            } + p0."decimals")) * ("ReservesZero" + "BalanceZero") as "tvl_0",
-            toFloat64(p1."price") * exp10(-(${
-              token1.decimals
-            } + p1."decimals")) * ("ReservesOne" + "BalanceOne") as "tvl_1"
-          FROM (
-            -- filter to selected time here
-            -- unfortunately required past balances to know current values
-            -- and cannot be filtered until thihs step
-            SELECT *
-            FROM filled_amount_timeseries_of_period as t
-            WHERE 1 = 1
-            ${
-              timePrevious || unixFrom
-                ? sql`AND t."timestamp" >= toStartOfInterval(
-                    toDateTime(${timePrevious || unixFrom}),
-                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                  )`
-                : raw('')
-            }
-            ${
-              unixTo
-                ? sql`AND t."timestamp" < toStartOfInterval(
-                    toDateTime(${unixTo}),
-                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                  )`
-                : raw('')
-            }
-          ) as amounts
-          -- join to closest available price or token zero
-          ASOF LEFT JOIN grouped_prices as p0
-            ON (amounts."ReservesZero" > 0 OR amounts."BalanceZero" > 0)
-            AND p0."pair_id" = amounts."PairZero"
-            AND p0."timestamp" <= amounts."timestamp"
-          -- join to closest available price or token one
-          ASOF LEFT JOIN grouped_prices as p1
-            ON (amounts."ReservesOne" > 0 OR amounts."BalanceOne" > 0)
-            AND p1."pair_id" = amounts."PairOne"
-            AND p1."timestamp" <= amounts."timestamp"
-        )
-        -- return renamed fields of rows where liquidity value exists
+          ),
+          balance_valued AS (
+            WITH
+              balance_start AS (
+                SELECT
+                  "timestamp",
+                  "height",
+                  "contract_address",
+                  "token_0_balance_before_deposit_value" as "token_0_value",
+                  "token_1_balance_before_deposit_value" as "token_1_value",
+                  "sort_key"
+                FROM spacebox.dex_vaults_dex_balance_valued
+                WHERE "contract_address" = ${request.params.contract}
+                  AND "action" = 'dex_deposit'
+                  AND "timestamp" <= toDateTime(${unixTimes.time_data_start})
+                ORDER BY "sort_key" DESC
+                LIMIT 1
+              ),
+              balance_timeseries AS (
+                SELECT
+                  "timestamp",
+                  "height",
+                  "contract_address",
+                  "token_0_balance_before_deposit_value" as "token_0_value",
+                  "token_1_balance_before_deposit_value" as "token_1_value",
+                  "sort_key"
+                FROM spacebox.dex_vaults_dex_balance_valued
+                WHERE "contract_address" = ${request.params.contract}
+                  AND "action" = 'dex_deposit'
+                  AND "timestamp" >= toDateTime(${unixTimes.time_data_start})
+                  AND "timestamp" < toDateTime(${unixTimes.time_end})
+                ORDER BY "sort_key" DESC
+              )
+            SELECT * FROM balance_timeseries
+            UNION ALL
+            SELECT * FROM balance_start
+          ),
+          timeseries as (
+            SELECT
+              toStartOfInterval("timestamp", INTERVAL ${raw(
+                timePeriods.toFixed(0)
+              )} ${raw(timePeriod)}) AS "time",
+              argMax("contract_address", "sort_key") AS "contract_address",
+              argMax("height", "sort_key") as "height",
+              argMax("token_0_value", "sort_key") as "token_0_value",
+              argMax("token_1_value", "sort_key") as "token_1_value"
+            FROM balance_valued
+            GROUP BY "time"
+            ORDER BY "time" DESC
+          )
         SELECT
-          "timestamp" as "time",
+          time_range."timestamp" as "time",
           "height",
-          "tvl_0",
-          "tvl_1"
-        FROM tvl_amount_timeseries
+          "token_0_value" as "tvl_0",
+          "token_1_value" as "tvl_1"
+        FROM time_range
+        ASOF LEFT JOIN timeseries
+          ON (time_range."contract_address" = timeseries."contract_address")
+          AND (time_range."timestamp" >= timeseries."time")
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined
@@ -449,14 +278,8 @@ export const route: Route<Request, Response> = {
           );
         },
         // flag as complete if there will be no data changes after this
-        isComplete:
-          !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
-        cacheTime: 1 * hours * inMs,
-        staleTimeMax: 1 * hours * inMs,
-        staleTimeMin: 0.1 * hours * inMs,
-        cacheVersion: allUpdateHeights
-          .map((res) => Number(res.data.at(0)?.height) || 0)
-          .reduce((acc, v) => acc + v, 0),
+        isComplete: !!unixTo && unixTimes.time_end > unixTo,
+        ...cacheConfig,
       }
     );
   },
