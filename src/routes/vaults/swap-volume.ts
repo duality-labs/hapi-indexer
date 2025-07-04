@@ -68,35 +68,35 @@ export const route: Route<Request, Response> = {
       time_data_start: number;
     }>(
       sql`
-          SELECT
-              toUnixTimestamp(
-                toStartOfInterval(
-                  greatest(
-                    toDateTime(${unixFrom || timePrevious}),
-                    ${
-                      limit
-                        ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
-                            limit.toFixed(0)
-                          )} ${raw(timePeriod)})`
-                        : sql`toDateTime(0)`
-                    }
-                  ),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )
-              ) as "time_start",
+        SELECT
+          toUnixTimestamp(
+            toStartOfInterval(
               greatest(
-                "time_start",
-                ${timeContractV1Start}
-              ) as "time_data_start",
-              toUnixTimestamp(
-                toStartOfInterval(
-                  least(
-                    ${endTime},
-                    ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
-                  ),
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                )
-              ) as "time_end"
+                toDateTime(${unixFrom || timePrevious}),
+                ${
+                  limit
+                    ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
+                        limit.toFixed(0)
+                      )} ${raw(timePeriod)})`
+                    : sql`toDateTime(0)`
+                }
+              ),
+              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+            )
+          ) as "time_start",
+          greatest(
+            "time_start",
+            ${timeContractV1Start}
+          ) as "time_data_start",
+          toUnixTimestamp(
+            toStartOfInterval(
+              least(
+                ${endTime},
+                ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
+              ),
+              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+            )
+          ) as "time_end"
         `,
       abortSignal,
       cacheConfig
@@ -110,11 +110,19 @@ export const route: Route<Request, Response> = {
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
-          time_period AS (
+          time_range AS (
+            WITH
+              toDateTime(${unixTimes.time_start}) as "time_start",
+              toDateTime(${unixTimes.time_end}) as "time_end"
             SELECT
-              toDateTime64(${unixTimes.time_data_start}, 9) as "time_start",
-              toDateTime64(${unixTimes.time_end}, 9) as "time_end",
-              ${timePeriods} as "time_periods"
+              addDate(
+                "time_start",
+                INTERVAL "generate_series" ${raw(timePeriod)}
+              ) as "timestamp"
+            FROM generate_series(
+              0,
+              dateDiff(${raw(timePeriod)}, "time_start", "time_end")
+            )
           ),
           vault_config AS (
             SELECT
@@ -143,8 +151,8 @@ export const route: Route<Request, Response> = {
                 FROM spacebox.dex_swaps_valued as s
                 WHERE "TokenZero" = (SELECT "token_0_denom" FROM vault_config)
                   AND "TokenOne" = (SELECT "token_1_denom" FROM vault_config)
-                  AND "timestamp" >= (SELECT "time_start" FROM time_period)
-                  AND "timestamp" < (SELECT "time_end" FROM time_period)
+                  AND "timestamp" >= toDateTime(${unixTimes.time_data_start})
+                  AND "timestamp" < toDateTime(${unixTimes.time_end})
                   AND (
                   "Receiver" = ${request.params.contract} OR (
                     ("TrancheKey" IS NULL) AND (
@@ -190,21 +198,17 @@ export const route: Route<Request, Response> = {
             GROUP BY "time"
           )
         SELECT
-          "time",
+          time_range."timestamp" as "time",
           "height",
           "volume_0_taker",
           "volume_1_taker",
           "volume_0_maker",
           "volume_1_maker"
-        FROM timeseries
+        FROM time_range
+        ANY LEFT JOIN timeseries
+          ON (time_range."timestamp" = timeseries."time")
         -- default sort reverse chronologically
         ORDER BY "time" DESC
-        WITH FILL
-          FROM toDateTime(${unixTimes.time_end}) - INTERVAL ${raw(
-        timePeriods.toFixed(0)
-      )} ${raw(timePeriod)}
-            TO toDateTime(${unixTimes.time_start})
-          STEP INTERVAL -${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
         -- cap limit to max, set default if not well defined
         LIMIT ${Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS}
       `,
