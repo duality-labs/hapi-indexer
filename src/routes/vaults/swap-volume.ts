@@ -59,15 +59,13 @@ export const route: Route<Request, Response> = {
     // get contract start time
     const timeContractV1Start = toUnixTime('2025-06-25 05:36:35');
     // ClickHouse will compare either native strings or Unix timestamps
-    const unixFrom = Math.max(
-      timeContractV1Start,
-      Number(request.query.from) || 0
-    );
+    const unixFrom = Number(request.query.from) || 0;
     const unixTo = Number(request.query.to) || 0;
 
     const unixTimes = await getCachedResponse<{
       time_end: number;
       time_start: number;
+      time_data_start: number;
     }>(
       sql`
           SELECT
@@ -86,6 +84,10 @@ export const route: Route<Request, Response> = {
                   INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
                 )
               ) as "time_start",
+              greatest(
+                "time_start",
+                ${timeContractV1Start}
+              ) as "time_data_start",
               toUnixTimestamp(
                 toStartOfInterval(
                   least(
@@ -110,7 +112,7 @@ export const route: Route<Request, Response> = {
         WITH
           time_period AS (
             SELECT
-              toDateTime64(${unixTimes.time_start}, 9) as "time_start",
+              toDateTime64(${unixTimes.time_data_start}, 9) as "time_start",
               toDateTime64(${unixTimes.time_end}, 9) as "time_end",
               ${timePeriods} as "time_periods"
           ),
