@@ -115,13 +115,16 @@ export const route: Route<Request, Response> = {
               toDateTime(${unixTimes.time_start}) as "time_start",
               toDateTime(${unixTimes.time_end}) as "time_end"
             SELECT
-              addDate(
-                "time_start",
+              subDate(
+                "time_end" - (
+                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                ),
                 INTERVAL "generate_series" ${raw(timePeriod)}
               ) as "timestamp"
             FROM generate_series(
               0,
-              dateDiff(${raw(timePeriod)}, "time_start", "time_end")
+              dateDiff(${raw(timePeriod)}, "time_start", "time_end"),
+              ${timePeriods}
             )
           ),
           vault_config AS (
