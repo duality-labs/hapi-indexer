@@ -120,7 +120,7 @@ export const route: Route<
                 argMax("token_1_price", "height") as "token_1_price"
               FROM spacebox.dex_vaults_dex_balance as b
               WHERE "action" = 'dex_deposit'
-                AND "timestamp" <= "time_end"
+                AND "timestamp" < "time_end"
               GROUP BY "contract_address"
             )
             SELECT
@@ -132,20 +132,48 @@ export const route: Route<
             FROM balance
           ),
           swaps_valued AS (
-            WITH (SELECT "time_end" FROM time_period) as "time_end"
-            SELECT *
-            FROM spacebox.dex_swaps_valued as s
-            WHERE "timestamp" > addDays("time_end", -30)
-              AND "timestamp" <= "time_end"
-              AND (
-              notEmpty("Receiver") OR (
-                ("TrancheKey" IS NULL) AND (
-                  -- temp estimation of vault DEX pools by excluding normal DEX users
-                  ("Fee" NOT IN (1, 5, 10, 20, 50, 100, 150, 200)) OR
-                  ("block_part_index" = 1)
+            WITH
+              shares AS (
+                SELECT
+                  "timestamp",
+                  "TokenZero",
+                  "TokenOne",
+                  "Receiver",
+                  "value_in_0",
+                  "value_in_1",
+                  "value_fee_0",
+                  "value_fee_1",
+                  "value_out_0",
+                  "value_out_1",
+                  "sort_key"
+                FROM spacebox.dex_swaps_valued as s
+                WHERE "timestamp" >= addDays("time_end", -"period_in_days")
+                  AND "timestamp" < (SELECT "time_end" FROM time_period)
+                  AND (
+                  notEmpty("Receiver") OR (
+                    ("TrancheKey" IS NULL) AND (
+                      -- temp estimation of vault DEX pools by excluding normal DEX users
+                      ("Fee" NOT IN (1, 5, 10, 20, 50, 100, 150, 200)) OR
+                      ("block_part_index" = 1)
+                    )
+                  )
                 )
               )
-            )
+            -- make sure the transfer rows are deduplicated to prevent double counting
+            SELECT
+              argMax("timestamp", "sort_key") as "timestamp",
+              argMax("TokenZero", "sort_key") as "TokenZero",
+              argMax("TokenOne", "sort_key") as "TokenOne",
+              argMax("Receiver", "sort_key") as "Receiver",
+              argMax("value_in_0", "sort_key") as "value_in_0",
+              argMax("value_in_1", "sort_key") as "value_in_1",
+              argMax("value_fee_0", "sort_key") as "value_fee_0",
+              argMax("value_fee_1", "sort_key") as "value_fee_1",
+              argMax("value_out_0", "sort_key") as "value_out_0",
+              argMax("value_out_1", "sort_key") as "value_out_1",
+              "sort_key"
+            FROM shares
+            GROUP BY "sort_key"
           ),
           volume_30d AS (
             WITH (SELECT "time_end" FROM time_period) as "time_end"
