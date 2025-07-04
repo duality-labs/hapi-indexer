@@ -42,9 +42,14 @@ export const route: Route<Request, Response> = {
         SELECT
           max(t."height") AS "height",
           argMax("timestamp", t."height") as "time"
-        FROM spacebox."raw_slinky_prices" as t
-        WHERE "base" = ${base}
-          AND "quote" = ${quote}
+        FROM spacebox."slinky_prices" as t
+        WHERE "id" = (
+          SELECT "id"
+          FROM spacebox.slinky_pairs_state
+          WHERE "base" = ${base}
+            AND "quote" = ${quote}
+          LIMIT 1
+        )
       `,
       abortSignal
     );
@@ -85,7 +90,7 @@ export const route: Route<Request, Response> = {
             -- get price in the same direction: Token1 = 1.0001^price * Token0
             t."price" / intExp10(t."decimals") AS "price"
           SELECT
-            max(height) OVER interval_window AS "last_height",
+            max("height") OVER interval_window AS "last_height",
             toStartOfInterval("timestamp" - "time_offset", INTERVAL ${raw(
               timePeriods.toFixed(0)
             )} ${raw(timePeriod)}) AS "time",
@@ -93,9 +98,15 @@ export const route: Route<Request, Response> = {
             last_value("price") OVER interval_window AS "close",
             min("price") OVER interval_window AS "low",
             max("price") OVER interval_window AS "high"
-          FROM spacebox."raw_slinky_prices" as t
-          WHERE "base" = ${base}
-          AND "quote" = ${quote}
+          FROM spacebox."slinky_prices" as t
+          WHERE
+            "id" = (
+              SELECT "id"
+              FROM spacebox.slinky_pairs_state
+              WHERE "base" = ${base}
+                AND "quote" = ${quote}
+              LIMIT 1
+            )
             -- add optional timestamp filters only if defined
             ${
               unixFrom || timePrevious
