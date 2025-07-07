@@ -3,13 +3,9 @@ import sql, { raw } from 'sql-template-tag';
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import {
-  days,
   getTimePeriod,
   hours,
   inMs,
-  milliseconds,
-  minutes,
-  seconds,
   TimePeriod,
   toUnixTime,
 } from '../../utils/units';
@@ -32,7 +28,12 @@ interface Response {
   high: number;
   low: number;
   close: number;
+  swap_value: number;
 }
+
+const denomUSDC =
+  'ibc/B559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E4F81';
+const minTradeValue = 1000000;
 
 export const route: Route<Request, Response> = {
   method: 'get',
@@ -74,27 +75,6 @@ export const route: Route<Request, Response> = {
     // get requested time period or default
     const timePeriods = Number(request.query.periods) || 1;
     const timePeriod = getTimePeriod(request.query.period) || 'day';
-    const minTrades = Math.round(
-      (() => {
-        const minTradesPerHour = 5;
-        switch (timePeriod) {
-          case 'month':
-            return (minTradesPerHour * days * 30) / hours;
-          case 'week':
-            return (minTradesPerHour * days * 7) / hours;
-          case 'day':
-            return (minTradesPerHour * days) / hours;
-          case 'hour':
-            return minTradesPerHour;
-          case 'minute':
-            return (minTradesPerHour * minutes) / hours;
-          case 'second':
-            return (minTradesPerHour * seconds) / hours;
-          default:
-            return (minTradesPerHour * milliseconds) / hours;
-        }
-      })()
-    );
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get requested times or zero
@@ -104,7 +84,60 @@ export const route: Route<Request, Response> = {
     // get timeseries data
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
-        WITH windowed_table AS (
+        WITH
+        swaps AS (
+          SELECT
+            "height",
+            "block_part_index",
+            "tx_index",
+            "event_index",
+            "timestamp",
+            "TokenZero",
+            "TokenOne",
+            "TokenIn",
+            "TickIndex",
+            "SwapAmountIn",
+            "SwapAmountOut"
+          FROM spacebox.dex_message_event_tick_update
+          WHERE "is_swap" = 1
+            AND "TokenZero" = ${denom0}
+            AND "TokenOne" = ${denom1}
+            -- add optional timestamp filters only if defined
+            ${
+              unixFrom || timePrevious
+                ? sql`AND "timestamp" - "time_offset" >= toStartOfInterval(
+                    toDateTime(${unixFrom || timePrevious}),
+                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                  )`
+                : raw('')
+            }
+            ${
+              unixTo
+                ? sql`AND "timestamp" - "time_offset" < toStartOfInterval(
+                    toDateTime(${unixTo}),
+                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                  )`
+                : raw('')
+            }
+        ),
+        -- ensure prices and swap amounts are not counted twice
+        deduplicated_swaps AS (
+          SELECT
+            "height",
+            "block_part_index",
+            "tx_index",
+            "event_index",
+            any("timestamp") as "timestamp",
+            any("TokenZero") as "TokenZero",
+            any("TokenOne") as "TokenOne",
+            any("TokenIn") as "TokenIn",
+            any("TickIndex") as "TickIndex",
+            any("SwapAmountIn") as "SwapAmountIn",
+            any("SwapAmountOut") as "SwapAmountOut"
+          FROM swaps
+          GROUP BY "height", "block_part_index", "tx_index", "event_index"
+        ),
+        windowed_table AS (
           WITH
             -- get time period offset
             (
@@ -135,28 +168,12 @@ export const route: Route<Request, Response> = {
             last_value("price") OVER interval_window AS "close",
             quantileTDigestWeighted(0.01)("price", "swap_amount_a") OVER interval_window AS "low",
             quantileTDigestWeighted(0.99)("price", "swap_amount_a") OVER interval_window AS "high",
-            count(*) OVER interval_window as "swap_count"
-          FROM spacebox.dex_message_event_tick_update
-          WHERE "is_swap" = 1
-            AND "TokenZero" = ${denom0}
-            AND "TokenOne" = ${denom1}
-            -- add optional timestamp filters only if defined
             ${
-              unixFrom || timePrevious
-                ? sql`AND "timestamp" - "time_offset" >= toStartOfInterval(
-                    toDateTime(${unixFrom || timePrevious}),
-                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                  )`
-                : raw('')
-            }
-            ${
-              unixTo
-                ? sql`AND "timestamp" - "time_offset" < toStartOfInterval(
-                    toDateTime(${unixTo}),
-                    INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                  )`
-                : raw('')
-            }
+              [denom0, denom1].includes(denomUSDC)
+                ? sql`sum(if("TokenIn" = ${denomUSDC}, "SwapAmountOut", "SwapAmountIn")) OVER interval_window`
+                : sql`null`
+            } as "swap_value"
+          FROM deduplicated_swaps
           WINDOW interval_window AS (
             PARTITION BY "time"
             -- order by ascending event position within interval time
@@ -173,16 +190,16 @@ export const route: Route<Request, Response> = {
             "time",
             -- these are properly grouped inside the windowed_table selection
             any("open") AS "open",
-            any("high") AS "high",
-            any("low") AS "low",
+            toInt64(round(any("high"))) AS "high",
+            toInt64(round(any("low"))) AS "low",
             any("close") AS "close",
-            any("last_height") AS "height"
+            any("last_height") AS "height",
+            any("swap_value") AS "swap_value"
           FROM windowed_table
-          ${minTrades > 0 ? sql`WHERE "swap_count" >= ${minTrades}` : raw('')}
           GROUP BY "time"
         ),
-        toInt64(round(least("high", "low"))) AS "_min",
-        toInt64(round(greatest("high", "low"))) AS "_max"
+        least("high", "low") AS "_min",
+        greatest("high", "low") AS "_max"
         SELECT
           "height",
           "time",
@@ -190,8 +207,10 @@ export const route: Route<Request, Response> = {
           clamp("open", "_min", "_max") AS "open",
           "high",
           "low",
-          clamp("close", "_min", "_max") AS "close"
+          clamp("close", "_min", "_max") AS "close",
+          "swap_value"
         FROM timeseries
+        WHERE "swap_value" > ${minTradeValue}
         ORDER BY "time" DESC
         LIMIT ${
           // if user did not request a time period (default to last 24h)
@@ -202,7 +221,7 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-        getRow: ({ time, open, high, low, close }) => ({
+        getRow: ({ time, open, high, low, close, swap_value }) => ({
           time,
           // convert known integers to numbers
           // note: DB type is 64 bit integer but actual limit is -559680->559680
@@ -211,6 +230,7 @@ export const route: Route<Request, Response> = {
           high: isPairDenomReversed ? -1 * Number(low) : Number(high),
           low: isPairDenomReversed ? -1 * Number(high) : Number(low),
           close: isPairDenomReversed ? -1 * Number(close) : Number(close),
+          swap_value,
         }),
         getHeight: (data) => Number(data.at(0)?.height),
         getMetadata: (metadata) => {
