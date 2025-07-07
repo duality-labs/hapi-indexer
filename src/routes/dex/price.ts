@@ -20,6 +20,7 @@ interface Request {
     periods?: string;
     period?: TimePeriod;
     limit?: string;
+    show_trades_above_value?: string;
   };
 }
 interface Response {
@@ -31,14 +32,18 @@ interface Response {
   volume: string;
 }
 
-const denomUSDC =
-  'ibc/B559A80D62249C8AA07A380E2A2BEA6E5CA9A6F079C912C3A9E9B494105E4F81';
-const minTradeValue = 1000000;
+const defaultMinTradeValueUSD = 1;
 
 export const route: Route<Request, Response> = {
   method: 'get',
   path: '/dex/price/:denomA/:denomB',
   handler: async (request, abortSignal, previousResponse) => {
+    // get minimum USD value per candle
+    const minTradeValueUSD =
+      Number(
+        request.query.show_trades_above_value ?? defaultMinTradeValueUSD
+      ) || 0;
+
     const limit = Number(request.query.limit) || LIMIT_ROWS;
     const [denom0, denom1] = [
       request.params.denomA,
@@ -94,12 +99,20 @@ export const route: Route<Request, Response> = {
             "timestamp",
             "TokenZero",
             "TokenOne",
-            "TokenIn",
             "TickIndex",
-            "SwapAmountIn",
-            "SwapAmountOut"
-          FROM spacebox.dex_message_event_tick_update
-          WHERE "is_swap" = 1
+            "ReservesInZero",
+            "ReservesInOne",
+            "ReservesOutZero",
+            "ReservesOutOne",
+            "value_in_0",
+            "value_in_1",
+            "value_fee_0",
+            "value_fee_1",
+            "value_out_0",
+            "value_out_1",
+            "price_version"
+          FROM spacebox.dex_swaps_valued
+          WHERE "action" = 'TickUpdate'
             AND "TokenZero" = ${denom0}
             AND "TokenOne" = ${denom1}
             -- add optional timestamp filters only if defined
@@ -127,13 +140,21 @@ export const route: Route<Request, Response> = {
             "block_part_index",
             "tx_index",
             "event_index",
-            any("timestamp") as "timestamp",
-            any("TokenZero") as "TokenZero",
-            any("TokenOne") as "TokenOne",
-            any("TokenIn") as "TokenIn",
-            any("TickIndex") as "TickIndex",
-            any("SwapAmountIn") as "SwapAmountIn",
-            any("SwapAmountOut") as "SwapAmountOut"
+            argMax("timestamp", "price_version") as "timestamp",
+            argMax("TokenZero", "price_version") as "TokenZero",
+            argMax("TokenOne", "price_version") as "TokenOne",
+            argMax("TickIndex", "price_version") as "TickIndex",
+            argMax("ReservesInZero", "price_version") as "ReservesInZero",
+            argMax("ReservesInOne", "price_version") as "ReservesInOne",
+            argMax("ReservesOutZero", "price_version") as "ReservesOutZero",
+            argMax("ReservesOutOne", "price_version") as "ReservesOutOne",
+            argMax("value_in_0", "price_version") as "value_in_0",
+            argMax("value_in_1", "price_version") as "value_in_1",
+            argMax("value_fee_0", "price_version") as "value_fee_0",
+            argMax("value_fee_1", "price_version") as "value_fee_1",
+            argMax("value_out_0", "price_version") as "value_out_0",
+            argMax("value_out_1", "price_version") as "value_out_1",
+            max("price_version") > 0 as "trade_is_valued"
           FROM swaps
           GROUP BY "height", "block_part_index", "tx_index", "event_index"
         ),
@@ -149,16 +170,13 @@ export const route: Route<Request, Response> = {
               }
             ) AS "time_offset",
             -- get price in the same direction: Token1 = 1.0001^price * Token0
-            (
-              if (
-                "TokenIn" = "TokenZero",
-                "TickIndex" * -1,
-                "TickIndex"
-              )
-            ) AS "price",
-            if("TokenIn" = ${
-              request.params.denomA
-            }, "SwapAmountOut", "SwapAmountIn") AS "swap_amount_a"
+            "TickIndex" AS "price",
+            -- get swap volume in terms of denomA
+            ${
+              request.params.denomA === denom0
+                ? raw('"ReservesInZero" + "ReservesOutZero"')
+                : raw('"ReservesInOne" + "ReservesOutOne"')
+            } AS "swap_amount_a"
           SELECT
             max("height") OVER interval_window AS "last_height",
             toStartOfInterval("timestamp" - "time_offset", INTERVAL ${raw(
@@ -168,14 +186,13 @@ export const route: Route<Request, Response> = {
             last_value("price") OVER interval_window AS "close",
             quantileTDigestWeighted(0.01)("price", "swap_amount_a") OVER interval_window AS "low",
             quantileTDigestWeighted(0.99)("price", "swap_amount_a") OVER interval_window AS "high",
-            sum(if("TokenIn" = ${
-              request.params.denomA
-            }, "SwapAmountOut", "SwapAmountIn")) OVER interval_window as "swap_volume",
-            ${
-              [denom0, denom1].includes(denomUSDC)
-                ? sql`sum(if("TokenIn" = ${denomUSDC}, "SwapAmountOut", "SwapAmountIn")) OVER interval_window`
-                : sql`null`
-            } as "swap_value"
+            sum("swap_amount_a") OVER interval_window as "swap_volume",
+            0.5 * sum(
+              "value_in_0" + "value_in_1"
+              - ("value_fee_0" + "value_fee_1")
+              + ("value_out_0" + "value_out_1")
+            ) OVER interval_window as "swap_value",
+            "trade_is_valued"
           FROM deduplicated_swaps
           WINDOW interval_window AS (
             PARTITION BY "time"
@@ -198,7 +215,8 @@ export const route: Route<Request, Response> = {
             any("close") AS "close",
             any("last_height") AS "height",
             any("swap_volume") AS "swap_volume",
-            any("swap_value") AS "swap_value"
+            any("swap_value") AS "swap_value",
+            any("trade_is_valued") AS "trade_is_valued"
           FROM windowed_table
           GROUP BY "time"
         ),
@@ -214,7 +232,9 @@ export const route: Route<Request, Response> = {
           clamp("close", "_min", "_max") AS "close",
           "swap_volume" AS "volume"
         FROM timeseries
-        WHERE "swap_value" > ${minTradeValue}
+        WHERE "swap_value" > ${minTradeValueUSD}
+          -- allow unvalued trades to be seen
+          OR "trade_is_valued" = 0
         ORDER BY "time" DESC
         LIMIT ${
           // if user did not request a time period (default to last 24h)
