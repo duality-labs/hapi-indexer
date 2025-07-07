@@ -3,9 +3,13 @@ import sql, { raw } from 'sql-template-tag';
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import {
+  days,
   getTimePeriod,
   hours,
   inMs,
+  milliseconds,
+  minutes,
+  seconds,
   TimePeriod,
   toUnixTime,
 } from '../../utils/units';
@@ -70,6 +74,27 @@ export const route: Route<Request, Response> = {
     // get requested time period or default
     const timePeriods = Number(request.query.periods) || 1;
     const timePeriod = getTimePeriod(request.query.period) || 'day';
+    const minTrades = Math.round(
+      (() => {
+        const minTradesPerHour = 5;
+        switch (timePeriod) {
+          case 'month':
+            return (minTradesPerHour * days * 30) / hours;
+          case 'week':
+            return (minTradesPerHour * days * 7) / hours;
+          case 'day':
+            return (minTradesPerHour * days) / hours;
+          case 'hour':
+            return minTradesPerHour;
+          case 'minute':
+            return (minTradesPerHour * minutes) / hours;
+          case 'second':
+            return (minTradesPerHour * seconds) / hours;
+          default:
+            return (minTradesPerHour * milliseconds) / hours;
+        }
+      })()
+    );
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get requested times or zero
@@ -97,16 +122,20 @@ export const route: Route<Request, Response> = {
                 "TickIndex" * -1,
                 "TickIndex"
               )
-            ) AS "price"
+            ) AS "price",
+            if("TokenIn" = ${
+              request.params.denomA
+            }, "SwapAmountOut", "SwapAmountIn") AS "swap_amount_a"
           SELECT
-            max(height) OVER interval_window AS "last_height",
+            max("height") OVER interval_window AS "last_height",
             toStartOfInterval("timestamp" - "time_offset", INTERVAL ${raw(
               timePeriods.toFixed(0)
             )} ${raw(timePeriod)}) AS "time",
             first_value("price") OVER interval_window AS "open",
             last_value("price") OVER interval_window AS "close",
-            min("price") OVER interval_window AS "low",
-            max("price") OVER interval_window AS "high"
+            quantileTDigestWeighted(0.01)("price", "swap_amount_a") OVER interval_window AS "low",
+            quantileTDigestWeighted(0.99)("price", "swap_amount_a") OVER interval_window AS "high",
+            count(*) OVER interval_window as "swap_count"
           FROM spacebox.dex_message_event_tick_update
           WHERE "is_swap" = 1
             AND "TokenZero" = ${denom0}
@@ -138,17 +167,31 @@ export const route: Route<Request, Response> = {
               "event_index" ASC
             ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
           )
-        )
+        ),
+        timeseries AS (
+          SELECT
+            "time",
+            -- these are properly grouped inside the windowed_table selection
+            any("open") AS "open",
+            any("high") AS "high",
+            any("low") AS "low",
+            any("close") AS "close",
+            any("last_height") AS "height"
+          FROM windowed_table
+          ${minTrades > 0 ? sql`WHERE "swap_count" >= ${minTrades}` : raw('')}
+          GROUP BY "time"
+        ),
+        toInt64(round(least("high", "low"))) AS "_min",
+        toInt64(round(greatest("high", "low"))) AS "_max"
         SELECT
+          "height",
           "time",
           -- these are properly grouped inside the windowed_table selection
-          any("open") AS "open",
-          any("high") AS "high",
-          any("low") AS "low",
-          any("close") AS "close",
-          any("last_height") AS "height"
-        FROM windowed_table
-        GROUP BY "time"
+          clamp("open", "_min", "_max") AS "open",
+          "high",
+          "low",
+          clamp("close", "_min", "_max") AS "close"
+        FROM timeseries
         ORDER BY "time" DESC
         LIMIT ${
           // if user did not request a time period (default to last 24h)

@@ -1,4 +1,5 @@
 // unix time constants
+export const milliseconds = 1 / 1000;
 export const seconds = 1;
 export const minutes = 60 * seconds;
 export const hours = 60 * minutes;
@@ -20,10 +21,10 @@ const timePeriods = [...fillableTimePeriods, 'month'] as const;
 export type TimePeriod = (typeof timePeriods)[number];
 
 // whitelist user given time period
-function getBaseTimePeriod(
+function getBaseTimePeriod<T>(
   timePeriod: string | undefined,
-  timePeriods: readonly string[]
-): (typeof timePeriods)[number] | undefined {
+  timePeriods: readonly T[]
+): T | undefined {
   if (timePeriod) {
     const timePeriodLowerCase = timePeriod.toLowerCase();
     return timePeriods.find((period) => period === timePeriodLowerCase);
@@ -32,14 +33,14 @@ function getBaseTimePeriod(
 
 export function getTimePeriod(
   timePeriod: string | undefined
-): string | undefined {
+): TimePeriod | undefined {
   return getBaseTimePeriod(timePeriod, timePeriods);
 }
 
 // whitelist user given time period
 export function getFillableTimePeriod(
   timePeriod: string | undefined
-): string | undefined {
+): WithFillTimePeriod | undefined {
   return getBaseTimePeriod(timePeriod, fillableTimePeriods);
 }
 
