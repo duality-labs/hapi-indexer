@@ -184,8 +184,8 @@ export const route: Route<Request, Response> = {
             )} ${raw(timePeriod)}) AS "time",
             first_value("price") OVER interval_window AS "open",
             last_value("price") OVER interval_window AS "close",
-            quantileTDigestWeighted(0.01)("price", "swap_amount_a") OVER interval_window AS "low",
-            quantileTDigestWeighted(0.99)("price", "swap_amount_a") OVER interval_window AS "high",
+            quantileExactWeighted(0.01)("price", "swap_amount_a") OVER interval_window AS "low",
+            quantileExactWeighted(0.99)("price", "swap_amount_a") OVER interval_window AS "high",
             sum("swap_amount_a") OVER interval_window as "swap_volume",
             0.5 * sum(
               "value_in_0" + "value_in_1"
