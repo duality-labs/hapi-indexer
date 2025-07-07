@@ -28,7 +28,7 @@ interface Response {
   high: number;
   low: number;
   close: number;
-  swap_value: number;
+  volume: string;
 }
 
 const denomUSDC =
@@ -168,6 +168,9 @@ export const route: Route<Request, Response> = {
             last_value("price") OVER interval_window AS "close",
             quantileTDigestWeighted(0.01)("price", "swap_amount_a") OVER interval_window AS "low",
             quantileTDigestWeighted(0.99)("price", "swap_amount_a") OVER interval_window AS "high",
+            sum(if("TokenIn" = ${
+              request.params.denomA
+            }, "SwapAmountOut", "SwapAmountIn")) OVER interval_window as "swap_volume",
             ${
               [denom0, denom1].includes(denomUSDC)
                 ? sql`sum(if("TokenIn" = ${denomUSDC}, "SwapAmountOut", "SwapAmountIn")) OVER interval_window`
@@ -194,6 +197,7 @@ export const route: Route<Request, Response> = {
             toInt64(round(any("low"))) AS "low",
             any("close") AS "close",
             any("last_height") AS "height",
+            any("swap_volume") AS "swap_volume",
             any("swap_value") AS "swap_value"
           FROM windowed_table
           GROUP BY "time"
@@ -208,7 +212,7 @@ export const route: Route<Request, Response> = {
           "high",
           "low",
           clamp("close", "_min", "_max") AS "close",
-          "swap_value"
+          "swap_volume" AS "volume"
         FROM timeseries
         WHERE "swap_value" > ${minTradeValue}
         ORDER BY "time" DESC
@@ -221,7 +225,7 @@ export const route: Route<Request, Response> = {
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
-        getRow: ({ time, open, high, low, close, swap_value }) => ({
+        getRow: ({ time, open, high, low, close, volume }) => ({
           time,
           // convert known integers to numbers
           // note: DB type is 64 bit integer but actual limit is -559680->559680
@@ -230,7 +234,7 @@ export const route: Route<Request, Response> = {
           high: isPairDenomReversed ? -1 * Number(low) : Number(high),
           low: isPairDenomReversed ? -1 * Number(high) : Number(low),
           close: isPairDenomReversed ? -1 * Number(close) : Number(close),
-          swap_value,
+          volume,
         }),
         getHeight: (data) => Number(data.at(0)?.height),
         getMetadata: (metadata) => {
