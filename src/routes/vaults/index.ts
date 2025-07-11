@@ -238,61 +238,38 @@ export const route: Route<
             WITH
               vault_token_prices AS (
                 WITH
-                  vault_config_with_price_ids as (
-                    SELECT
-                      c.*,
-                      p_0."id" as "token_0_price_id",
-                      p_1."id" as "token_1_price_id"
-                    FROM vault_config as c
-                    ANY LEFT JOIN spacebox.slinky_pairs_state as p_0
-                      ON c."token_0_symbol" = p_0."base"
-                      AND c."token_0_quote_currency" = p_0."quote"
-                    ANY LEFT JOIN spacebox.slinky_pairs_state as p_1
-                      ON c."token_1_symbol" = p_1."base"
-                      AND c."token_1_quote_currency" = p_1."quote"
-                  ),
                   vault_tokens AS (
-                    SELECT DISTINCT
-                      token_tuple.1 as "denom",
-                      token_tuple.2 as "symbol",
-                      token_tuple.3 as "decimals",
-                      token_tuple.4 as "quote_currency",
-                      token_tuple.5 as "price_id",
+                    SELECT
+                      "contract_address",
                       (SELECT "time_start" FROM time_period) as "time_start",
                       (SELECT "time_end" FROM time_period) as "time_end"
-                    FROM vault_config_with_price_ids
-                    ARRAY JOIN (
-                      [
-                        ("token_0_denom", "token_0_symbol", "token_0_decimals", "token_0_quote_currency", "token_0_price_id"),
-                        ("token_1_denom", "token_1_symbol", "token_1_decimals", "token_1_quote_currency", "token_1_price_id")
-                      ]
-                    ) as token_tuple
-                  ),
-                  filtered_slinky_prices AS (
-                    SELECT "timestamp", "id", "price", "decimals"
-                    FROM spacebox.slinky_prices
-                    WHERE "id" IN (SELECT DISTINCT "price_id" FROM vault_tokens)
+                    FROM vault_config
                   )
                 SELECT
-                  v."denom" as "denom",
-                  v."symbol" as "symbol",
-                  v."quote_currency" as "quote_currency",
+                  v."contract_address" as "contract_address",
+                  p_end."timestamp" as "timestamp",
                   if (
                     p_start."timestamp" > 0,
-                    toFloat64(p_start."price") * exp10(-(v."decimals" + p_start."decimals")),
-                    toFloat64(p_first."price") * exp10(-(v."decimals" + p_first."decimals"))
-                  ) as "price64_start",
-                  toFloat64(p_end."price") * exp10(-(v."decimals" + p_end."decimals")) as "price64_end"
+                    p_start."token_0_price",
+                    p_first."token_0_price"
+                  ) as "token_0_price_start",
+                  if (
+                    p_start."timestamp" > 0,
+                    p_start."token_1_price",
+                    p_first."token_1_price"
+                  ) as "token_1_price_start",
+                  p_end."token_0_price" as "token_0_price_end",
+                  p_end."token_1_price" as "token_1_price_end"
                 FROM vault_tokens as v
-                ASOF LEFT JOIN filtered_slinky_prices as p_start
-                  ON v."price_id" = p_start."id"
+                ASOF LEFT JOIN spacebox.price_by_vault_denom_by_minute as p_start
+                  ON v."contract_address" = p_start."contract_address"
                   AND v."time_start" >= p_start."timestamp"
-                ASOF LEFT JOIN filtered_slinky_prices as p_end
-                  ON v."price_id" = p_end."id"
+                ASOF LEFT JOIN spacebox.price_by_vault_denom_by_minute as p_end
+                  ON v."contract_address" = p_end."contract_address"
                   AND v."time_end" >= p_end."timestamp"
-                ANY LEFT JOIN spacebox.slinky_prices_first_state as p_first
-                  ON v."symbol" = p_first."base"
-                  AND v."quote_currency" = p_first."quote"
+                ANY LEFT JOIN spacebox.price_by_vault_denom_first_state as p_first
+                  ON v."contract_address" = p_first."contract_address"
+                WHERE p_end."timestamp" > 0
               ),
               balance_start as (
                 WITH
@@ -407,9 +384,11 @@ export const route: Route<
             SELECT
                 v."contract_address" as "contract_address",
                 r."vault_return" as "vault_return",
-                (
-                  0.5 * (p_0."price64_end" / p_0."price64_start") +
-                  0.5 * (p_1."price64_end" / p_1."price64_start") - 1
+                if (
+                  p."timestamp" > 0,
+                  0.5 * (p."token_0_price_end" / p."token_0_price_start") +
+                  0.5 * (p."token_1_price_end" / p."token_1_price_start") - 1,
+                  0
                 ) as "hold_return",
                 /* simple-interest annualisation = APR */
                 "vault_return" / "period_in_days" * "days_in_year" AS "vault_apr",
@@ -418,10 +397,8 @@ export const route: Route<
             FROM vault_config as v
             ANY LEFT JOIN vault_returns as r
               ON (v."contract_address" = r."contract_address")
-            ANY LEFT JOIN vault_token_prices as p_0
-              ON (v."token_0_denom" = p_0."denom")
-            ANY LEFT JOIN vault_token_prices as p_1
-              ON (v."token_1_denom" = p_1."denom")
+            ANY LEFT JOIN vault_token_prices as p
+              ON (v."contract_address" = p."contract_address")
           )
         SELECT
           config."updated_at_height" as "height",
