@@ -3,7 +3,6 @@ import sql from 'sql-template-tag';
 import { Route } from '../../../types';
 import { getCachedResponse } from '../../../utils/cache-query';
 import { inMs, minutes } from '../../../utils/units';
-import { selectVaultConfigs } from '../../../common-table-expressions/vaultConfigs';
 
 export interface Request {
   params: { address: string };
@@ -16,6 +15,8 @@ export interface Response {
   user_shares: string;
   total_shares: string;
   user_fraction: number;
+  tvl: number;
+  tvl_user_fraction: number;
 }
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
@@ -35,15 +36,22 @@ export const route: Route<Request, Response> = {
     const currentHeights = await Promise.all([
       getCachedResponse<{ height: string }>(
         sql`
-            SELECT max("height") AS "height"
-            FROM spacebox."dex_vaults_config_tx_event"
+            SELECT max("updated_at_height") AS "height"
+            FROM spacebox.dex_vaults_config_state
           `,
         abortSignal
       ),
       getCachedResponse<{ height: string }>(
         sql`
             SELECT max("height") AS "height"
-            FROM spacebox."dex_vaults_shares"
+            FROM spacebox.dex_vaults_shares_state
+          `,
+        abortSignal
+      ),
+      getCachedResponse<{ height: string }>(
+        sql`
+            SELECT max("height") AS "height"
+            FROM spacebox.dex_vaults_events_dex_deposit_state
           `,
         abortSignal
       ),
@@ -59,6 +67,14 @@ export const route: Route<Request, Response> = {
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
+          -- query is much faster when this is pre-filtered
+          -- note: I know it looks like an unnecessary duplicate, but it is not
+          filtered_bank_transfer_state as (
+            SELECT * FROM spacebox.bank_transfer_state
+            WHERE "denom" IN (
+              SELECT "denom" FROM spacebox.dex_vaults_config_state
+            )
+          ),
           contract_shares as (
             SELECT
               max(bank."height") as "height",
@@ -69,19 +85,23 @@ export const route: Route<Request, Response> = {
                 request.params.address
               }) as "user_shares",
               sum(bank."balance") as "total_shares"
-            FROM (${selectVaultConfigs}) as config
-            JOIN spacebox."bank_transfer_state" as bank
+            FROM spacebox.dex_vaults_config_state as config
+            LEFT JOIN filtered_bank_transfer_state as bank
               ON config."denom" = bank."denom"
             GROUP BY config."contract_address", config."denom"
           )
         SELECT
-          "height",
-          "timestamp" as "time",
-          "contract_address",
-          "user_shares",
-          "total_shares",
-          "user_shares" / "total_shares" as "user_fraction"
-        FROM contract_shares
+          v."height" as "height",
+          v."timestamp" as "time",
+          s."contract_address" as "contract_address",
+          s."user_shares" as "user_shares",
+          s."total_shares" as "total_shares",
+          s."user_shares" / s."total_shares" as "user_fraction",
+          v."tvl" as "tvl",
+          v."tvl" * "user_fraction" as "tvl_user_fraction"
+        FROM contract_shares as s
+        ANY LEFT JOIN spacebox.dex_vaults_events_dex_deposit_state as v
+          ON (s."contract_address" = v."contract_address")
         WHERE
           "user_shares" > 0
           ${
@@ -115,6 +135,10 @@ export const route: Route<Request, Response> = {
                 row.name === 'time'
                   ? { ...row, units: 'YYYY-MM-DD hh:mm:ss UTC' }
                   : row
+              )
+              // add value units
+              ?.map((row) =>
+                row.name.startsWith('tvl') ? { ...row, units: 'USD' } : row
               )
           );
         },
