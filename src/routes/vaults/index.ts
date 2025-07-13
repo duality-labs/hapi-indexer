@@ -310,6 +310,7 @@ export const route: Route<
                     SELECT
                       "timestamp",
                       "contract_address",
+                      "timestamp_version",
                       "value_deposited",
                       "value_withdrawn",
                       "value_close",
@@ -320,11 +321,11 @@ export const route: Route<
                   )
                 -- make sure the transfer rows are deduplicated to prevent double counting
                 SELECT
-                  argMax("timestamp", "sort_key") as "timestamp",
-                  argMax("contract_address", "sort_key") as "contract_address",
-                  argMax("value_deposited", "sort_key") as "value_deposited",
-                  argMax("value_withdrawn", "sort_key") as "value_withdrawn",
-                  argMax("value_close", "sort_key") as "value_close",
+                  argMax("timestamp", "timestamp_version") as "timestamp",
+                  argMax("contract_address", "timestamp_version") as "contract_address",
+                  argMax("value_deposited", "timestamp_version") as "value_deposited",
+                  argMax("value_withdrawn", "timestamp_version") as "value_withdrawn",
+                  argMax("value_close", "timestamp_version") as "value_close",
                   "sort_key"
                 FROM shares
                 GROUP BY "sort_key"
