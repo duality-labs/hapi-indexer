@@ -25,42 +25,12 @@ export const route: Route<Request, Response> = {
   method: 'get',
   path: '/vaults/user/:address/shares',
   handler: async (request, abortSignal, previousResponse) => {
-    const sourceTableHeight = await getCachedResponse<{ height: string }>(
+    const source = await getCachedResponse<{ height: string; time: string }>(
       sql`
-        SELECT max("height") AS "height"
-        FROM spacebox."raw_block_results"
+        SELECT max("height") AS "height", max("timestamp") AS "time"
+        FROM spacebox.dex_vaults_events_dex_deposit_state
       `,
       abortSignal
-    );
-
-    const currentHeights = await Promise.all([
-      getCachedResponse<{ height: string }>(
-        sql`
-            SELECT max("updated_at_height") AS "height"
-            FROM spacebox.dex_vaults_config_state
-          `,
-        abortSignal
-      ),
-      getCachedResponse<{ height: string }>(
-        sql`
-            SELECT max("height") AS "height"
-            FROM spacebox.dex_vaults_shares_state
-          `,
-        abortSignal
-      ),
-      getCachedResponse<{ height: string }>(
-        sql`
-            SELECT max("height") AS "height"
-            FROM spacebox.dex_vaults_events_dex_deposit_state
-          `,
-        abortSignal
-      ),
-    ]);
-
-    const currentHeight = Math.max(
-      ...currentHeights.map(
-        (response) => Number(response.data.at(0)?.height) || 0
-      )
     );
 
     // get timeseries data
@@ -120,7 +90,8 @@ export const route: Route<Request, Response> = {
       `,
       abortSignal,
       {
-        heartbeat: Number(sourceTableHeight.data.at(0)?.height),
+        heartbeat: Number(source.data.at(0)?.height),
+        timestamp: source.data.at(0)?.time,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         getRow: ({ height, ...rest }) => rest,
         getHeight: (data) =>
@@ -143,7 +114,7 @@ export const route: Route<Request, Response> = {
           );
         },
         cacheTime: 1 * minutes * inMs,
-        cacheVersion: currentHeight,
+        cacheVersion: Number(source.data.at(0)?.height),
       }
     );
   },

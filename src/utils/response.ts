@@ -99,6 +99,21 @@ export function handleResponse<
           })
         );
 
+        const getLabel = ({
+          route,
+          height,
+          timestamp,
+        }: {
+          height: number;
+          route?: string;
+          timestamp?: string;
+        }) =>
+          JSON.stringify({
+            route: route || undefined,
+            height,
+            time: timestamp || undefined,
+          });
+
         // get initial data
         const initialData = await getData(reqPayload, abortController.signal);
         if (initialData.meta) {
@@ -112,7 +127,7 @@ export function handleResponse<
         res.write(
           formatChunk({
             event: 'data',
-            id: `height: ${initialData.height}`,
+            id: getLabel(initialData),
             data: JSON.stringify(initialData.data),
           })
         );
@@ -121,7 +136,7 @@ export function handleResponse<
           res.write(
             formatChunk({
               event: 'statistics',
-              id: `height: ${initialData.height}`,
+              id: getLabel(initialData),
               data: JSON.stringify(initialData.statistics),
             })
           );
@@ -152,14 +167,6 @@ export function handleResponse<
             await Promise.all(
               Object.entries(getDataWithRouteLabels).map(
                 async ([route, getData]) => {
-                  const getLabel = (height?: number) =>
-                    [
-                      route ? `route: ${route}` : '',
-                      height ? `height: ${height}` : '',
-                    ]
-                      .filter(Boolean)
-                      .join(', ');
-
                   const lastResult:
                     | ExtendedResponseJSON<ResponsePayload>
                     | undefined = lastResults[route];
@@ -182,7 +189,7 @@ export function handleResponse<
                     res.write(
                       formatChunk({
                         event: 'data',
-                        id: getLabel(newResultData.height),
+                        id: getLabel({ route, ...newResultData }),
                         // send unsent rows only
                         data: JSON.stringify(newRows),
                       })
@@ -192,7 +199,7 @@ export function handleResponse<
                       res.write(
                         formatChunk({
                           event: 'statistics',
-                          id: getLabel(newResultData.height),
+                          id: getLabel({ route, ...newResultData }),
                           data: JSON.stringify(newResultData.statistics),
                         })
                       );
@@ -205,7 +212,11 @@ export function handleResponse<
                     res.write(
                       formatChunk({
                         event: 'heartbeat',
-                        id: getLabel(newResultData.heartbeat),
+                        id: getLabel({
+                          route,
+                          ...newResultData,
+                          height: newResultData.heartbeat,
+                        }),
                       })
                     );
                     // add stats info if available
@@ -213,7 +224,11 @@ export function handleResponse<
                       res.write(
                         formatChunk({
                           event: 'statistics',
-                          id: getLabel(newResultData.heartbeat),
+                          id: getLabel({
+                            route,
+                            ...newResultData,
+                            height: newResultData.heartbeat,
+                          }),
                           data: JSON.stringify(newResultData.statistics),
                         })
                       );
@@ -315,6 +330,7 @@ export function handleResponse<
             data: result.data,
             meta: result.meta,
             height: result.height,
+            time: result.timestamp,
             statistics: result.statistics,
           })
         );

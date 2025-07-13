@@ -17,6 +17,7 @@ interface CacheEnvelope {
 
 interface ResponseOptions<T, U> extends QueryCacheOptions {
   heartbeat?: number;
+  timestamp?: string;
   getHeight?: (array: T[]) => number;
   getRow?: (value: T, index: number, array: T[]) => U | U[];
   getMetadata?: (metadata: ResponseJSON<T>['meta']) => ResponseJSON<U>['meta'];
@@ -43,6 +44,7 @@ export interface ExtendedResponseJSON<T = unknown>
   height: number;
   // - "heartbeat": block height from source data table
   heartbeat: number;
+  timestamp: string;
   isComplete: boolean;
 }
 
@@ -81,6 +83,7 @@ export async function getCachedResponse<
   // require both heartbeat and getHeight() to return data frame data height
   options: ResponseOptions<Row, RowResponse> & {
     heartbeat: number;
+    timestamp: string;
     getHeight: (array: Row[]) => number;
   }
 ): Promise<ExtendedResponseJSON<RowResponse>>;
@@ -91,7 +94,7 @@ export async function getCachedResponse<
   query: Sql,
   abortSignal: AbortSignal,
   options?: ResponseOptions<Row, RowResponse>
-): Promise<Omit<ExtendedResponseJSON<RowResponse>, 'height' | 'heartbeat'>>;
+): Promise<ExtendedResponseJSON<RowResponse>>;
 export async function getCachedResponse<
   Row extends object,
   RowResponse extends object = Row
@@ -100,6 +103,7 @@ export async function getCachedResponse<
   abortSignal: AbortSignal,
   {
     heartbeat,
+    timestamp,
     getHeight,
     getRow,
     getMetadata,
@@ -170,6 +174,7 @@ export async function getCachedResponse<
   // add heartbeat data to cached response (may not show data to user)
   return {
     heartbeat,
+    timestamp,
     meta: getMetadata ? getMetadata(response.meta) : response.meta,
     data: getRow
       ? response.data.flatMap<RowResponse>(getRow)
