@@ -104,9 +104,18 @@ export const route: Route<
               toDateTime64(${endTime}, 9) as "time_end"
           ),
           vault_config as (
-            SELECT * FROM spacebox.dex_vaults_config_state
-            -- exclude BTC/BTC for speed
-            WHERE "token_0_symbol" != 'BTC'
+            SELECT
+              v.*,
+              p."timestamp" as "first_price_timestamp",
+              greatest((SELECT "time_start" FROM time_period), "first_price_timestamp") as "time_start",
+              timeDiff((SELECT "time_end" FROM time_period), p."timestamp") / 60 / 60 / 24 as "operating_period_in_days"
+            FROM spacebox.dex_vaults_config_state as v
+            ANY LEFT JOIN spacebox.price_by_vault_denom_first_state as p
+              ON (v."contract_address" = p."contract_address")
+            -- exclude pre-v1 vaults with no price data
+            WHERE p."timestamp" > 0
+              -- exclude BTC/BTC for speed
+              AND "token_0_symbol" != 'BTC'
               AND "token_1_symbol" != 'BTC'
           ),
           tvl AS (
