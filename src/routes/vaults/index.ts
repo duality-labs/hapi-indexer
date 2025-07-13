@@ -301,6 +301,8 @@ export const route: Route<
                 FROM spacebox.dex_vaults_dex_balance_valued as b
                 WHERE "action" = 'dex_deposit'
                   AND b."timestamp" <= "timestamp"
+                  -- protect against an initially generated valuations
+                  AND b."price_timestamp" > 0
                 GROUP BY "contract_address"
               ),
               balance_end as (
@@ -315,6 +317,8 @@ export const route: Route<
                 FROM spacebox.dex_vaults_dex_balance_valued as b
                 WHERE "action" = 'dex_deposit'
                   AND b."timestamp" <= "timestamp"
+                  -- protect against an initially generated valuations
+                  AND b."price_timestamp" > 0
                 GROUP BY "contract_address"
               ),
               transfers as (
