@@ -140,6 +140,7 @@ export const route: Route<
                   "TokenZero",
                   "TokenOne",
                   "Receiver",
+                  "price_timestamp",
                   "value_in_0",
                   "value_in_1",
                   "value_fee_0",
@@ -162,16 +163,17 @@ export const route: Route<
               )
             -- make sure the transfer rows are deduplicated to prevent double counting
             SELECT
-              argMax("timestamp", "sort_key") as "timestamp",
-              argMax("TokenZero", "sort_key") as "TokenZero",
-              argMax("TokenOne", "sort_key") as "TokenOne",
-              argMax("Receiver", "sort_key") as "Receiver",
-              argMax("value_in_0", "sort_key") as "value_in_0",
-              argMax("value_in_1", "sort_key") as "value_in_1",
-              argMax("value_fee_0", "sort_key") as "value_fee_0",
-              argMax("value_fee_1", "sort_key") as "value_fee_1",
-              argMax("value_out_0", "sort_key") as "value_out_0",
-              argMax("value_out_1", "sort_key") as "value_out_1",
+              -- count the values from the rows with the latest prices
+              argMax("timestamp", "price_timestamp") as "timestamp",
+              argMax("TokenZero", "price_timestamp") as "TokenZero",
+              argMax("TokenOne", "price_timestamp") as "TokenOne",
+              argMax("Receiver", "price_timestamp") as "Receiver",
+              argMax("value_in_0", "price_timestamp") as "value_in_0",
+              argMax("value_in_1", "price_timestamp") as "value_in_1",
+              argMax("value_fee_0", "price_timestamp") as "value_fee_0",
+              argMax("value_fee_1", "price_timestamp") as "value_fee_1",
+              argMax("value_out_0", "price_timestamp") as "value_out_0",
+              argMax("value_out_1", "price_timestamp") as "value_out_1",
               "sort_key"
             FROM shares
             GROUP BY "sort_key"
