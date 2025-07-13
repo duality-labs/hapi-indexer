@@ -115,54 +115,11 @@ export const route: Route<Request, Response> = {
       sql`
         WITH
           ${request.params.contract} as "_contract_address",
-          COALESCE(
-            (SELECT "height"
-            FROM spacebox.raw_block_results
-            WHERE "timestamp" <= toDateTime(${unixTimes.time_start})
-            ORDER BY "height" DESC
-            LIMIT 1),
-            0
-          ) as "height_start",
-          COALESCE(
-            (SELECT "height"
-            FROM spacebox.raw_block_results
-            WHERE "timestamp" <= toDateTime(${unixTimes.time_end})
-            ORDER BY "height" DESC
-            LIMIT 1), 0
-          ) as "height_end",
           vault_config AS (
             SELECT * FROM spacebox.dex_vaults_config_state
             WHERE "contract_address" = "_contract_address"
             ORDER BY "updated_at" DESC
             LIMIT 1
-          ),
-          block_range AS (
-            SELECT
-              "timestamp",
-              "height",
-              1 as "match_all"
-            FROM spacebox.raw_block_results
-            WHERE "height" >= "height_start"
-              AND "height" <= "height_end"
-            ORDER BY "height" ASC
-          ),
-          slinky_price_ids AS (
-            WITH
-              (
-                SELECT "id"
-                FROM spacebox.slinky_pairs_state
-                WHERE "base" = (SELECT "token_0_symbol" FROM vault_config)
-                  AND "quote" = (SELECT "token_0_quote_currency" FROM vault_config)
-                LIMIT 1
-              ) as "price_id_0",
-              (
-                SELECT "id"
-                FROM spacebox.slinky_pairs_state
-                WHERE "base" = (SELECT "token_1_symbol" FROM vault_config)
-                  AND "quote" = (SELECT "token_1_quote_currency" FROM vault_config)
-                LIMIT 1
-              ) as "price_id_1"
-            SELECT "price_id_0", "price_id_1"
           ),
           time_range AS (
             WITH
@@ -175,8 +132,6 @@ export const route: Route<Request, Response> = {
                 ),
                 INTERVAL "generate_series" ${raw(timePeriod)}
               ) as "timestamp",
-              (SELECT "price_id_0" FROM slinky_price_ids) as "price_id_0",
-              (SELECT "price_id_1" FROM slinky_price_ids) as "price_id_1",
               "_contract_address" as "contract_address"
             FROM generate_series(
               0,
@@ -184,51 +139,34 @@ export const route: Route<Request, Response> = {
               ${timePeriods}
             )
           ),
-          slinky_prices_0 AS (
-            SELECT *
-            FROM spacebox.slinky_prices
-            WHERE "id" = (SELECT "price_id_0" FROM slinky_price_ids)
-          ),
-          slinky_prices_1 AS (
-            SELECT *
-            FROM spacebox.slinky_prices
-            WHERE "id" = (SELECT "price_id_1" FROM slinky_price_ids)
-          ),
-          price_0_first_row AS (
+          price_first_row AS (
             SELECT
-              "price",
-              "decimals"
-            FROM spacebox.slinky_prices_first_state
-            WHERE "base" = (SELECT "token_0_symbol" FROM vault_config)
-            LIMIT 1
-          ),
-          price_1_first_row AS (
-            SELECT
-              "price",
-              "decimals"
-            FROM spacebox.slinky_prices_first_state
-            WHERE "base" = (SELECT "token_1_symbol" FROM vault_config)
+              "contract_address",
+              "token_0_price",
+              "token_1_price"
+            FROM spacebox.price_by_vault_denom_first_state
+            WHERE "contract_address" = "_contract_address"
             LIMIT 1
           ),
           balance_user_share AS (
             WITH deduplicated_shares AS (
               SELECT
-                argMax("height", "sort_key") as "height",
-                argMax("timestamp", "sort_key") as "timestamp",
-                argMax("action", "sort_key") as "action",
-                argMax("contract_address", "sort_key") as "contract_address",
-                argMax("creator", "sort_key") as "creator",
-                argMax("hold_equivalent_0", "sort_key") as "hold_equivalent_0",
-                argMax("hold_equivalent_1", "sort_key") as "hold_equivalent_1",
-                argMax("shares_in", "sort_key") as "shares_in",
-                argMax("shares_out", "sort_key") as "shares_out",
-                "sort_key"
+                argMax(s."height", "timestamp_version") as "height",
+                argMax(s."timestamp", "timestamp_version") as "timestamp",
+                argMax(s."action", "timestamp_version") as "action",
+                argMax(s."contract_address", "timestamp_version") as "contract_address",
+                argMax(s."creator", "timestamp_version") as "creator",
+                argMax(s."hold_equivalent_0", "timestamp_version") as "hold_equivalent_0",
+                argMax(s."hold_equivalent_1", "timestamp_version") as "hold_equivalent_1",
+                argMax(s."shares_in", "timestamp_version") as "shares_in",
+                argMax(s."shares_out", "timestamp_version") as "shares_out",
+                max(s."sort_key") as "sort_key"
               FROM (
-                SELECT *, "sort_key"
+                SELECT *, "timestamp_version", "sort_key"
                 FROM spacebox.dex_vaults_shares_valued
                 WHERE "contract_address" = "_contract_address"
-              )
-              GROUP BY "sort_key"
+              ) as s
+              GROUP BY s."height", s."block_part_index", s."tx_index", s."event_index"
             )
             SELECT
               "height",
@@ -344,7 +282,6 @@ export const route: Route<Request, Response> = {
                       "hold_amount_increase_1",
                       "user_shares",
                       "total_shares",
-
                       /* prefix-product P_i  =  exp( Σ log(mult) ) */
                       if (
                         "share_fraction_multiplier" > 0,
@@ -405,18 +342,16 @@ export const route: Route<Request, Response> = {
           ),
           timeseries AS (
             WITH
-              (SELECT "token_0_decimals" FROM vault_config) as "token_decimals_0",
-              (SELECT "token_1_decimals" FROM vault_config) as "token_decimals_1",
-              (SELECT "price" FROM price_0_first_row) as "first_price_0",
-              (SELECT "price" FROM price_1_first_row) as "first_price_1",
-              (SELECT "decimals" FROM price_0_first_row) as "first_decimals_0",
-              (SELECT "decimals" FROM price_1_first_row) as "first_decimals_1",
-              if(p_0.timestamp = 0 AND "first_price_0" > 0, "first_price_0", p_0."price") as "slinky_price_0",
-              if(p_1.timestamp = 0 AND "first_price_1" > 0, "first_price_1", p_1."price") as "slinky_price_1",
-              if(p_0.timestamp = 0 AND "first_decimals_0" > 0, "first_decimals_0", p_0."decimals") as "decimals_0",
-              if(p_1.timestamp = 0 AND "first_decimals_1" > 0, "first_decimals_1", p_1."decimals") as "decimals_1",
-              toFloat64("slinky_price_0") * exp10(-("token_decimals_0" + "decimals_0")) as "token_price_0",
-              toFloat64("slinky_price_1") * exp10(-("token_decimals_1" + "decimals_1")) as "token_price_1",
+              if(
+                p."timestamp" > 0,
+                p."token_0_price",
+                (SELECT "token_0_price" FROM price_first_row)
+              ) as "token_price_0",
+              if(
+                p."timestamp" > 0,
+                p."token_1_price",
+                (SELECT "token_1_price" FROM price_first_row)
+              ) as "token_price_1",
               user."hold_amount_0" as "hold_amount_0",
               user."hold_amount_1" as "hold_amount_1",
               -- TODO: fill in the times where the vault has removed shares from the dex (but kept them in wallet)
@@ -425,7 +360,7 @@ export const route: Route<Request, Response> = {
               if (vault."token_1_balance_before_deposit" > 0, vault."token_1_balance_before_deposit", vault."token_1_balance") as "vault_amount_1",
               if (user."total_shares" > 0, user."user_shares" / user."total_shares", 0) as "user_fraction_of_tvl"
             SELECT
-              greatest(vault."height", user."height", p_0."height", p_1."height") as "height",
+              greatest(vault."height", user."height", p."height") as "height",
               -- note: timeseries periods capture events up to (<) the *end* of the period
               --       reset it back to show the start of the period time here
               subDate(t."timestamp", INTERVAL 1 ${raw(timePeriod)}) as "time",
@@ -435,12 +370,9 @@ export const route: Route<Request, Response> = {
               "token_price_0" * toFloat64("vault_amount_0") * "user_fraction_of_tvl" as "vault_value_0",
               "token_price_1" * toFloat64("vault_amount_1") * "user_fraction_of_tvl" as "vault_value_1"
             FROM time_range as t
-            ASOF JOIN slinky_prices_0 as p_0
-              ON (p_0."id" = t."price_id_0")
-              AND p_0."timestamp" < t."timestamp"
-            ASOF JOIN slinky_prices_1 as p_1
-              ON (p_1."id" = t."price_id_1")
-              AND p_1."timestamp" < t."timestamp"
+            ASOF JOIN spacebox.price_by_vault_denom as p
+              ON (t."contract_address" = p."contract_address")
+              AND t."timestamp" >= p."timestamp"
             ASOF JOIN balance_hold_amount as user
               ON (user."contract_address" = t."contract_address")
               AND user."timestamp" < t."timestamp"
