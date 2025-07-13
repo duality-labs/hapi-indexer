@@ -134,6 +134,7 @@ export const route: Route<
           swaps_valued AS (
             WITH
               shares AS (
+                WITH (SELECT "time_end" FROM time_period) as "time_end"
                 SELECT
                   "timestamp",
                   "TokenZero",
@@ -148,7 +149,7 @@ export const route: Route<
                   "sort_key"
                 FROM spacebox.dex_swaps_valued as s
                 WHERE "timestamp" >= addDays("time_end", -"period_in_days")
-                  AND "timestamp" < (SELECT "time_end" FROM time_period)
+                  AND "timestamp" < "time_end"
                   AND (
                   notEmpty("Receiver") OR (
                     ("TrancheKey" IS NULL) AND (
