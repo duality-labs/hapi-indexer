@@ -104,11 +104,7 @@ export const route: Route<
               toDateTime64(${endTime}, 9) as "time_end"
           ),
           vault_config as (
-            SELECT
-              v.*,
-              p."timestamp" as "first_price_timestamp",
-              greatest((SELECT "time_start" FROM time_period), "first_price_timestamp") as "time_start",
-              timeDiff((SELECT "time_end" FROM time_period), p."timestamp") / 60 / 60 / 24 as "operating_period_in_days"
+            SELECT v.*
             FROM spacebox.dex_vaults_config_state as v
             ANY LEFT JOIN spacebox.price_by_vault_denom_first_state as p
               ON (v."contract_address" = p."contract_address")
