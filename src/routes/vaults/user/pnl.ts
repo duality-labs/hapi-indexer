@@ -356,8 +356,8 @@ export const route: Route<Request, Response> = {
               user."hold_amount_1" as "hold_amount_1",
               -- TODO: fill in the times where the vault has removed shares from the dex (but kept them in wallet)
               --       by ensuring that the "token_0/1_balance" field is the correct "in wallet" amount
-              if (vault."token_0_balance_before_deposit" > 0, vault."token_0_balance_before_deposit", vault."token_0_balance") as "vault_amount_0",
-              if (vault."token_1_balance_before_deposit" > 0, vault."token_1_balance_before_deposit", vault."token_1_balance") as "vault_amount_1",
+              vault."token_0_balance" as "vault_amount_0",
+              vault."token_1_balance" as "vault_amount_1",
               if (user."total_shares" > 0, user."user_shares" / user."total_shares", 0) as "user_fraction_of_tvl"
             SELECT
               greatest(vault."height", user."height", p."height") as "height",
@@ -381,17 +381,14 @@ export const route: Route<Request, Response> = {
                   "height",
                   "timestamp",
                   "contract_address",
-                  "token_0_balance_before_deposit",
-                  "token_1_balance_before_deposit",
                   "token_0_balance",
                   "token_1_balance",
                   "sort_key"
-                FROM spacebox.dex_vaults_dex_balance
+                FROM spacebox.dex_vaults_events_dex_deposit
                 WHERE "contract_address" = "_contract_address"
                   -- TODO: when calculating vault balances correctly allow
                   --       dex_withdrawals to set dex balance to zero and read
                   --       the account token0/1 tokens from the bank module
-                  AND "action" = 'dex_deposit'
               ) as vault
               ON (vault."contract_address" = t."contract_address")
               AND vault."timestamp" < t."timestamp"
