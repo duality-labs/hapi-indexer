@@ -11,6 +11,7 @@ import { route as vaultsRoute } from './vaults';
 import { route as vaultsSharesRoute } from './vaults/shares';
 import { route as vaultsPnlRoute } from './vaults/pnl';
 import { route as vaultsUserPnlRoute } from './vaults/user/pnl';
+import { route as vaultsUserTvlRoute } from './vaults/user/tvl';
 import { route as vaultsUserSharesRoute } from './vaults/user/shares';
 import { route as vaultsAprRoute } from './vaults/apr';
 import { route as vaultsTvlRoute } from './vaults/tvl';
@@ -43,6 +44,7 @@ const productionRoutes: Route<any, any, any>[] = [
   vaultsSharesRoute,
   vaultsUserSharesRoute,
   vaultsUserPnlRoute,
+  vaultsUserTvlRoute,
   vaultsPnlRoute,
   vaultsAprRoute,
   vaultsSwapVolumeRoute,
