@@ -137,6 +137,10 @@ export const route: Route<
                 WITH (SELECT "time_end" FROM time_period) as "time_end"
                 SELECT
                   "timestamp",
+                  "height",
+                  "block_part_index",
+                  "tx_index",
+                  "event_index",
                   "TokenZero",
                   "TokenOne",
                   "Receiver",
@@ -146,8 +150,7 @@ export const route: Route<
                   "value_fee_0",
                   "value_fee_1",
                   "value_out_0",
-                  "value_out_1",
-                  "sort_key"
+                  "value_out_1"
                 FROM spacebox.dex_swaps_valued as s
                 WHERE "timestamp" >= addDays("time_end", -"period_in_days")
                   AND "timestamp" < "time_end"
@@ -173,10 +176,13 @@ export const route: Route<
               argMax("value_fee_0", "price_timestamp") as "value_fee_0",
               argMax("value_fee_1", "price_timestamp") as "value_fee_1",
               argMax("value_out_0", "price_timestamp") as "value_out_0",
-              argMax("value_out_1", "price_timestamp") as "value_out_1",
-              "sort_key"
+              argMax("value_out_1", "price_timestamp") as "value_out_1"
             FROM shares
-            GROUP BY "sort_key"
+            GROUP BY
+              "height",
+              "block_part_index",
+              "tx_index",
+              "event_index"
           ),
           volume_30d AS (
             WITH (SELECT "time_end" FROM time_period) as "time_end"
@@ -309,6 +315,10 @@ export const route: Route<
                   shares AS (
                     SELECT
                       "timestamp",
+                      "height",
+                      "block_part_index",
+                      "tx_index",
+                      "event_index",
                       "contract_address",
                       "timestamp_version",
                       "value_deposited",
@@ -326,9 +336,13 @@ export const route: Route<
                   argMax("value_deposited", "timestamp_version") as "value_deposited",
                   argMax("value_withdrawn", "timestamp_version") as "value_withdrawn",
                   argMax("value_close", "timestamp_version") as "value_close",
-                  "sort_key"
+                  argMax("sort_key", "timestamp_version") as "sort_key"
                 FROM shares
-                GROUP BY "sort_key"
+                GROUP BY
+                  "height",
+                  "block_part_index",
+                  "tx_index",
+                  "event_index"
               ),
               timeseries as (
                 SELECT
