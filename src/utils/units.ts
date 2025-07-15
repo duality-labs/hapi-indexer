@@ -31,6 +31,9 @@ function getBaseTimePeriod(
 }
 
 export function getTimePeriod(
+  timePeriod: TimePeriod | undefined
+): TimePeriod | undefined;
+export function getTimePeriod(
   timePeriod: string | undefined
 ): string | undefined {
   return getBaseTimePeriod(timePeriod, timePeriods);

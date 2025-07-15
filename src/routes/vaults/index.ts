@@ -24,6 +24,7 @@ import {
 } from './swap-volume';
 import { GetData } from '../../utils/response';
 import { endTime, getEndTimeCacheConfig } from './_common';
+import dexVaultReturnTimeseries from '../../common-table-expressions/dexVaultReturnTimeseries';
 
 interface Request {
   params: { contract: string };
@@ -62,6 +63,8 @@ interface Response {
   tvl_0: number;
   tvl_1: number;
   apr_30d: number;
+  apy_vault_30d: number;
+  apy_hold_30d: number;
   volume_1d: number;
   volume_30d: number;
 }
@@ -250,182 +253,42 @@ export const route: Route<
           ),
           apr_30d as (
             WITH
-              vault_token_prices AS (
-                WITH
-                  vault_tokens AS (
-                    SELECT
-                      "contract_address",
-                      (SELECT "time_start" FROM time_period) as "time_start",
-                      (SELECT "time_end" FROM time_period) as "time_end"
-                    FROM vault_config
-                  )
-                SELECT
-                  v."contract_address" as "contract_address",
-                  p_end."timestamp" as "timestamp",
-                  if (
-                    p_start."timestamp" > 0,
-                    p_start."token_0_price",
-                    p_first."token_0_price"
-                  ) as "token_0_price_start",
-                  if (
-                    p_start."timestamp" > 0,
-                    p_start."token_1_price",
-                    p_first."token_1_price"
-                  ) as "token_1_price_start",
-                  p_end."token_0_price" as "token_0_price_end",
-                  p_end."token_1_price" as "token_1_price_end"
-                FROM vault_tokens as v
-                ASOF LEFT JOIN spacebox.price_by_vault_denom_by_minute as p_start
-                  ON v."contract_address" = p_start."contract_address"
-                  AND v."time_start" >= p_start."timestamp"
-                ASOF LEFT JOIN spacebox.price_by_vault_denom_by_minute as p_end
-                  ON v."contract_address" = p_end."contract_address"
-                  AND v."time_end" >= p_end."timestamp"
-                ANY LEFT JOIN spacebox.price_by_vault_denom_first_state as p_first
-                  ON v."contract_address" = p_first."contract_address"
-                WHERE p_end."timestamp" > 0
-              ),
-              balance_start as (
-                WITH
-                  (SELECT "time_start" FROM time_period) as "timestamp"
-                SELECT
-                  "timestamp",
-                  "contract_address",
-                  argMax("token_0_balance_before_deposit_value", "height") as "token_0_value",
-                  argMax("token_1_balance_before_deposit_value", "height") as "token_1_value",
-                  argMax("sort_key", "height") as "sort_key"
-                FROM spacebox.dex_vaults_dex_balance_valued as b
-                WHERE "action" = 'dex_deposit'
-                  AND b."timestamp" <= "timestamp"
-                  -- protect against an initially generated valuations
-                  AND b."price_timestamp" > 0
-                GROUP BY "contract_address"
-              ),
-              balance_end as (
-                WITH
-                  (SELECT "time_end" FROM time_period) as "timestamp"
-                SELECT
-                  "timestamp",
-                  "contract_address",
-                  argMax("token_0_balance_before_deposit_value", "height") as "token_0_value",
-                  argMax("token_1_balance_before_deposit_value", "height") as "token_1_value",
-                  argMax("sort_key", "height") as "sort_key"
-                FROM spacebox.dex_vaults_dex_balance_valued as b
-                WHERE "action" = 'dex_deposit'
-                  AND b."timestamp" <= "timestamp"
-                  -- protect against an initially generated valuations
-                  AND b."price_timestamp" > 0
-                GROUP BY "contract_address"
-              ),
-              transfers as (
-                WITH
-                  (SELECT "time_start" FROM time_period) as "time_start",
-                  (SELECT "time_end" FROM time_period) as "time_end",
-                  shares AS (
-                    SELECT
-                      "timestamp",
-                      "height",
-                      "block_part_index",
-                      "tx_index",
-                      "event_index",
-                      "contract_address",
-                      "timestamp_version",
-                      "value_deposited",
-                      "value_withdrawn",
-                      "value_close",
-                      "sort_key"
-                    FROM spacebox.dex_vaults_shares_valued
-                    WHERE "timestamp" > "time_start"
-                      AND "timestamp" <= "time_end"
-                  )
-                -- make sure the transfer rows are deduplicated to prevent double counting
-                SELECT
-                  argMax("timestamp", "timestamp_version") as "timestamp",
-                  argMax("contract_address", "timestamp_version") as "contract_address",
-                  argMax("value_deposited", "timestamp_version") as "value_deposited",
-                  argMax("value_withdrawn", "timestamp_version") as "value_withdrawn",
-                  argMax("value_close", "timestamp_version") as "value_close",
-                  argMax("sort_key", "timestamp_version") as "sort_key"
-                FROM shares
-                GROUP BY
-                  "height",
-                  "block_part_index",
-                  "tx_index",
-                  "event_index"
-              ),
-              timeseries as (
-                SELECT
-                  "timestamp",
-                  "contract_address",
-                  0 as "value_deposited",
-                  0 as "value_withdrawn",
-                  "token_0_value" + "token_1_value" as "value_close",
-                  "sort_key"
-                FROM balance_start
-                UNION ALL
-                SELECT
-                  "timestamp",
-                  "contract_address",
-                  "value_deposited",
-                  "value_withdrawn",
-                  "value_close",
-                  "sort_key"
-                FROM transfers
-                UNION ALL
-                SELECT
-                  "timestamp",
-                  "contract_address",
-                  0 as "value_deposited",
-                  0 as "value_withdrawn",
-                  "token_0_value" + "token_1_value" as "value_close",
-                  "sort_key"
-                FROM balance_end
-              ),
-              per_event AS (
-                SELECT
-                  "contract_address",
-                  "timestamp",
-                  /* net cash flow at the event */
-                  "value_deposited" - "value_withdrawn" AS F,
-                  /* value just *before* the cash flow is applied */
-                  greatest(0, "value_close" - ("value_deposited" - "value_withdrawn")) AS "value_pre_close",
-
-                  /* previous close inside the same group */
-                  lagInFrame("value_close", 1, toFloat64(0)) OVER ascending_events AS "value_previous",
-                  lagInFrame("timestamp", 1, toDateTime64(0, 0))  OVER ascending_events AS "timestamp_previous",
-
-                  /* exact log-return between successive valuations */
-                  log1p( ( "value_pre_close" - "value_previous" ) / "value_previous" ) AS "ln_return"
-                FROM timeseries
-                WINDOW ascending_events AS (PARTITION BY "contract_address" ORDER BY "sort_key" ASC)
-              ),
-              vault_returns AS (
-                SELECT
-                    "contract_address",
-                    ( exp( sumKahan( "ln_return" ) ) - 1 ) as "vault_return"
-                FROM per_event
-                WHERE "timestamp_previous" > 0  -- skip the first row per group
-                  AND "value_pre_close" > 0     -- skip any full-withdrawal rows per group
-                GROUP BY "contract_address"
-              )
+              24 * 365 as periods_per_year, -- hours per year
+              period_returns as (${dexVaultReturnTimeseries({
+                periods: 1,
+                period: 'hour',
+                limit: 30 * 24, // get 30 days worth of hour periods
+              })})
             SELECT
-                v."contract_address" as "contract_address",
-                r."vault_return" as "vault_return",
-                if (
-                  p."timestamp" > 0,
-                  0.5 * (p."token_0_price_end" / p."token_0_price_start") +
-                  0.5 * (p."token_1_price_end" / p."token_1_price_start") - 1,
-                  0
-                ) as "hold_return",
-                /* simple-interest annualisation = APR */
-                "vault_return" / "period_in_days" * "days_in_year" AS "vault_apr",
-                "hold_return" / "period_in_days" * "days_in_year" AS "hold_apr",
-                "vault_apr" - "hold_apr" as "apr"
-            FROM vault_config as v
-            ANY LEFT JOIN vault_returns as r
-              ON (v."contract_address" = r."contract_address")
-            ANY LEFT JOIN vault_token_prices as p
-              ON (v."contract_address" = p."contract_address")
+                "contract_address",
+
+                /* ---- total returns ---- */
+                exp(
+                    arrayReduce(
+                        'sumKahan',
+                        groupArray( log1p("vault_return") )
+                    )
+                )                                                               AS "total_vault_return",    --  Π(1+r)
+                exp(
+                    arrayReduce(
+                        'sumKahan',
+                        groupArray( log1p("hold_return") )
+                    )
+                )                                                               AS "total_hold_return",     --  Π(1+r)
+
+                /* ---- number of hours of vault changes ---- */
+                count()                                                         AS "active_periods",
+                30 * 24                                                         AS "n_periods",
+
+                /* ---- get APRs and APYs ---- */
+                sum("vault_return") * periods_per_year / "n_periods"            AS "vault_apr",
+                sum("hold_return") * periods_per_year / "n_periods"             AS "hold_apr",
+                "vault_apr" - "hold_apr"                                        AS "vault_over_hold_apr",
+                pow("total_vault_return", periods_per_year / "n_periods") - 1   AS "vault_apy",
+                pow("total_hold_return", periods_per_year / "n_periods") - 1    AS "hold_apy",
+                "vault_apy" - "hold_apy"                                        AS "vault_over_hold_apy"
+            FROM period_returns
+            GROUP BY "contract_address"
           )
         SELECT
           config."updated_at_height" as "height",
@@ -459,7 +322,10 @@ export const route: Route<
           -- todo: remove when real JOIN is ready
           vol."active_volume_1d_value" + vol."passive_volume_1d_value" as "volume_1d",
           vol."active_volume_30d_value" + vol."passive_volume_30d_value" as "volume_30d",
-          apr."apr" as "apr_30d"
+          apr."vault_apy" as "apy_vault_30d",
+          apr."hold_apy" as "apy_hold_30d",
+          -- todo: remove when APR 30d no longer used
+          apr."vault_over_hold_apr" as "apr_30d"
         FROM vault_config as config
         ANY LEFT JOIN tvl
           ON config."contract_address" = tvl."contract_address"
