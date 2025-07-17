@@ -284,9 +284,10 @@ export const route: Route<
                 sum("vault_return") * periods_per_year / "n_periods"            AS "vault_apr",
                 sum("hold_return") * periods_per_year / "n_periods"             AS "hold_apr",
                 "vault_apr" - "hold_apr"                                        AS "vault_over_hold_apr",
+                "total_vault_return" - "total_hold_return"                      AS "total_vault_over_hold_return",
                 pow("total_vault_return", periods_per_year / "n_periods") - 1   AS "vault_apy",
                 pow("total_hold_return", periods_per_year / "n_periods") - 1    AS "hold_apy",
-                "vault_apy" - "hold_apy"                                        AS "vault_over_hold_apy"
+                pow("total_vault_over_hold_return" + 1, periods_per_year / "n_periods") - 1 AS "vault_over_hold_apy"
             FROM period_returns
             GROUP BY "contract_address"
           )
@@ -322,6 +323,8 @@ export const route: Route<
           -- todo: remove when real JOIN is ready
           vol."active_volume_1d_value" + vol."passive_volume_1d_value" as "volume_1d",
           vol."active_volume_30d_value" + vol."passive_volume_30d_value" as "volume_30d",
+          apr."vault_over_hold_apy" as "apy_vault_over_hold_30d",
+          -- todo: remove when separated APY 30d no longer used
           apr."vault_apy" as "apy_vault_30d",
           apr."hold_apy" as "apy_hold_30d",
           -- todo: remove when APR 30d no longer used
