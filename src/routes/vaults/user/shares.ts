@@ -67,8 +67,10 @@ export const route: Route<Request, Response> = {
           s."user_shares" as "user_shares",
           s."total_shares" as "total_shares",
           s."user_shares" / s."total_shares" as "user_fraction",
-          v."tvl" as "tvl",
-          v."tvl" * "user_fraction" as "tvl_user_fraction"
+          "user_fraction" * toFloat64(v."token_0_balance") as "user_token_0_amount",
+          "user_fraction" * toFloat64(v."token_1_balance") as "user_token_1_amount",
+          "user_fraction" * toFloat64(v."token_0_value") as "user_token_0_value",
+          "user_fraction" * toFloat64(v."token_1_value") as "user_token_1_value"
         FROM contract_shares as s
         ANY LEFT JOIN spacebox.dex_vaults_events_dex_deposit_state as v
           ON (s."contract_address" = v."contract_address")
