@@ -71,8 +71,8 @@ export const route: Route<Request, Response> = {
           SELECT
             max("height") AS "height",
             argMax("timestamp", t."height") as "time"
-          FROM spacebox."dex_message_event_tick_update" as t
-          WHERE "is_swap" = 1
+          FROM spacebox.dex_swaps as t
+          WHERE "action" = 'TickUpdate'
             AND "TokenZero" = ${denom0}
             AND "TokenOne" = ${denom1}
         `,
@@ -91,12 +91,15 @@ export const route: Route<Request, Response> = {
                   "block_part_index",
                   "tx_index",
                   "event_index",
-                  "TokenIn",
+                  "TokenZero",
+                  "TokenOne",
                   "TickIndex",
-                  "SwapAmountIn",
-                  "SwapAmountOut"
-                FROM spacebox.dex_message_event_tick_update
-                WHERE "is_swap" = 1
+                  "ReservesInZero",
+                  "ReservesInOne",
+                  "ReservesOutZero",
+                  "ReservesOutOne"
+                FROM spacebox.dex_swaps
+                WHERE "action" = 'TickUpdate'
                   AND "TokenZero" = ${denom0}
                   AND "TokenOne" = ${denom1}
                   -- add optional timestamp filters only if defined
@@ -110,10 +113,13 @@ export const route: Route<Request, Response> = {
                   "block_part_index",
                   "tx_index",
                   "event_index",
-                  any("TokenIn") as "TokenIn",
+                  any("TokenZero") as "TokenZero",
+                  any("TokenOne") as "TokenOne",
                   any("TickIndex") as "TickIndex",
-                  any("SwapAmountIn") as "SwapAmountIn",
-                  any("SwapAmountOut") as "SwapAmountOut"
+                  any("ReservesInZero") as "ReservesInZero",
+                  any("ReservesInOne") as "ReservesInOne",
+                  any("ReservesOutZero") as "ReservesOutZero",
+                  any("ReservesOutOne") as "ReservesOutOne"
                 FROM tick_updates
                 GROUP BY "height", "block_part_index", "tx_index", "event_index"
               )
@@ -123,19 +129,45 @@ export const route: Route<Request, Response> = {
               block_txhash."txhash" as "tx",
               -- the data at rest should be in ascending event_index order
               -- find the last trade direction by selecting last_value
-              last_value("TokenIn") = ${request.params.denomA} as "buy_last",
-              avgWeightedIf("TickIndex", "SwapAmountOut", "TokenIn" = ${
+              last_value(if("TokenZero" = ${
                 request.params.denomA
-              }) as "buy_at",
-              avgWeightedIf("TickIndex", "SwapAmountIn", "TokenIn" != ${
-                request.params.denomA
-              }) as "sell_at",
-              sumIf("SwapAmountOut", "TokenIn" = ${
-                request.params.denomA
-              }) as "buy",
-              sumIf("SwapAmountIn", "TokenIn" != ${
-                request.params.denomA
-              }) as "sell"
+              }, "ReservesInZero", "ReservesInOne")) > 0 as "buy_last",
+              avgWeightedIf(
+                if("TokenZero" = ${
+                  request.params.denomA
+                }, -"TickIndex", "TickIndex"),
+                if("TokenZero" = ${
+                  request.params.denomA
+                }, "ReservesOutZero", "ReservesOutOne"),
+                if("TokenZero" = ${
+                  request.params.denomA
+                }, "ReservesOutZero", "ReservesOutOne") > 0
+              ) as "buy_at",
+              avgWeightedIf(
+                if("TokenZero" = ${
+                  request.params.denomA
+                }, "TickIndex", -"TickIndex"),
+                if("TokenZero" = ${
+                  request.params.denomA
+                }, "ReservesInZero", "ReservesInOne"),
+                if("TokenZero" = ${
+                  request.params.denomA
+                }, "ReservesInZero", "ReservesInOne") > 0
+              ) as "sell_at",
+              sum(
+                if(
+                  "TokenZero" = ${request.params.denomA},
+                  "ReservesOutZero",
+                  "ReservesOutOne"
+                )
+              ) as "buy",
+              sum(
+                if(
+                  "TokenZero" = ${request.params.denomA},
+                  "ReservesInZero",
+                  "ReservesInOne"
+                )
+              ) as "sell"
             FROM deduplicated_tick_updates as tick_updates
             ANY LEFT JOIN spacebox.raw_block_txhash as block_txhash
               ON tick_updates."block_part_index" = 2

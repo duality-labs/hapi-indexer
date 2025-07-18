@@ -59,8 +59,8 @@ export const route: Route<Request, Response> = {
         SELECT
           max(t."height") AS "height",
           argMax("timestamp", t."height") as "time"
-        FROM spacebox."dex_message_event_tick_update" as t
-        WHERE "is_swap" = 1
+        FROM spacebox."dex_swaps" as t
+        WHERE "action" = 'TickUpdate'
           AND "TokenZero" = ${denom0}
           AND "TokenOne" = ${denom1}
       `,
@@ -90,14 +90,8 @@ export const route: Route<Request, Response> = {
                   : raw('0')
               }
             ) AS "time_offset",
-            -- get price in the same direction: Token1 = 1.0001^price * Token0
-            (
-              if (
-                "TokenIn" = "TokenZero",
-                "TickIndex" * -1,
-                "TickIndex"
-              )
-            ) AS "price"
+            -- price is in the same direction: Token1 = 1.0001^price * Token0
+            "TickIndex" AS "price"
           SELECT
             max(height) OVER interval_window AS "last_height",
             toStartOfInterval("timestamp" - "time_offset", INTERVAL ${raw(
@@ -107,8 +101,8 @@ export const route: Route<Request, Response> = {
             last_value("price") OVER interval_window AS "close",
             min("price") OVER interval_window AS "low",
             max("price") OVER interval_window AS "high"
-          FROM spacebox.dex_message_event_tick_update
-          WHERE "is_swap" = 1
+          FROM spacebox.dex_swaps
+          WHERE "action" = 'TickUpdate'
             AND "TokenZero" = ${denom0}
             AND "TokenOne" = ${denom1}
             -- add optional timestamp filters only if defined

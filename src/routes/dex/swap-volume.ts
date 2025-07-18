@@ -84,10 +84,15 @@ export const route: Route<Request, Response> = {
               toStartOfInterval("timestamp", INTERVAL 1 ${raw(
                 timePeriod
               )}) AS "time",
-              sumIf("SwapAmountIn", "TokenIn" != ${denomReporting}) +
-              sumIf("SwapAmountOut", "TokenIn" = ${denomReporting}) as "volume"
-            FROM spacebox.dex_message_event_tick_update
-            WHERE "is_swap" = 1
+              sum(
+                if(
+                  "TokenZero" = ${denomReporting},
+                  "ReservesInZero" + "ReservesOutZero",
+                  "ReservesInOne" + "ReservesOutOne"
+                )
+              ) as "volume"
+            FROM spacebox.dex_swaps
+            WHERE "action" = 'TickUpdate'
               AND "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
               -- add optional timestamp filters only if defined
