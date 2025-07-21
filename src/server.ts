@@ -109,7 +109,12 @@ const init = async () => {
     cors({
       origin: CORS_ALLOWED_ORIGINS.split(',').map((v) => v.trim()),
       methods: ['GET', 'POST'],
-      allowedHeaders: ['Accept', 'Content-Type'],
+      allowedHeaders: [
+        'Accept',
+        'Content-Type',
+        // needed for https://indexer-api.neutron.org proxy:
+        'auth_token',
+      ],
     })
   );
 
