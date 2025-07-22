@@ -165,9 +165,9 @@ export const route: Route<
                   AND (
                   notEmpty("Receiver") OR (
                     ("TrancheKey" IS NULL) AND (
-                      -- temp estimation of vault DEX pools by excluding normal DEX users
-                      ("Fee" NOT IN (1, 5, 10, 20, 50, 100, 150, 200)) OR
-                      ("block_part_index" = 1)
+                      -- temp override: assume supervault is the only AMM user on the pair
+                      --                see commit for previous estimation
+                      "Fee" > 0
                     )
                   )
                 )
