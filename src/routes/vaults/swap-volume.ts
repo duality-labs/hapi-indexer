@@ -184,17 +184,18 @@ export const route: Route<Request, Response> = {
             GROUP BY "sort_key"
           ),
           timeseries as (
+            WITH ${request.params.contract} as "_contract_address"
             SELECT
               toStartOfInterval("timestamp", INTERVAL ${raw(
                 timePeriods.toFixed(0)
               )} ${raw(timePeriod)}) AS "time",
               max("height") as "height",
-              sumIf("value_in_1" - "value_fee_1" + "value_out_0", notEmpty("Receiver")) / 2 as "volume_0_taker",
-              sumIf("value_in_0" - "value_fee_0" + "value_out_1", notEmpty("Receiver")) / 2 as "volume_1_taker",
+              sumIf("value_in_1" - "value_fee_1" + "value_out_0", "Receiver" = "_contract_address") / 2 as "volume_0_taker",
+              sumIf("value_in_0" - "value_fee_0" + "value_out_1", "Receiver" = "_contract_address") / 2 as "volume_1_taker",
               sumIf("value_in_1" - "value_fee_1" + "value_out_0", "Receiver" IS NULL) / 2 as "volume_0_maker",
               sumIf("value_in_0" - "value_fee_0" + "value_out_1", "Receiver" IS NULL) / 2 as "volume_1_maker",
-              sumIf("value_fee_0", notEmpty("Receiver")) as "fees_0_taker",
-              sumIf("value_fee_1", notEmpty("Receiver")) as "fees_1_taker",
+              sumIf("value_fee_0", "Receiver" = "_contract_address") as "fees_0_taker",
+              sumIf("value_fee_1", "Receiver" = "_contract_address") as "fees_1_taker",
               sumIf("value_fee_0", "Receiver" IS NULL) as "fees_0_maker",
               sumIf("value_fee_1", "Receiver" IS NULL) as "fees_1_maker"
             FROM swaps_valued
