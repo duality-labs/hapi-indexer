@@ -88,10 +88,15 @@ export const route: Route<
     // cache to specific end time
     const cacheConfig = await getEndTimeCacheConfig(abortSignal);
 
-    const sourceTableHeight = await getCachedResponse<{ height: string }>(
+    const sourceTableHeight = await getCachedResponse<{
+      height: string;
+      time: string;
+    }>(
       sql`
-        SELECT max("height") AS "height"
-        FROM spacebox."raw_block_results"
+        SELECT
+          max(b."height") AS "height",
+          argMax("timestamp", b."height") AS "time"
+        FROM spacebox."dex_vaults_dex_balance" as b
         WHERE "timestamp" <= ${endTime}
       `,
       abortSignal,
@@ -408,6 +413,7 @@ export const route: Route<
       abortSignal,
       {
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
+        timestamp: sourceTableHeight.data.at(0)?.time,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         getRow: ({ height, ...rest }) => rest,
         getHeight: (data) =>
