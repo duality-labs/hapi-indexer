@@ -191,12 +191,12 @@ export const route: Route<Request, Response> = {
               max("height") as "height",
               sumIf("value_in_1" - "value_fee_1" + "value_out_0", notEmpty("Receiver")) / 2 as "volume_0_taker",
               sumIf("value_in_0" - "value_fee_0" + "value_out_1", notEmpty("Receiver")) / 2 as "volume_1_taker",
-              sumIf("value_in_1" - "value_fee_1" + "value_out_0", empty("Receiver")) / 2 as "volume_0_maker",
-              sumIf("value_in_0" - "value_fee_0" + "value_out_1", empty("Receiver")) / 2 as "volume_1_maker",
+              sumIf("value_in_1" - "value_fee_1" + "value_out_0", "Receiver" IS NULL) / 2 as "volume_0_maker",
+              sumIf("value_in_0" - "value_fee_0" + "value_out_1", "Receiver" IS NULL) / 2 as "volume_1_maker",
               sumIf("value_fee_0", notEmpty("Receiver")) as "fees_0_taker",
               sumIf("value_fee_1", notEmpty("Receiver")) as "fees_1_taker",
-              sumIf("value_fee_0", empty("Receiver")) as "fees_0_maker",
-              sumIf("value_fee_1", empty("Receiver")) as "fees_1_maker"
+              sumIf("value_fee_0", "Receiver" IS NULL) as "fees_0_maker",
+              sumIf("value_fee_1", "Receiver" IS NULL) as "fees_1_maker"
             FROM swaps_valued
             GROUP BY "time"
           )
