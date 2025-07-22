@@ -62,10 +62,13 @@ interface Response {
   amount_1: string;
   tvl_0: number;
   tvl_1: number;
+  tvl_prev_1d_0: number;
+  tvl_prev_1d_1: number;
   apr_30d: number;
   apy_vault_30d: number;
   apy_hold_30d: number;
   volume_1d: number;
+  volume_prev_1d: number;
   volume_30d: number;
 }
 const DEFAULT_ROWS = 100;
@@ -129,6 +132,28 @@ export const route: Route<
               FROM spacebox.dex_vaults_dex_balance as b
               WHERE "action" = 'dex_deposit'
                 AND "timestamp" < "time_end"
+              GROUP BY "contract_address"
+            )
+            SELECT
+              "contract_address",
+              "token_0_amount",
+              "token_1_amount",
+              toFloat64("token_0_amount") * "token_0_price" as "token_0_value",
+              toFloat64("token_1_amount") * "token_1_price" as "token_1_value"
+            FROM balance
+          ),
+          tvl_prev_1d AS (
+            WITH balance AS (
+              WITH (SELECT "time_end" FROM time_period) as "time_end"
+              SELECT
+                "contract_address",
+                argMax("token_0_balance_before_deposit", "height") as "token_0_amount",
+                argMax("token_1_balance_before_deposit", "height") as "token_1_amount",
+                argMax("token_0_price", "height") as "token_0_price",
+                argMax("token_1_price", "height") as "token_1_price"
+              FROM spacebox.dex_vaults_dex_balance as b
+              WHERE "action" = 'dex_deposit'
+                AND "timestamp" < addDays("time_end", -1)
               GROUP BY "contract_address"
             )
             SELECT
@@ -222,13 +247,33 @@ export const route: Route<
               "TokenOne",
               "Receiver"
           ),
+          volume_prev_1d AS (
+            WITH (SELECT "time_end" FROM time_period) as "time_end"
+            SELECT
+              "TokenZero",
+              "TokenOne",
+              "Receiver",
+              sum("value_in_1" - "value_fee_1" + "value_out_0") / 2 as "avg_value_0",
+              sum("value_in_0" - "value_fee_0" + "value_out_1") / 2 as "avg_value_1"
+            FROM (
+              SELECT * FROM swaps_valued
+              WHERE "timestamp" > addDays("time_end", -2)
+                AND "timestamp" <= addDays("time_end", -1)
+            )
+            GROUP BY
+              "TokenZero",
+              "TokenOne",
+              "Receiver"
+          ),
           vault_volume as (
             WITH vault_volumes AS (
               SELECT v.*,
                 v."contract_address" = v_30d."Receiver" as "is_30d_active",
                 v_30d."avg_value_0" + v_30d."avg_value_1" as "volume_30d_value",
                 v."contract_address" = v_1d."Receiver" as "is_1d_active",
-                v_1d."avg_value_0" + v_1d."avg_value_1" as "volume_1d_value"
+                v_1d."avg_value_0" + v_1d."avg_value_1" as "volume_1d_value",
+                v."contract_address" = v_prev_1d."Receiver" as "is_prev_1d_active",
+                v_prev_1d."avg_value_0" + v_prev_1d."avg_value_1" as "volume_prev_1d_value"
               FROM vault_config as v
               LEFT JOIN volume_30d as v_30d
                 ON v."token_0_denom" = v_30d."TokenZero"
@@ -236,6 +281,9 @@ export const route: Route<
               LEFT JOIN volume_1d as v_1d
                 ON v."token_0_denom" = v_1d."TokenZero"
                 AND v."token_1_denom" = v_1d."TokenOne"
+              LEFT JOIN volume_prev_1d as v_prev_1d
+                ON v."token_0_denom" = v_prev_1d."TokenZero"
+                AND v."token_1_denom" = v_prev_1d."TokenOne"
             )
             SELECT
               "contract_address",
@@ -246,7 +294,9 @@ export const route: Route<
               COALESCE(any(if("is_30d_active" = 1, "volume_30d_value", NULL)), 0) as "active_volume_30d_value",
               COALESCE(any(if("is_30d_active" IS NULL, "volume_30d_value", NULL)), 0) as "passive_volume_30d_value",
               COALESCE(any(if("is_1d_active" = 1, "volume_1d_value", NULL)), 0) as "active_volume_1d_value",
-              COALESCE(any(if("is_1d_active" IS NULL, "volume_1d_value", NULL)), 0) as "passive_volume_1d_value"
+              COALESCE(any(if("is_1d_active" IS NULL, "volume_1d_value", NULL)), 0) as "passive_volume_1d_value",
+              COALESCE(any(if("is_prev_1d_active" = 1, "volume_prev_1d_value", NULL)), 0) as "active_volume_prev_1d_value",
+              COALESCE(any(if("is_prev_1d_active" IS NULL, "volume_prev_1d_value", NULL)), 0) as "passive_volume_prev_1d_value"
             FROM vault_volumes
             GROUP BY
               "contract_address"
@@ -320,8 +370,11 @@ export const route: Route<
           tvl."token_1_amount" as "amount_1",
           tvl."token_0_value" as "tvl_0",
           tvl."token_1_value" as "tvl_1",
+          tvl_prev_1d."token_0_value" as "tvl_prev_1d_0",
+          tvl_prev_1d."token_1_value" as "tvl_prev_1d_1",
           -- todo: remove when real JOIN is ready
           vol."active_volume_1d_value" + vol."passive_volume_1d_value" as "volume_1d",
+          vol."active_volume_prev_1d_value" + vol."passive_volume_prev_1d_value" as "volume_prev_1d",
           vol."active_volume_30d_value" + vol."passive_volume_30d_value" as "volume_30d",
           apr."vault_over_hold_apy" as "apy_vault_over_hold_30d",
           -- todo: remove when separated APY 30d no longer used
@@ -332,6 +385,8 @@ export const route: Route<
         FROM vault_config as config
         ANY LEFT JOIN tvl
           ON config."contract_address" = tvl."contract_address"
+        ANY LEFT JOIN tvl_prev_1d
+          ON config."contract_address" = tvl_prev_1d."contract_address"
         ANY LEFT JOIN vault_volume as vol
           ON config."contract_address" = vol."contract_address"
         ANY LEFT JOIN apr_30d as apr
