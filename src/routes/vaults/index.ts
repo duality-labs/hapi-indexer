@@ -122,8 +122,7 @@ export const route: Route<
             -- exclude pre-v1 vaults with no price data
             WHERE p."timestamp" > 0
               -- exclude BTC/BTC for speed
-              AND "token_0_symbol" != 'BTC'
-              AND "token_1_symbol" != 'BTC'
+              AND ("token_0_symbol" != 'BTC' OR "token_1_symbol" != 'BTC')
           ),
           tvl AS (
             WITH balance AS (
