@@ -2,7 +2,7 @@ import sql from 'sql-template-tag';
 
 import { Route } from '../../../types';
 import { getCachedResponse } from '../../../utils/cache-query';
-import { inMs, minutes } from '../../../utils/units';
+import { inMs, minutes, toUnixTime } from '../../../utils/units';
 
 export interface Request {
   params: { address: string };
@@ -25,13 +25,22 @@ export const route: Route<Request, Response> = {
   method: 'get',
   path: '/vaults/user/:address/shares',
   handler: async (request, abortSignal, previousResponse) => {
-    const source = await getCachedResponse<{ height: string; time: string }>(
-      sql`
-        SELECT max("height") AS "height", max("timestamp") AS "time"
-        FROM spacebox.dex_vaults_events_dex_deposit_state
-      `,
-      abortSignal
-    );
+    const sources = await Promise.all([
+      getCachedResponse<{ height: string; time: string }>(
+        sql`
+          SELECT max("height") AS "height", max("timestamp") AS "time"
+          FROM spacebox.dex_vaults_events_dex_deposit_state
+        `,
+        abortSignal
+      ),
+      getCachedResponse<{ height: string; time: string }>(
+        sql`
+          SELECT max("height") AS "height", max("timestamp") AS "time"
+          FROM spacebox.dex_vaults_shares_state
+        `,
+        abortSignal
+      ),
+    ]);
 
     // get timeseries data
     return await getCachedResponse<Response & { height: string }, Response>(
@@ -92,8 +101,17 @@ export const route: Route<Request, Response> = {
       `,
       abortSignal,
       {
-        heartbeat: Number(source.data.at(0)?.height),
-        timestamp: source.data.at(0)?.time,
+        heartbeat: Math.max(
+          ...sources.map((r) => Number(r.data.at(0)?.height) || 0)
+        ),
+        timestamp: sources
+          .slice()
+          .sort(
+            (a, b) =>
+              toUnixTime(a.data.at(0)?.time) - toUnixTime(b.data.at(0)?.time)
+          )
+          .at(-1)
+          ?.data.at(0)?.time,
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         getRow: ({ height, ...rest }) => rest,
         getHeight: (data) =>
@@ -116,7 +134,10 @@ export const route: Route<Request, Response> = {
           );
         },
         cacheTime: 1 * minutes * inMs,
-        cacheVersion: Number(source.data.at(0)?.height),
+        cacheVersion: sources.reduce(
+          (acc, r) => acc + (Number(r.data.at(0)?.height) || 0),
+          0
+        ),
       }
     );
   },
