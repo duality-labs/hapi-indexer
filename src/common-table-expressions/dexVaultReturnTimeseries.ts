@@ -36,80 +36,134 @@ export default function dexVaultReturnTimeseries({
           toDateTime64(${unixTimeEnd || endTime}, 9) as "time_end"
       ),
 
+      deduplicated_shares AS (
+        SELECT
+          argMax("timestamp", "timestamp_version") as "timestamp",
+          "height",
+          "block_part_index",
+          "tx_index",
+          "event_index",
+          argMax("contract_address", "timestamp_version") as "contract_address",
+          argMax("value_deposited", "timestamp_version") as "value_deposited",
+          argMax("value_withdrawn", "timestamp_version") as "value_withdrawn"
+        FROM spacebox.dex_vaults_shares_valued as s
+        WHERE s."timestamp" >= (SELECT "time_start" FROM time_period)
+          AND s."timestamp" < (SELECT "time_end" FROM time_period)
+          ${
+            contractAddress
+              ? sql`AND s."contract_address" = ${contractAddress}`
+              : raw('')
+          }
+        GROUP BY
+          "height",
+          "block_part_index",
+          "tx_index",
+          "event_index"
+      ),
+
       /* ---------- 2.  OPEN & CLOSE BALANCES (balance_updates) ---------- */
       balances AS (
-        -- TODO: fix "delayed" balances by adding UNION of spacebox.dex_vaults_shares_valued and creating "synthetic" balance rows
-        --       consisting of the last known balance (token_0_balance, token_1_balance) from spacebox.dex_vaults_dex_balance
-        --       and adding all additional changes (token_0_deposited, token_1_deposited, token_0_withdrawn, token_1_withdrawn) from spacebox.dex_vaults_shares_valued
-        --       at the new price of (price_0, price_1) from spacebox.dex_vaults_shares_valued
-        WITH period_balances AS (
-          SELECT
-            "contract_address",
-            toStartOfInterval("timestamp", ${raw(
-              interval
-            )})        AS "time_period",   -- e.g. toStartOfHour()
-            argMin("token_0_value" + "token_1_value", "timestamp")  AS "value_open",    -- first value in the period
-            argMax("token_0_value" + "token_1_value", "timestamp")  AS "value_close",   -- last value in the period
-            argMin("token_0_price", "timestamp")                    AS "price_0_open",  -- first price_0 in the period
-            argMin("token_1_price", "timestamp")                    AS "price_1_open",  -- first price_1 in the period
-            argMax("token_0_price", "timestamp")                    AS "price_0_close", -- last price_0 in the period
-            argMax("token_1_price", "timestamp")                    AS "price_1_close"  -- last price_1 in the period
-          FROM spacebox.dex_vaults_dex_balance_valued_by_minute
-          -- remove unvalued rows (before prices) from calculations
-          WHERE "token_0_value" + "token_1_value" > 0
-            AND "timestamp" >= (SELECT "time_start" FROM time_period)
-            AND "timestamp" < (SELECT "time_end" FROM time_period)
-            ${
-              contractAddress
-                ? sql`AND "contract_address" = ${contractAddress}`
-                : raw('')
-            }
-          GROUP BY
-            "contract_address",
-            "time_period"
-        )
+        WITH
+          -- group share changes into time periods
+          grouped_share_movements AS (
+            SELECT
+              "contract_address",
+              toStartOfInterval("timestamp", ${raw(
+                interval
+              )})        AS "time_period",   -- e.g. toStartOfHour()
+              sum("value_deposited" - "value_withdrawn") as "value_changed"
+            FROM deduplicated_shares
+            GROUP BY
+              "contract_address",
+              "time_period"
+          ),
+          -- get balance changes over the same time period
+          period_balances AS (
+            SELECT
+              "contract_address",
+              toStartOfInterval("timestamp", ${raw(
+                interval
+              )})        AS "time_period",   -- e.g. toStartOfHour()
+              count()                                                 AS "balance_count",
+              argMin("token_0_value" + "token_1_value", "timestamp")  AS "value_open",    -- first value in the period
+              argMax("token_0_value" + "token_1_value", "timestamp")  AS "value_close",   -- last value in the period
+              argMin("token_0_price", "timestamp")                    AS "price_0_open",  -- first price_0 in the period
+              argMin("token_1_price", "timestamp")                    AS "price_1_open",  -- first price_1 in the period
+              argMax("token_0_price", "timestamp")                    AS "price_0_close", -- last price_0 in the period
+              argMax("token_1_price", "timestamp")                    AS "price_1_close"  -- last price_1 in the period
+            FROM spacebox.dex_vaults_dex_balance_valued_by_minute as b
+            -- remove unvalued rows (before prices) from calculations
+            WHERE "token_0_value" + "token_1_value" > 0
+              AND "timestamp" >= (SELECT "time_start" FROM time_period)
+              AND "timestamp" < (SELECT "time_end" FROM time_period)
+              ${
+                contractAddress
+                  ? sql`AND b."contract_address" = ${contractAddress}`
+                  : raw('')
+              }
+            GROUP BY
+              "contract_address",
+              "time_period"
+            ORDER BY "time_period"
+          ),
+          joined_periods AS (
+            SELECT
+              b."contract_address" as "contract_address",
+              b."time_period" as "time_period",
+              b."balance_count" > 0 as "has_balance_row",
+              sum(b."balance_count") OVER cumulative_periods_per_contract as "balances_counted",
+              b."price_0_open" as "price_0_open",
+              b."price_1_open" as "price_1_open",
+              b."price_0_close" as "price_0_close",
+              b."price_1_close" as "price_1_close",
+              b."value_open" as "value_open",
+              b."value_close" as "value_close",
+              s."value_changed" as "value_changed"
+            FROM period_balances as b
+            FULL OUTER JOIN grouped_share_movements as s
+            USING "contract_address", "time_period"
+            WINDOW cumulative_periods_per_contract as (
+              PARTITION BY "contract_address"
+              ORDER BY "time_period" ASC
+              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            )
+          ),
+          filled_period_balances AS (
+            SELECT
+              "contract_address",
+              "time_period",
+              anyLastIf("price_0_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_0_open",
+              anyLastIf("price_1_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_1_open",
+              anyLastIf("price_0_close", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_0_close",
+              anyLastIf("price_1_close", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_1_close",
+              greatest(0, sum(if("has_balance_row" = 1, "value_close", "value_changed")) OVER cumulative_contract_non_balance_periods) as "approximate_close",
+              if("has_balance_row" = 1, "value_open", "approximate_close" - "value_changed") as "approximate_open"
+            FROM joined_periods
+            WINDOW cumulative_contract_non_balance_periods as (
+              PARTITION BY "contract_address", "balances_counted"
+              ORDER BY "time_period" ASC
+              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+            )
+          )
         SELECT
           "contract_address",
           "time_period",
-          "value_close",
+          "approximate_close" as "value_close",
           "price_0_close",
           "price_1_close",
-          lagInFrame("value_close", 1, "value_open") OVER c_time      AS "prev_value_close",      -- previous last value in the period
-          lagInFrame("price_0_close", 1, "price_0_open") OVER c_time  AS "prev_price_0_close",    -- previous price_0 in the period
-          lagInFrame("price_1_close", 1, "price_1_open") OVER c_time  AS "prev_price_1_close"     -- previous price_1 in the period
-        FROM period_balances
+          lagInFrame("value_close", 1, "approximate_open") OVER c_time  AS "prev_value_close",      -- previous last value in the period
+          lagInFrame("price_0_close", 1, "price_0_open") OVER c_time    AS "prev_price_0_close",    -- previous price_0 in the period
+          lagInFrame("price_1_close", 1, "price_1_open") OVER c_time    AS "prev_price_1_close"     -- previous price_1 in the period
+        FROM filled_period_balances
         WINDOW c_time AS (
           PARTITION BY contract_address
           ORDER BY time_period ASC
+          ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
         )
       ),
 
       /* ---------- 3.  CASH-FLOWS (transfer_updates) ---------- */
       flows AS (
-        WITH deduplicated_shares AS (
-          SELECT
-            argMax("timestamp", "timestamp_version") as "timestamp",
-            "height",
-            "block_part_index",
-            "tx_index",
-            "event_index",
-            argMax("contract_address", "timestamp_version") as "contract_address",
-            argMax("value_deposited", "timestamp_version") as "value_deposited",
-            argMax("value_withdrawn", "timestamp_version") as "value_withdrawn"
-          FROM spacebox.dex_vaults_shares_valued as s
-          WHERE s."timestamp" >= (SELECT "time_start" FROM time_period)
-            AND s."timestamp" < (SELECT "time_end" FROM time_period)
-            ${
-              contractAddress
-                ? sql`AND s."contract_address" = ${contractAddress}`
-                : raw('')
-            }
-          GROUP BY
-            "height",
-            "block_part_index",
-            "tx_index",
-            "event_index"
-        )
         SELECT
           "contract_address",
           toStartOfInterval("timestamp", ${raw(
