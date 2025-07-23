@@ -1,4 +1,4 @@
-import sql from 'sql-template-tag';
+import sql, { raw } from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
@@ -6,9 +6,10 @@ import {
   WithFillTimePeriod,
   toUnixTime,
   getTimePeriod,
+  getFillableTimePeriod,
 } from '../../utils/units';
 import dexVaultReturnTimeseries from '../../common-table-expressions/dexVaultReturnTimeseries';
-import { getEndTimeCacheConfig } from './_common';
+import { endTime, getEndTimeCacheConfig } from './_common';
 
 export interface Request {
   params: { contract: string };
@@ -26,10 +27,13 @@ export interface Response {
   hold_apr: number;
 }
 
+const DEFAULT_ROWS = 100;
+const MAX_ROWS = 1000;
+
 export const route: Route<Request, Response> = {
   method: 'get',
   path: '/vaults/:contract/apr',
-  handler: async (request, abortSignal) => {
+  handler: async (request, abortSignal, previousResponse) => {
     // cache to specific end time
     const cacheConfig = await getEndTimeCacheConfig(abortSignal);
 
@@ -68,9 +72,65 @@ export const route: Route<Request, Response> = {
       })
       .at(0);
 
+    // get requested time period or default
+    const timePeriods = Math.max(Number(request.query.periods), 0) || 1;
+    const last24H = !getFillableTimePeriod(request.query.period);
+    const timePeriod = getFillableTimePeriod(request.query.period) || 'minute';
+    const limit =
+      Math.round(Math.max(Number(request.query.limit), 0)) ||
+      (last24H ? 60 * 24 : 1);
+
+    // get previous query limit
+    const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
+    // get contract start time
+    const timeContractV1Start = toUnixTime('2025-06-25 05:36:35');
     // ClickHouse will compare either native strings or Unix timestamps
+    const unixFrom = Number(request.query.from) || 0;
     const unixTo = Number(request.query.to) || 0;
 
+    const unixTimes = await getCachedResponse<{
+      time_end: number;
+      time_start: number;
+      time_data_start: number;
+    }>(
+      sql`
+        SELECT
+          toUnixTimestamp(
+            toStartOfInterval(
+              greatest(
+                toDateTime(${unixFrom || timePrevious}),
+                ${
+                  limit
+                    ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
+                        limit.toFixed(0)
+                      )} ${raw(timePeriod)})`
+                    : sql`toDateTime(0)`
+                }
+              ),
+              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+            )
+          ) as "time_start",
+          greatest(
+            "time_start",
+            ${timeContractV1Start}
+          ) as "time_data_start",
+          toUnixTimestamp(
+            toStartOfInterval(
+              least(
+                ${endTime},
+                ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
+              ),
+              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+            )
+          ) as "time_end"
+        `,
+      abortSignal,
+      cacheConfig
+    ).then((r) => r.data.at(0));
+
+    if (!unixTimes) {
+      throw new Error('Invalid start/end times');
+    }
     // get timeseries data
     return await getCachedResponse<
       Response & { height: number; apr_percentage: number },
@@ -78,6 +138,25 @@ export const route: Route<Request, Response> = {
     >(
       sql`
         WITH
+          ${request.params.contract} as "_contract_address",
+          time_range AS (
+            WITH
+              toDateTime(${unixTimes.time_start}) as "time_start",
+              toDateTime(${unixTimes.time_end}) as "time_end"
+            SELECT
+              subDate(
+                "time_end" - (
+                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+                ),
+                INTERVAL "generate_series" ${raw(timePeriod)}
+              ) as "timestamp",
+              "_contract_address" as "contract_address"
+            FROM generate_series(
+              0,
+              dateDiff(${raw(timePeriod)}, "time_start", "time_end"),
+              ${timePeriods}
+            )
+          ),
           vault_returns as (${dexVaultReturnTimeseries({
             contractAddress: request.params.contract,
             period: getTimePeriod(request.query.period) || undefined,
@@ -87,10 +166,19 @@ export const route: Route<Request, Response> = {
             unixTimeEnd: Number(request.query.to) || undefined,
           })})
           SELECT
-            "time_period" as "time",
+            time_range."timestamp" as "time",
             "vault_apr_period" as "vault_apr",
             "hold_apr_period" as "hold_apr"
-          FROM vault_returns
+          FROM time_range
+          ASOF LEFT JOIN vault_returns as timeseries
+            ON (time_range."contract_address" = timeseries."contract_address")
+            AND (time_range."timestamp" >= timeseries."time_period")
+          -- default sort reverse chronologically
+          ORDER BY "time" DESC
+          -- cap limit to max, set default if not well defined
+          LIMIT ${
+            Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS
+          }
       `,
       abortSignal,
       {
