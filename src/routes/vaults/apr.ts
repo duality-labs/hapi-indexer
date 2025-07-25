@@ -83,7 +83,7 @@ export const route: Route<Request, Response> = {
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get contract start time
-    const timeContractV1Start = toUnixTime('2025-06-25 05:36:35');
+    const timeContractV1Start = 0;
     // ClickHouse will compare either native strings or Unix timestamps
     const unixFrom = Number(request.query.from) || 0;
     const unixTo = Number(request.query.to) || 0;
