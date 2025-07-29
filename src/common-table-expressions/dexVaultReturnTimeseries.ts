@@ -116,6 +116,7 @@ export default function dexVaultReturnTimeseries({
               b."price_1_open" as "price_1_open",
               b."price_0_close" as "price_0_close",
               b."price_1_close" as "price_1_close",
+              countIf(b."price_0_close" + b."price_1_close" > 0) OVER cumulative_periods_per_contract as "has_price",
               b."value_open" as "value_open",
               b."value_close" as "value_close",
               s."value_changed" as "value_changed"
@@ -132,12 +133,22 @@ export default function dexVaultReturnTimeseries({
             SELECT
               "contract_address",
               "time_period",
+              "has_price",
               anyLastIfOrNull("price_0_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_0_open",
               anyLastIfOrNull("price_1_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_1_open",
               anyLastIfOrNull("price_0_close", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_0_close",
               anyLastIfOrNull("price_1_close", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_1_close",
-              greatest(0, sum(if("has_balance_row" = 1, "value_close", "value_changed")) OVER cumulative_contract_non_balance_periods) as "approximate_close",
-              if("has_balance_row" = 1, "value_open", "approximate_close" - "value_changed") as "approximate_open"
+              -- if ("price_0_close")
+              if (
+                "has_price" > 0,
+                greatest(0, sum(if("has_balance_row" = 1, "value_close", "value_changed")) OVER cumulative_contract_non_balance_periods),
+                NULL
+              ) as "approximate_close",
+              if (
+                "has_price" > 0,
+                if("has_balance_row" = 1, "value_open", "approximate_close" - "value_changed"),
+                NULL
+              ) as "approximate_open"
             FROM joined_periods
             WINDOW cumulative_contract_non_balance_periods as (
               PARTITION BY "contract_address", "balances_counted"
@@ -193,8 +204,8 @@ export default function dexVaultReturnTimeseries({
           b."time_period",
 
           /* hold return (how much return by holding 50/50 value) ------ */
-          if(b."prev_price_0_close" > 0, b."price_0_close" / b."prev_price_0_close", 1) / 2 +
-          if(b."prev_price_1_close" > 0, b."price_1_close" / b."prev_price_1_close", 1) / 2 - 1   AS "hold_return",
+          if(COALESCE(b."prev_price_0_close", 0) > 0, b."price_0_close" / b."prev_price_0_close", 1) / 2 +
+          if(COALESCE(b."prev_price_1_close", 0) > 0, b."price_1_close" / b."prev_price_1_close", 1) / 2 - 1   AS "hold_return",
 
           /* Modified-Dietz money-weighted period return ------------------- */
           (b."value_close" - b."prev_value_close" - coalesce(f."net_flow", 0))
