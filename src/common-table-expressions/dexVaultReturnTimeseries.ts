@@ -132,10 +132,10 @@ export default function dexVaultReturnTimeseries({
             SELECT
               "contract_address",
               "time_period",
-              anyLastIf("price_0_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_0_open",
-              anyLastIf("price_1_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_1_open",
-              anyLastIf("price_0_close", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_0_close",
-              anyLastIf("price_1_close", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_1_close",
+              anyLastIfOrNull("price_0_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_0_open",
+              anyLastIfOrNull("price_1_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_1_open",
+              anyLastIfOrNull("price_0_close", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_0_close",
+              anyLastIfOrNull("price_1_close", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_1_close",
               greatest(0, sum(if("has_balance_row" = 1, "value_close", "value_changed")) OVER cumulative_contract_non_balance_periods) as "approximate_close",
               if("has_balance_row" = 1, "value_open", "approximate_close" - "value_changed") as "approximate_open"
             FROM joined_periods
@@ -151,9 +151,9 @@ export default function dexVaultReturnTimeseries({
           "approximate_close" as "value_close",
           "price_0_close",
           "price_1_close",
-          lagInFrame("value_close", 1, "approximate_open") OVER c_time  AS "prev_value_close",      -- previous last value in the period
-          lagInFrame("price_0_close", 1, "price_0_open") OVER c_time    AS "prev_price_0_close",    -- previous price_0 in the period
-          lagInFrame("price_1_close", 1, "price_1_open") OVER c_time    AS "prev_price_1_close"     -- previous price_1 in the period
+          COALESCE(lagInFrame("value_close", 1) OVER c_time, "approximate_open", 0)  AS "prev_value_close",      -- previous last value in the period
+          COALESCE(lagInFrame("price_0_close", 1) OVER c_time, "price_0_open", 0)    AS "prev_price_0_close",    -- previous price_0 in the period
+          COALESCE(lagInFrame("price_1_close", 1) OVER c_time, "price_1_open", 0)    AS "prev_price_1_close"     -- previous price_1 in the period
         FROM filled_period_balances
         WINDOW c_time AS (
           PARTITION BY contract_address
