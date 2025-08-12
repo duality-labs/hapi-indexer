@@ -24,23 +24,24 @@ export const route: Route<Request, Response> = {
       request.params.denomB,
     ].sort();
 
-    const sourceTableHeight = await getCachedResponse<{ height: string }>(
-      sql`
+    const [sourceTableHeight, currentHeight] = await Promise.all([
+      getCachedResponse<{ height: string }>(
+        sql`
           SELECT max("height") AS "height"
           FROM spacebox."raw_block_results"
         `,
-      abortSignal
-    );
-
-    const currentHeight = await getCachedResponse<{ height: string }>(
-      sql`
+        abortSignal
+      ),
+      getCachedResponse<{ height: string }>(
+        sql`
           SELECT max("height") AS "height"
           FROM spacebox."dex_message_event_tick_update"
           WHERE "TokenZero" = ${denom0}
             AND "TokenOne" = ${denom1}
         `,
-      abortSignal
-    );
+        abortSignal
+      ),
+    ]);
 
     return await getCachedResponse<
       { token: boolean; index: string; reserves: string; max_height: string },
