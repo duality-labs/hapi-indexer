@@ -61,7 +61,8 @@ export const route: Route<Request, Response> = {
           AND ${
             previousResponse
               ? // if this is an incremental update, get changes since known height
-                sql`"height" > ${previousResponse.height}`
+                // and check possibly skipped blocks within the last 100 blocks
+                sql`"height" > ${previousResponse.height - 100}`
               : // if this is an initial request, ignore unhelpful zero reserve rows
                 sql`"Reserves" >= ${threshold}`
           }
