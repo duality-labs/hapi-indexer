@@ -52,6 +52,8 @@ export const route: Route<Request, Response> = {
           max("height") as "max_height",
           "TokenIn" = "TokenOne" as "token",
           "TickIndex" as "index",
+          -- this is specifically for incremental updates to not show dust rows
+          -- when they appear (initial request will have all "if" as true here)
           sumIf("Reserves", "Reserves" >= ${threshold}) as "reserves"
         FROM (${selectLatestTickState})
         WHERE "TokenZero" = ${denom0}
