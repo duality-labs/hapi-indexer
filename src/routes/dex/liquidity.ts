@@ -24,24 +24,32 @@ export const route: Route<Request, Response> = {
       request.params.denomB,
     ].sort();
 
-    const [sourceTableHeight, currentHeight] = await Promise.all([
-      getCachedResponse<{ height: string }>(
-        sql`
-          SELECT max("height") AS "height"
-          FROM spacebox."raw_block_results"
-        `,
-        abortSignal
-      ),
-      getCachedResponse<{ height: string }>(
-        sql`
-          SELECT max("height") AS "height"
-          FROM spacebox."dex_message_event_tick_update"
-          WHERE "TokenZero" = ${denom0}
-            AND "TokenOne" = ${denom1}
-        `,
-        abortSignal
-      ),
-    ]);
+    const [sourceTableHeight, sourceTableTime, currentHeight] =
+      await Promise.all([
+        getCachedResponse<{ height: string }>(
+          sql`
+            SELECT max("height") AS "height"
+            FROM spacebox."raw_block_results"
+          `,
+          abortSignal
+        ),
+        getCachedResponse<{ time: string }>(
+          sql`
+            SELECT max("updated_at") AS "time"
+            FROM spacebox."raw_block_results_order"
+          `,
+          abortSignal
+        ),
+        getCachedResponse<{ height: string }>(
+          sql`
+            SELECT max("height") AS "height"
+            FROM spacebox."dex_message_event_tick_update"
+            WHERE "TokenZero" = ${denom0}
+              AND "TokenOne" = ${denom1}
+          `,
+          abortSignal
+        ),
+      ]);
 
     return await getCachedResponse<
       { token: boolean; index: string; reserves: string; max_height: string },
@@ -62,7 +70,11 @@ export const route: Route<Request, Response> = {
             previousResponse
               ? // if this is an incremental update, get changes since known height
                 // and check possibly skipped blocks within the last 100 blocks
-                sql`"height" > ${previousResponse.height - 100}`
+                sql`"height" >= (
+                  SELECT min(height)
+                  FROM spacebox.raw_block_results_order
+                  WHERE updated_at >= toDateTime(${previousResponse.timestamp})
+                )`
               : // if this is an initial request, ignore unhelpful zero reserve rows
                 sql`"Reserves" >= ${threshold}`
           }
@@ -77,6 +89,7 @@ export const route: Route<Request, Response> = {
       `,
       abortSignal,
       {
+        timestamp: sourceTableTime.data.at(0)?.time,
         heartbeat: Number(sourceTableHeight.data.at(0)?.height),
         getRow: ({ token, index, reserves }) => ({
           index,
