@@ -27,8 +27,7 @@ export interface Response {
   hold_apr: number;
 }
 
-const DEFAULT_ROWS = 100;
-const MAX_ROWS = 1000;
+const MAX_ROWS = 10000;
 
 export const route: Route<Request, Response> = {
   method: 'get',
@@ -92,6 +91,7 @@ export const route: Route<Request, Response> = {
       time_end: number;
       time_start: number;
       time_data_start: number;
+      time_data_end: number;
     }>(
       sql`
         SELECT
@@ -122,7 +122,8 @@ export const route: Route<Request, Response> = {
               ),
               INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
             )
-          ) as "time_end"
+          ) as "time_end",
+          toUnixTimestamp(${endTime}) as "time_data_end"
         `,
       abortSignal,
       cacheConfig
@@ -161,9 +162,13 @@ export const route: Route<Request, Response> = {
             contractAddress: request.params.contract,
             period: getTimePeriod(request.query.period) || undefined,
             periods: Number(request.query.periods) || undefined,
-            limit: Number(request.query.limit) || undefined,
-            unixTimeStart: Number(request.query.from) || undefined,
-            unixTimeEnd: Number(request.query.to) || undefined,
+            // add one limit to include "curent period"
+            limit: Number(request.query.limit)
+              ? Number(request.query.limit) + 1
+              : undefined,
+            unixTimeStart:
+              Number(request.query.from) || unixTimes.time_data_start,
+            unixTimeEnd: Number(request.query.to) || unixTimes.time_data_end,
           })})
           SELECT
             time_range."timestamp" as "time",
@@ -175,10 +180,8 @@ export const route: Route<Request, Response> = {
             AND (time_range."timestamp" >= timeseries."time_period")
           -- default sort reverse chronologically
           ORDER BY "time" DESC
-          -- cap limit to max, set default if not well defined
-          LIMIT ${
-            Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS
-          }
+          -- cap limit to max
+          LIMIT ${MAX_ROWS}
       `,
       abortSignal,
       {
