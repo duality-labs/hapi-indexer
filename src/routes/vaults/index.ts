@@ -119,10 +119,6 @@ export const route: Route<
             FROM spacebox.dex_vaults_config_state as v
             ANY LEFT JOIN spacebox.price_by_vault_denom_first_state as p
               ON (v."contract_address" = p."contract_address")
-            -- exclude pre-v1 vaults with no price data
-            WHERE p."timestamp" > 0
-              -- exclude BTC/BTC for speed
-              AND ("token_0_symbol" != 'BTC' OR "token_1_symbol" != 'BTC')
           ),
           tvl AS (
             WITH balance AS (
