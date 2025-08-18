@@ -181,7 +181,8 @@ export default function dexVaultReturnTimeseries({
           )})            AS "time_period",   -- e.g. toStartOfHour()
 
           /* raw deposits-minus-withdrawals */
-          sum("value_deposited") - sum("value_withdrawn")             AS "net_flow"
+          sum("value_deposited")               AS "value_deposited",
+          sum("value_withdrawn")               AS "value_withdrawn"
         FROM deduplicated_shares
         GROUP BY
           "contract_address",
@@ -191,7 +192,8 @@ export default function dexVaultReturnTimeseries({
       /* ---------- 4.  JOIN & CALCULATE RETURNS ---------- */
       timeseries_period_returns AS (
         WITH
-          b."prev_value_close" + coalesce(f."net_flow", 0) as "value_open"
+          b."prev_value_close" + coalesce(f."value_deposited", 0) as "period_value_open",
+          b."value_close" - coalesce(f."value_withdrawn", 0) as "period_value_close"
         SELECT
           b."contract_address",
           b."time_period",
@@ -200,10 +202,10 @@ export default function dexVaultReturnTimeseries({
           if(COALESCE(b."prev_price_0_close", 0) > 0, b."price_0_close" / b."prev_price_0_close", 1) / 2 +
           if(COALESCE(b."prev_price_1_close", 0) > 0, b."price_1_close" / b."prev_price_1_close", 1) / 2 - 1   AS "hold_return",
 
-          /* period return (assuming flows happen before period) ------------------- */
+          /* period return (assuming flows happen at ends of periods) ------------------- */
           -- note: this will underestimate returns in periods where deposits happen
-          --       and overestimate returns in periods when withdrawals happen
-          (b."value_close" - "value_open") / "value_open"                               AS "vault_return",
+          --       and underestimate returns in periods when withdrawals happen
+          ("period_value_close" - "period_value_open") / "period_value_open"                               AS "vault_return",
 
           /* Linear annualisation (APR) ------------------------------------ */
           "vault_return" * periods_per_year                           AS "vault_apr_period",
