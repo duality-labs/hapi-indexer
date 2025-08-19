@@ -193,7 +193,7 @@ export default function dexVaultReturnTimeseries({
       timeseries_period_returns AS (
         WITH
           b."prev_value_close" + coalesce(f."value_deposited", 0) as "period_value_open",
-          b."value_close" - coalesce(f."value_withdrawn", 0) as "period_value_close"
+          b."value_close" + coalesce(f."value_withdrawn", 0) as "period_value_close"
         SELECT
           b."contract_address",
           b."time_period",
