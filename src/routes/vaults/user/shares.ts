@@ -46,28 +46,38 @@ export const route: Route<Request, Response> = {
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
-          -- query is much faster when this is pre-filtered
-          -- note: I know it looks like an unnecessary duplicate, but it is not
-          filtered_bank_transfer_state as (
-            SELECT * FROM spacebox.bank_transfer_state
-            WHERE "denom" IN (
-              SELECT "denom" FROM spacebox.dex_vaults_config_state
-            )
+          deduplicated_shares AS (
+            SELECT
+              any("timestamp") as "timestamp",
+              "height",
+              "block_part_index",
+              "tx_index",
+              "event_index",
+              any("sort_key") as "sort_key",
+              any("contract_address") as "contract_address",
+              any("creator") as "creator",
+              any("shares_in") as "shares_in",
+              any("shares_out") as "shares_out",
+              any("total_shares") as "total_shares"
+            FROM spacebox.dex_vaults_shares
+            GROUP BY
+              "height",
+              "block_part_index",
+              "tx_index",
+              "event_index"
           ),
+          -- note: could make some better projections+views
+          --       spacebox.dex_vaults_shares_by_address: to order by address (quicker filtering for de-duplicated shares)
+          --       spacebox.dex_vaults_shares_state: already exists to get latest total_shares update for each vault
           contract_shares as (
             SELECT
-              max(bank."height") as "height",
-              max(bank."timestamp") as "timestamp",
-              config."contract_address" as "contract_address",
-              config."denom" as "denom",
-              sumIf(bank."balance", bank."address" = ${
+              "contract_address",
+              sumIf("shares_in" - "shares_out", "creator" = ${
                 request.params.address
               }) as "user_shares",
-              sum(bank."balance") as "total_shares"
-            FROM spacebox.dex_vaults_config_state as config
-            LEFT JOIN filtered_bank_transfer_state as bank
-              ON config."denom" = bank."denom"
-            GROUP BY config."contract_address", config."denom"
+              argMax("total_shares", "sort_key") as "total_shares"
+            FROM deduplicated_shares
+            GROUP BY "contract_address"
           )
         SELECT
           v."height" as "height",
