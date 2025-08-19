@@ -69,7 +69,7 @@ export default function dexVaultReturnTimeseries({
             SELECT
               "contract_address",
               toStartOfMinute("timestamp")                            AS "time_minute",   -- use minutes to align period with aggregated table
-              sum("value_deposited" - "value_withdrawn") as "value_changed"
+              sum("value_deposited" - "value_withdrawn")              AS "value_changed"
             FROM deduplicated_shares
             GROUP BY
               "contract_address",
