@@ -166,8 +166,8 @@ export default function dexVaultReturnTimeseries({
           COALESCE(lagInFrame("price_1_close", 1) OVER c_time, "price_1_open", 0)    AS "prev_price_1_close"     -- previous price_1 in the period
         FROM filled_period_balances
         WINDOW c_time AS (
-          PARTITION BY contract_address
-          ORDER BY time_period ASC
+          PARTITION BY "contract_address"
+          ORDER BY "time_period" ASC
           ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
         )
       ),
