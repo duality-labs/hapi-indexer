@@ -68,22 +68,18 @@ export default function dexVaultReturnTimeseries({
           grouped_share_movements AS (
             SELECT
               "contract_address",
-              toStartOfInterval("timestamp", ${raw(
-                interval
-              )})        AS "time_period",   -- e.g. toStartOfHour()
+              toStartOfMinute("timestamp")                            AS "time_minute",   -- use minutes to align period with aggregated table
               sum("value_deposited" - "value_withdrawn") as "value_changed"
             FROM deduplicated_shares
             GROUP BY
               "contract_address",
-              "time_period"
+              "time_minute"
           ),
           -- get balance changes over the same time period
           period_balances AS (
             SELECT
               "contract_address",
-              toStartOfInterval("timestamp", ${raw(
-                interval
-              )})        AS "time_period",   -- e.g. toStartOfHour()
+              toStartOfMinute("timestamp")                            AS "time_minute",   -- use minutes to align period with aggregated table
               count()                                                 AS "balance_count",
               argMin("token_0_value" + "token_1_value", "timestamp")  AS "value_open",    -- first value in the period
               argMax("token_0_value" + "token_1_value", "timestamp")  AS "value_close",   -- last value in the period
@@ -103,13 +99,13 @@ export default function dexVaultReturnTimeseries({
               }
             GROUP BY
               "contract_address",
-              "time_period"
-            ORDER BY "time_period"
+              "time_minute"
+            ORDER BY "time_minute"
           ),
           joined_periods AS (
             SELECT
               b."contract_address" as "contract_address",
-              b."time_period" as "time_period",
+              b."time_minute" as "time_minute",
               b."balance_count" > 0 as "has_balance_row",
               sum(b."balance_count") OVER cumulative_periods_per_contract as "balances_counted",
               b."price_0_open" as "price_0_open",
@@ -122,17 +118,17 @@ export default function dexVaultReturnTimeseries({
               s."value_changed" as "value_changed"
             FROM period_balances as b
             FULL OUTER JOIN grouped_share_movements as s
-            USING "contract_address", "time_period"
+            USING "contract_address", "time_minute"
             WINDOW cumulative_periods_per_contract as (
               PARTITION BY "contract_address"
-              ORDER BY "time_period" ASC
+              ORDER BY "time_minute" ASC
               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             )
           ),
           filled_period_balances AS (
             SELECT
               "contract_address",
-              "time_period",
+              "time_minute",
               "has_price",
               anyLastIfOrNull("price_0_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_0_open",
               anyLastIfOrNull("price_1_open", "has_balance_row" = 1) OVER cumulative_contract_non_balance_periods as "price_1_open",
@@ -151,13 +147,13 @@ export default function dexVaultReturnTimeseries({
             FROM joined_periods
             WINDOW cumulative_contract_non_balance_periods as (
               PARTITION BY "contract_address", "balances_counted"
-              ORDER BY "time_period" ASC
+              ORDER BY "time_minute" ASC
               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             )
           )
         SELECT
           "contract_address",
-          "time_period",
+          "time_minute",
           "approximate_close" as "value_close",
           "price_0_close",
           "price_1_close",
@@ -167,7 +163,7 @@ export default function dexVaultReturnTimeseries({
         FROM filled_period_balances
         WINDOW c_time AS (
           PARTITION BY "contract_address"
-          ORDER BY "time_period" ASC
+          ORDER BY "time_minute" ASC
           ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
         )
       ),
@@ -176,9 +172,7 @@ export default function dexVaultReturnTimeseries({
       flows AS (
         SELECT
           "contract_address",
-          toStartOfInterval("timestamp", ${raw(
-            interval
-          )})            AS "time_period",   -- e.g. toStartOfHour()
+          toStartOfMinute("timestamp")         AS "time_minute",   -- use minutes to align period with aggregated table
 
           /* raw deposits-minus-withdrawals */
           sum("value_deposited")               AS "value_deposited",
@@ -186,26 +180,43 @@ export default function dexVaultReturnTimeseries({
         FROM deduplicated_shares
         GROUP BY
           "contract_address",
-          "time_period"
+          "time_minute"
       ),
 
       /* ---------- 4.  JOIN & CALCULATE RETURNS ---------- */
-      timeseries_period_returns AS (
+      timeseries_minute_returns AS (
         WITH
           b."prev_value_close" + coalesce(f."value_deposited", 0) as "period_value_open",
           b."value_close" + coalesce(f."value_withdrawn", 0) as "period_value_close"
         SELECT
           b."contract_address",
-          b."time_period",
+          b."time_minute",
 
           /* hold return (how much return by holding 50/50 value) ------ */
           if(COALESCE(b."prev_price_0_close", 0) > 0, b."price_0_close" / b."prev_price_0_close", 1) / 2 +
-          if(COALESCE(b."prev_price_1_close", 0) > 0, b."price_1_close" / b."prev_price_1_close", 1) / 2 - 1   AS "hold_return",
+          if(COALESCE(b."prev_price_1_close", 0) > 0, b."price_1_close" / b."prev_price_1_close", 1) / 2 - 1   AS "hold_minute_return",
 
           /* period return (assuming flows happen at ends of periods) ------------------- */
           -- note: this will underestimate returns in periods where deposits happen
           --       and underestimate returns in periods when withdrawals happen
-          ("period_value_close" - "period_value_open") / "period_value_open"                               AS "vault_return",
+          ("period_value_close" - "period_value_open") / "period_value_open"                                   AS "vault_minute_return"
+        FROM balances AS b
+        LEFT JOIN flows AS f
+          ON  b."contract_address" = f."contract_address"
+          AND b."time_minute" = f."time_minute"
+      ),
+
+      /* ---------- 5.  return aggregation to requested time period ---------- */
+      timeseries_period_returns AS (
+        SELECT
+          "contract_address",
+          toStartOfInterval("time_minute", ${raw(
+            interval
+          )})          AS "time_period",   -- e.g. toStartOfHour()
+
+          /* product(1 + r_minute) - 1  in a stable way */
+          exp(sumKahan(log1p("hold_minute_return"))) - 1              AS "hold_return",
+          exp(sumKahan(log1p("vault_minute_return"))) - 1             AS "vault_return",
 
           /* Linear annualisation (APR) ------------------------------------ */
           "vault_return" * periods_per_year                           AS "vault_apr_period",
@@ -213,10 +224,10 @@ export default function dexVaultReturnTimeseries({
 
           /* Compounded annualisation (APY) ------------------------------- */
           pow(1 + "vault_return", periods_per_year) - 1               AS "apy_period"
-        FROM balances AS b
-        LEFT JOIN flows AS f
-          ON  b."contract_address" = f."contract_address"
-          AND b."time_period" = f."time_period"
+        FROM timeseries_minute_returns
+        GROUP BY
+          "contract_address",
+          "time_period"
       )
     SELECT * from timeseries_period_returns
   `;
