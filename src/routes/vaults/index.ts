@@ -303,41 +303,30 @@ export const route: Route<
           ),
           apr_30d as (
             WITH
-              24 * 365 as periods_per_year, -- hours per year
+              365 / 30 as periods_per_year, -- 30D periods per year
               period_returns as (${dexVaultReturnTimeseries({
                 periods: 1,
-                period: 'hour',
-                limit: 30 * 24, // get 30 days worth of hour periods
+                period: 'day',
+                limit: 30, // get 30 days worth of day periods
               })})
             SELECT
                 "contract_address",
 
-                /* ---- total returns ---- */
-                exp(
-                    arrayReduce(
-                        'sumKahan',
-                        groupArray( log1p("vault_return") )
-                    )
-                )                                                               AS "total_vault_return",    --  Π(1+r)
-                exp(
-                    arrayReduce(
-                        'sumKahan',
-                        groupArray( log1p("hold_return") )
-                    )
-                )                                                               AS "total_hold_return",     --  Π(1+r)
+                /* product(1 + r) - 1  in a stable way */
+                exp(sumKahan(log1p("vault_return"))) - 1                        AS "total_vault_return",
+                exp(sumKahan(log1p("hold_return"))) - 1                         AS "total_hold_return",
+                -- compute vault over hold as the percentage from baseline (hold) of the whole period
+                (1 + "total_vault_return") / (1 + "total_hold_return") - 1      AS "total_vault_over_hold_return",
 
-                /* ---- number of hours of vault changes ---- */
-                count()                                                         AS "active_periods",
-                30 * 24                                                         AS "n_periods",
+                /* Linear annualisation (APR) ------------------------------------ */
+                "total_vault_return" * periods_per_year                         AS "vault_apr",
+                "total_hold_return" * periods_per_year                          AS "hold_apr",
+                "total_vault_over_hold_return" * periods_per_year               AS "vault_over_hold_apr",
 
-                /* ---- get APRs and APYs ---- */
-                sum("vault_return") * periods_per_year / "n_periods"            AS "vault_apr",
-                sum("hold_return") * periods_per_year / "n_periods"             AS "hold_apr",
-                "vault_apr" - "hold_apr"                                        AS "vault_over_hold_apr",
-                "total_vault_return" - "total_hold_return"                      AS "total_vault_over_hold_return",
-                pow("total_vault_return", periods_per_year / "n_periods") - 1   AS "vault_apy",
-                pow("total_hold_return", periods_per_year / "n_periods") - 1    AS "hold_apy",
-                pow("total_vault_over_hold_return" + 1, periods_per_year / "n_periods") - 1 AS "vault_over_hold_apy"
+                /* Compounded annualisation (APY) ------------------------------- */
+                pow(1 + "total_vault_return", periods_per_year) - 1             AS "vault_apy",
+                pow(1 + "total_hold_return", periods_per_year) - 1              AS "hold_apy",
+                pow(1 + "total_vault_over_hold_return", periods_per_year) - 1   AS "vault_over_hold_apy"
             FROM period_returns
             GROUP BY "contract_address"
           )
@@ -376,12 +365,7 @@ export const route: Route<
           vol."active_volume_1d_value" + vol."passive_volume_1d_value" as "volume_1d",
           vol."active_volume_prev_1d_value" + vol."passive_volume_prev_1d_value" as "volume_prev_1d",
           vol."active_volume_30d_value" + vol."passive_volume_30d_value" as "volume_30d",
-          apr."vault_over_hold_apy" as "apy_vault_over_hold_30d",
-          -- todo: remove when separated APY 30d no longer used
-          apr."vault_apy" as "apy_vault_30d",
-          apr."hold_apy" as "apy_hold_30d",
-          -- todo: remove when APR 30d no longer used
-          apr."vault_over_hold_apr" as "apr_30d"
+          apr."vault_over_hold_apy" as "apy_vault_over_hold_30d"
         FROM vault_config as config
         ANY LEFT JOIN tvl
           ON config."contract_address" = tvl."contract_address"

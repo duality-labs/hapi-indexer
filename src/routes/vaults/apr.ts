@@ -6,7 +6,6 @@ import {
   WithFillTimePeriod,
   toUnixTime,
   getTimePeriod,
-  getFillableTimePeriod,
 } from '../../utils/units';
 import dexVaultReturnTimeseries from '../../common-table-expressions/dexVaultReturnTimeseries';
 import { endTime, getEndTimeCacheConfig } from './_common';
@@ -73,8 +72,8 @@ export const route: Route<Request, Response> = {
 
     // get requested time period or default
     const timePeriods = Math.max(Number(request.query.periods), 0) || 1;
-    const last24H = !getFillableTimePeriod(request.query.period);
-    const timePeriod = getFillableTimePeriod(request.query.period) || 'minute';
+    const last24H = !getTimePeriod(request.query.period);
+    const timePeriod = getTimePeriod(request.query.period) || 'minute';
     const limit =
       Math.round(Math.max(Number(request.query.limit), 0)) ||
       (last24H ? 60 * 24 : 1);
@@ -102,7 +101,7 @@ export const route: Route<Request, Response> = {
                 ${
                   limit
                     ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
-                        limit.toFixed(0)
+                        (timePeriods * limit).toFixed(0)
                       )} ${raw(timePeriod)})`
                     : sql`toDateTime(0)`
                 }
@@ -123,7 +122,12 @@ export const route: Route<Request, Response> = {
               INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
             )
           ) as "time_end",
-          toUnixTimestamp(${endTime}) as "time_data_end"
+          toUnixTimestamp(
+            least(
+              ${endTime},
+              ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
+            )
+          ) as "time_data_end"
         `,
       abortSignal,
       cacheConfig
@@ -146,9 +150,7 @@ export const route: Route<Request, Response> = {
               toDateTime(${unixTimes.time_end}) as "time_end"
             SELECT
               subDate(
-                "time_end" - (
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                ),
+                "time_end",
                 INTERVAL "generate_series" ${raw(timePeriod)}
               ) as "timestamp",
               "_contract_address" as "contract_address"
@@ -160,15 +162,11 @@ export const route: Route<Request, Response> = {
           ),
           vault_returns as (${dexVaultReturnTimeseries({
             contractAddress: request.params.contract,
-            period: getTimePeriod(request.query.period) || undefined,
-            periods: Number(request.query.periods) || undefined,
-            // add one limit to include "curent period"
-            limit: Number(request.query.limit)
-              ? Number(request.query.limit) + 1
-              : undefined,
-            unixTimeStart:
-              Number(request.query.from) || unixTimes.time_data_start,
-            unixTimeEnd: Number(request.query.to) || unixTimes.time_data_end,
+            period: timePeriod,
+            periods: timePeriods,
+            limit: limit,
+            unixTimeStart: unixTimes.time_data_start,
+            unixTimeEnd: unixTimes.time_data_end,
           })})
           SELECT
             time_range."timestamp" as "time",
