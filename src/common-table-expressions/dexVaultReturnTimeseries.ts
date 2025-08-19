@@ -199,11 +199,20 @@ export default function dexVaultReturnTimeseries({
           /* period return (assuming flows happen at ends of periods) ------------------- */
           -- note: this will underestimate returns in periods where deposits happen
           --       and underestimate returns in periods when withdrawals happen
-          ("period_value_close" - "period_value_open") / "period_value_open"                                   AS "vault_minute_return"
+          if(
+            "period_value_open" > 0,
+            if (
+              "period_value_close" > 0,
+              ("period_value_close" - "period_value_open") / "period_value_open",
+              -1
+            ),
+            0
+          )                                                           AS "vault_minute_return"
         FROM balances AS b
         LEFT JOIN flows AS f
           ON  b."contract_address" = f."contract_address"
           AND b."time_minute" = f."time_minute"
+        WHERE b."value_close" IS NOT NULL
       ),
 
       /* ---------- 5.  return aggregation to requested time period ---------- */
@@ -212,7 +221,7 @@ export default function dexVaultReturnTimeseries({
           "contract_address",
           toStartOfInterval("time_minute", ${raw(
             interval
-          )})          AS "time_period",   -- e.g. toStartOfHour()
+          )})                                                         AS "time_period",   -- e.g. toStartOfHour()
 
           /* product(1 + r_minute) - 1  in a stable way */
           exp(sumKahan(log1p("hold_minute_return"))) - 1              AS "hold_return",
@@ -230,5 +239,6 @@ export default function dexVaultReturnTimeseries({
           "time_period"
       )
     SELECT * from timeseries_period_returns
+    WHERE isFinite("vault_return")
   `;
 }
