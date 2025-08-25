@@ -198,13 +198,19 @@ export default function dexVaultReturnTimeseries({
 
           /* hold return (how much return by holding 50/50 value) ------ */
           if(
-            "period_value_open" > 0,
-            (
-              if(COALESCE(b."prev_price_0_close", 0) > 0, b."price_0_close" / b."prev_price_0_close", 1) / 2 +
-              if(COALESCE(b."prev_price_1_close", 0) > 0, b."price_1_close" / b."prev_price_1_close", 1) / 2 - 1
-            ),
+            "period_value_open" > 0 AND COALESCE(b."prev_price_0_close", 0) > 0,
+            b."price_0_close" / b."prev_price_0_close" - 1,
             0
-          )                                                           AS "hold_minute_return_percent",
+          )                                                           AS "hold_0_minute_return_percent",
+          if(
+            "period_value_open" > 0 AND COALESCE(b."prev_price_1_close", 0) > 0,
+            b."price_1_close" / b."prev_price_1_close" - 1,
+            0
+          )                                                           AS "hold_1_minute_return_percent",
+          (
+            "hold_0_minute_return_percent" +
+            "hold_1_minute_return_percent"
+          ) / 2                                                       AS "hold_minute_return_percent",
           "basis_usd" * "hold_minute_return_percent"                  AS "hold_minute_return_usd",
           "basis_usd" + "hold_minute_return_usd"                      AS "hold_minute_value_usd",
 
@@ -244,11 +250,15 @@ export default function dexVaultReturnTimeseries({
           /* product(1 + r_minute) - 1  in a stable way */
           exp(sumKahan(log1p("vault_minute_return_percent"))) - 1     AS "vault_return_percent",
           exp(sumKahan(log1p("hold_minute_return_percent"))) - 1      AS "hold_return_percent",
+          exp(sumKahan(log1p("hold_0_minute_return_percent"))) - 1    AS "hold_0_return_percent",
+          exp(sumKahan(log1p("hold_1_minute_return_percent"))) - 1    AS "hold_1_return_percent",
           exp(sumKahan(log1p("vault_over_hold_minute_percent"))) - 1  AS "vault_over_hold_percent",
 
           /* Linear annualisation (APR) ------------------------------------ */
           "vault_return_percent" * periods_per_year                   AS "vault_apr_period",
           "hold_return_percent" * periods_per_year                    AS "hold_apr_period",
+          "hold_0_return_percent" * periods_per_year                  AS "hold_0_apr_period",
+          "hold_1_return_percent" * periods_per_year                  AS "hold_1_apr_period",
           "vault_over_hold_percent" * periods_per_year                AS "vault_over_hold_apr_period",
 
           /* Compounded annualisation (APY) ------------------------------- */

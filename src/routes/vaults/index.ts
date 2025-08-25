@@ -317,6 +317,7 @@ export const route: Route<
                 exp(sumKahan(log1p("hold_return_percent"))) - 1                 AS "total_hold_return",
                 -- compute vault over hold as the percentage from baseline (hold) of the whole period
                 exp(sumKahan(log1p("vault_over_hold_percent"))) - 1             AS "total_vault_over_hold_return",
+                (1 + "total_vault_return") / (1 + "total_hold_return") - 1      AS "total_vault_over_hold_return_approx",
 
                 /* Linear annualisation (APR) ------------------------------------ */
                 "total_vault_return" * periods_per_year                         AS "vault_apr",
