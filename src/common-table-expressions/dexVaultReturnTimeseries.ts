@@ -193,21 +193,30 @@ export default function dexVaultReturnTimeseries({
           b."time_minute",
 
           /* hold return (how much return by holding 50/50 value) ------ */
-          if(COALESCE(b."prev_price_0_close", 0) > 0, b."price_0_close" / b."prev_price_0_close", 1) / 2 +
-          if(COALESCE(b."prev_price_1_close", 0) > 0, b."price_1_close" / b."prev_price_1_close", 1) / 2 - 1   AS "hold_minute_return",
+          if(
+            "period_value_open" > 0,
+            (
+              if(COALESCE(b."prev_price_0_close", 0) > 0, b."price_0_close" / b."prev_price_0_close", 1) / 2 +
+              if(COALESCE(b."prev_price_1_close", 0) > 0, b."price_1_close" / b."prev_price_1_close", 1) / 2 - 1
+            ),
+            0
+          )                                                           AS "hold_minute_return_percent",
+          "period_value_open" * "hold_minute_return_percent"          AS "hold_minute_return_usd",
 
           /* period return (assuming flows happen at ends of periods) ------------------- */
           -- note: this will underestimate returns in periods where deposits happen
           --       and underestimate returns in periods when withdrawals happen
+          if (
+            "period_value_close" > 0,
+            "period_value_close" - "period_value_open",
+            -"period_value_open"
+          )                                                           AS "vault_minute_return_usd",
           if(
             "period_value_open" > 0,
-            if (
-              "period_value_close" > 0,
-              ("period_value_close" - "period_value_open") / "period_value_open",
-              -1
-            ),
+            "vault_minute_return_usd" / "period_value_open",
             0
-          )                                                           AS "vault_minute_return"
+          )                                                           AS "vault_minute_return_percent"
+
         FROM balances AS b
         LEFT JOIN flows AS f
           ON  b."contract_address" = f."contract_address"
@@ -224,21 +233,21 @@ export default function dexVaultReturnTimeseries({
           )})                                                         AS "time_period",   -- e.g. toStartOfHour()
 
           /* product(1 + r_minute) - 1  in a stable way */
-          exp(sumKahan(log1p("hold_minute_return"))) - 1              AS "hold_return",
-          exp(sumKahan(log1p("vault_minute_return"))) - 1             AS "vault_return",
+          exp(sumKahan(log1p("vault_minute_return_percent"))) - 1     AS "vault_return_percent",
+          exp(sumKahan(log1p("hold_minute_return_percent"))) - 1      AS "hold_return_percent",
 
           /* Linear annualisation (APR) ------------------------------------ */
-          "vault_return" * periods_per_year                           AS "vault_apr_period",
-          "hold_return" * periods_per_year                            AS "hold_apr_period",
+          "vault_return_percent" * periods_per_year                   AS "vault_apr_period",
+          "hold_return_percent" * periods_per_year                    AS "hold_apr_period",
 
           /* Compounded annualisation (APY) ------------------------------- */
-          pow(1 + "vault_return", periods_per_year) - 1               AS "apy_period"
+          pow(1 + "vault_return_percent", periods_per_year) - 1       AS "apy_period"
         FROM timeseries_minute_returns
         GROUP BY
           "contract_address",
           "time_period"
       )
     SELECT * from timeseries_period_returns
-    WHERE isFinite("vault_return")
+    WHERE isFinite("vault_return_percent")
   `;
 }
