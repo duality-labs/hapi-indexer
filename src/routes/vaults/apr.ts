@@ -171,7 +171,8 @@ export const route: Route<Request, Response> = {
           SELECT
             time_range."timestamp" as "time",
             "vault_apr_period" as "vault_apr",
-            "hold_apr_period" as "hold_apr"
+            "hold_apr_period" as "hold_apr",
+            "vault_over_hold_apr_period" as "vault_over_hold_apr"
           FROM time_range
           ASOF LEFT JOIN vault_returns as timeseries
             ON (time_range."contract_address" = timeseries."contract_address")

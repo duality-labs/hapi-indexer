@@ -186,11 +186,15 @@ export default function dexVaultReturnTimeseries({
       /* ---------- 4.  JOIN & CALCULATE RETURNS ---------- */
       timeseries_minute_returns AS (
         WITH
-          b."prev_value_close" + coalesce(f."value_deposited", 0) as "period_value_open",
-          b."value_close" + coalesce(f."value_withdrawn", 0) as "period_value_close"
+          b."prev_value_close" + coalesce(f."value_deposited", 0)     AS "period_value_open",
+          b."value_close" + coalesce(f."value_withdrawn", 0)          AS "period_value_close"
         SELECT
           b."contract_address",
           b."time_minute",
+
+          /* basis: the value on which we are calculating these returns ------ */
+          if("period_value_open" > 0, "period_value_open", 0)         AS "basis_usd",
+          if("period_value_close" > 0, "period_value_close", 0)       AS "final_usd",
 
           /* hold return (how much return by holding 50/50 value) ------ */
           if(
@@ -201,21 +205,26 @@ export default function dexVaultReturnTimeseries({
             ),
             0
           )                                                           AS "hold_minute_return_percent",
-          "period_value_open" * "hold_minute_return_percent"          AS "hold_minute_return_usd",
+          "basis_usd" * "hold_minute_return_percent"                  AS "hold_minute_return_usd",
+          "basis_usd" + "hold_minute_return_usd"                      AS "hold_minute_value_usd",
 
           /* period return (assuming flows happen at ends of periods) ------------------- */
           -- note: this will underestimate returns in periods where deposits happen
           --       and underestimate returns in periods when withdrawals happen
-          if (
-            "period_value_close" > 0,
-            "period_value_close" - "period_value_open",
-            -"period_value_open"
-          )                                                           AS "vault_minute_return_usd",
+          "final_usd"                                                 AS "vault_minute_value_usd",
+          "final_usd" - "basis_usd"                                   AS "vault_minute_return_usd",
           if(
-            "period_value_open" > 0,
-            "vault_minute_return_usd" / "period_value_open",
+            "basis_usd" > 0,
+            "vault_minute_return_usd" / "basis_usd",
             0
-          )                                                           AS "vault_minute_return_percent"
+          )                                                           AS "vault_minute_return_percent",
+
+          /* compute vault over hold percent for every period ------ */
+          if(
+            "hold_minute_value_usd" > 0,
+            "vault_minute_value_usd" / "hold_minute_value_usd" - 1,
+            -1
+          )                                                           AS "vault_over_hold_minute_percent"
 
         FROM balances AS b
         LEFT JOIN flows AS f
@@ -235,13 +244,15 @@ export default function dexVaultReturnTimeseries({
           /* product(1 + r_minute) - 1  in a stable way */
           exp(sumKahan(log1p("vault_minute_return_percent"))) - 1     AS "vault_return_percent",
           exp(sumKahan(log1p("hold_minute_return_percent"))) - 1      AS "hold_return_percent",
+          exp(sumKahan(log1p("vault_over_hold_minute_percent"))) - 1  AS "vault_over_hold_percent",
 
           /* Linear annualisation (APR) ------------------------------------ */
           "vault_return_percent" * periods_per_year                   AS "vault_apr_period",
           "hold_return_percent" * periods_per_year                    AS "hold_apr_period",
+          "vault_over_hold_percent" * periods_per_year                AS "vault_over_hold_apr_period",
 
           /* Compounded annualisation (APY) ------------------------------- */
-          pow(1 + "vault_return_percent", periods_per_year) - 1       AS "apy_period"
+          pow(1 + "vault_over_hold_percent", periods_per_year) - 1    AS "vault_over_hold_apy_period"
         FROM timeseries_minute_returns
         GROUP BY
           "contract_address",
