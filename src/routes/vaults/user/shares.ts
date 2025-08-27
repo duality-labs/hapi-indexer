@@ -59,7 +59,7 @@ export const route: Route<Request, Response> = {
               "denom",
               "sign",
               "amount"
-            FROM spacebox.bank_transfer
+            FROM spacebox.bank_transfer_by_address_then_denom
             WHERE "address" = ${request.params.address}
               AND "denom" IN (SELECT "denom" FROM spacebox.dex_vaults_config_state)
           ),
