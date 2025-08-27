@@ -180,13 +180,15 @@ export const route: Route<Request, Response> = {
                 request.params.address
                   ? // fetch user's share of vault
                     sql`
-                  if("creator" = ${request.params.address}, "hold_equivalent_0", 0) as "hold_equivalent_0",
-                  if("creator" = ${request.params.address}, "hold_equivalent_1", 0) as "hold_equivalent_1",
-                  sumIf("shares_in" - "shares_out", "creator" = ${request.params.address}) OVER cumulative_events as "user_shares",
+                  "creator" = ${request.params.address} as "is_creator",
+                  "hold_equivalent_0",
+                  "hold_equivalent_1",
+                  sumIf("shares_in" - "shares_out", "is_creator") OVER cumulative_events as "user_shares",
                   sum("shares_in" - "shares_out") OVER cumulative_events as "total_shares"
                 `
                   : // use all of vault for calculations
                     sql`
+                  1 as "is_creator",
                   "hold_equivalent_0",
                   "hold_equivalent_1",
                   "total_shares" as "user_shares",
@@ -220,8 +222,8 @@ export const route: Route<Request, Response> = {
                   "height",
                   "sort_key",
                   "contract_address",
-                  "hold_equivalent_0" as "hold_amount_increase_0",
-                  "hold_equivalent_1" as "hold_amount_increase_1",
+                  if ("is_creator" = 1, "hold_equivalent_0", 0) as "hold_amount_increase_0",
+                  if ("is_creator" = 1, "hold_equivalent_1", 0) as "hold_amount_increase_1",
                   "user_shares",
                   "total_shares",
                   0 as "share_fraction_reduction"
@@ -237,7 +239,7 @@ export const route: Route<Request, Response> = {
                   "user_shares",
                   "total_shares",
                   if (
-                    "shares_out" > 0 OR "user_shares" > 0,
+                    "is_creator" = 1 AND ("shares_out" > 0 OR "user_shares" > 0),
                     toFloat64("shares_out" / ("shares_out" + "user_shares")),
                     0
                   ) as "share_fraction_reduction"
