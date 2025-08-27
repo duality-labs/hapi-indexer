@@ -103,18 +103,18 @@ export const route: Route<Request, Response> = {
             SELECT
               "denom",
               sum("amount" * "sign") as "amount",
-              count() > 0 as "had_amount",
-              countIf("timestamp" >= subtractMonths(toStartOfDay(now()), 1)) > 0 as "had_amount_recently"
+              max("timestamp") as "last_timestamp"
             FROM deduplicated_bank_transfer
             GROUP BY "denom"
           )
         SELECT
           "denom",
-          "amount"
+          "amount",
+          toDateTime("last_timestamp") as "last_timestamp"
         FROM deduplicated_bank_user_amount
         WHERE
-          -- filter to "if user has or has recently held shares on this vault"
-          ("amount" > 0 OR "had_amount_recently" > 0)
+          -- filter to "if user has ever held shares on this vault"
+          "last_timestamp" > 0
       `,
       abortSignal,
       {
@@ -133,7 +133,8 @@ export const route: Route<Request, Response> = {
           bank_amount as (
             SELECT
               JSONExtractString("json_share", 'denom') as "denom",
-              toUInt256OrZero(JSONExtractString("json_share", 'amount')) as "amount"
+              toUInt256OrZero(JSONExtractString("json_share", 'amount')) as "amount",
+              toDateTime(JSONExtractString("json_share", 'last_timestamp')) as "last_timestamp"
             FROM raw_bank_amount
             ARRAY JOIN (
               JSONExtractArrayRaw("json_shares_string") as "json_share"
@@ -143,6 +144,7 @@ export const route: Route<Request, Response> = {
           greatest(v."height", s."height") as "height",
           greatest(v."timestamp", s."timestamp") as "time",
           c."contract_address" as "contract_address",
+          b."last_timestamp" as "last_user_timestamp",
           b."amount" as "user_shares",
           s."shares" as "total_shares",
           "user_shares" / "total_shares" as "user_fraction",
