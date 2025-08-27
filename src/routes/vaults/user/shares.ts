@@ -2,7 +2,7 @@ import sql from 'sql-template-tag';
 
 import { Route } from '../../../types';
 import { getCachedResponse } from '../../../utils/cache-query';
-import { inMs, minutes, toUnixTime } from '../../../utils/units';
+import { hours, inMs, toUnixTime } from '../../../utils/units';
 
 export interface Request {
   params: { address: string };
@@ -25,7 +25,7 @@ export const route: Route<Request, Response> = {
   method: 'get',
   path: '/vaults/user/:address/shares',
   handler: async (request, abortSignal, previousResponse) => {
-    const sources = await Promise.all([
+    const [sourceDeposits, sourceShares, sourceBank] = await Promise.all([
       getCachedResponse<{ height: string; time: string }>(
         sql`
           SELECT max("height") AS "height", max("timestamp") AS "time"
@@ -40,10 +40,22 @@ export const route: Route<Request, Response> = {
         `,
         abortSignal
       ),
+      getCachedResponse<{ height: string; time: string }>(
+        sql`
+          SELECT
+            argMax("timestamp", "sort_key") as "time",
+            argMax("height", "sort_key") as "height"
+          FROM spacebox.bank_transfer_by_address_then_denom
+          WHERE "address" = ${request.params.address}
+            AND "denom" IN (SELECT "denom" FROM spacebox.dex_vaults_config_state)
+        `,
+        abortSignal
+      ),
     ]);
+    const sources = [sourceDeposits, sourceShares, sourceBank];
 
-    // get timeseries data
-    return await getCachedResponse<Response & { height: string }, Response>(
+    // get well cached user share data (on latest sourceBank change)
+    const shares = await getCachedResponse<Response, Response>(
       sql`
         WITH
           bank_transfer as (
@@ -62,6 +74,15 @@ export const route: Route<Request, Response> = {
             FROM spacebox.bank_transfer_by_address_then_denom
             WHERE "address" = ${request.params.address}
               AND "denom" IN (SELECT "denom" FROM spacebox.dex_vaults_config_state)
+              ${
+                previousResponse
+                  ? // if this is an incremental update, get changes since known height
+                    sql`
+                      AND "height" > ${Number(previousResponse?.height) || 0}
+                    `
+                  : // else return all
+                    sql``
+              }
           ),
           deduplicated_bank_transfer AS (
             SELECT
@@ -88,6 +109,37 @@ export const route: Route<Request, Response> = {
             GROUP BY "denom"
           )
         SELECT
+          "denom",
+          "amount"
+        FROM deduplicated_bank_user_amount
+        WHERE
+          -- filter to "if user has or has recently held shares on this vault"
+          ("amount" > 0 OR "had_amount_recently" > 0)
+      `,
+      abortSignal,
+      {
+        cacheTime: 1 * hours * inMs,
+        cacheVersion: Number(sourceBank.data.at(0)?.height) || 0,
+      }
+    );
+
+    // get timeseries data
+    return await getCachedResponse<Response & { height: string }, Response>(
+      sql`
+        WITH
+          raw_bank_amount as (
+            SELECT ${JSON.stringify(shares.data)} as "json_shares_string"
+          ),
+          bank_amount as (
+            SELECT
+              JSONExtractString("json_share", 'denom') as "denom",
+              toUInt256OrZero(JSONExtractString("json_share", 'amount')) as "amount"
+            FROM raw_bank_amount
+            ARRAY JOIN (
+              JSONExtractArrayRaw("json_shares_string") as "json_share"
+            )
+          )
+        SELECT
           greatest(v."height", s."height") as "height",
           greatest(v."timestamp", s."timestamp") as "time",
           c."contract_address" as "contract_address",
@@ -98,25 +150,13 @@ export const route: Route<Request, Response> = {
           "user_fraction" * toFloat64(v."token_1_balance") as "user_token_1_amount",
           "user_fraction" * toFloat64(v."token_0_value") as "user_token_0_value",
           "user_fraction" * toFloat64(v."token_1_value") as "user_token_1_value"
-        FROM deduplicated_bank_user_amount as b
+        FROM bank_amount as b
         ANY LEFT JOIN spacebox.dex_vaults_config_state as c
           ON (b."denom" = c."denom")
         ANY LEFT JOIN spacebox.dex_vaults_shares_state as s
           ON (c."contract_address" = s."contract_address")
         ANY LEFT JOIN spacebox.dex_vaults_events_dex_deposit_state as v
           ON (c."contract_address" = v."contract_address")
-        WHERE
-          -- filter to "if user has or has recently held shares on this vault"
-          (b."amount" > 0 OR b."had_amount_recently" > 0)
-          ${
-            previousResponse
-              ? // if this is an incremental update, get changes since known height
-                sql`
-                  AND "height" > ${Number(previousResponse?.height) || 0}
-                `
-              : // else return all
-                sql``
-          }
         -- default sort reverse chronologically
         ORDER BY "height" DESC
         -- cap limit to max, set default if not well defined
@@ -156,7 +196,7 @@ export const route: Route<Request, Response> = {
               )
           );
         },
-        cacheTime: 1 * minutes * inMs,
+        cacheTime: 1 * hours * inMs,
         cacheVersion: sources.reduce(
           (acc, r) => acc + (Number(r.data.at(0)?.height) || 0),
           0
