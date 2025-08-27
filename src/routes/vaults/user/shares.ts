@@ -46,53 +46,63 @@ export const route: Route<Request, Response> = {
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
-          deduplicated_shares AS (
+          bank_transfer as (
             SELECT
-              any("timestamp") as "timestamp",
+              "timestamp",
               "height",
               "block_part_index",
               "tx_index",
               "event_index",
-              any("sort_key") as "sort_key",
-              any("contract_address") as "contract_address",
-              any("creator") as "creator",
-              any("shares_in") as "shares_in",
-              any("shares_out") as "shares_out",
-              any("total_shares") as "total_shares"
-            FROM spacebox.dex_vaults_shares
+              "coins_index",
+              "sort_key",
+              "address",
+              "denom",
+              "sign",
+              "amount"
+            FROM spacebox.bank_transfer
+            WHERE "address" = ${request.params.address}
+              AND "denom" IN (SELECT "denom" FROM spacebox.dex_vaults_config_state)
+          ),
+          deduplicated_bank_transfer AS (
+            SELECT
+              any("timestamp") as "timestamp",
+              "height",
+              any("denom") as "denom",
+              any("sign") as "sign",
+              any("amount") as "amount"
+            FROM bank_transfer
             GROUP BY
               "height",
               "block_part_index",
               "tx_index",
-              "event_index"
+              "event_index",
+              "coins_index"
           ),
-          -- note: could make some better projections+views
-          --       spacebox.dex_vaults_shares_by_address: to order by address (quicker filtering for de-duplicated shares)
-          --       spacebox.dex_vaults_shares_state: already exists to get latest total_shares update for each vault
-          contract_shares as (
+          deduplicated_bank_user_amount as (
             SELECT
-              "contract_address",
-              sumIf("shares_in" - "shares_out", "creator" = ${
-                request.params.address
-              }) as "user_shares",
-              argMax("total_shares", "sort_key") as "total_shares"
-            FROM deduplicated_shares
-            GROUP BY "contract_address"
+              "denom",
+              sum("amount" * "sign") as "amount"
+            FROM deduplicated_bank_transfer
+            GROUP BY "denom"
           )
         SELECT
-          v."height" as "height",
-          v."timestamp" as "time",
-          s."contract_address" as "contract_address",
-          s."user_shares" as "user_shares",
-          s."total_shares" as "total_shares",
-          s."user_shares" / s."total_shares" as "user_fraction",
+          greatest(v."height", s."height") as "height",
+          greatest(v."timestamp", s."timestamp") as "time",
+          c."contract_address" as "contract_address",
+          b."amount" as "user_shares",
+          s."shares" as "total_shares",
+          "user_shares" / "total_shares" as "user_fraction",
           "user_fraction" * toFloat64(v."token_0_balance") as "user_token_0_amount",
           "user_fraction" * toFloat64(v."token_1_balance") as "user_token_1_amount",
           "user_fraction" * toFloat64(v."token_0_value") as "user_token_0_value",
           "user_fraction" * toFloat64(v."token_1_value") as "user_token_1_value"
-        FROM contract_shares as s
+        FROM deduplicated_bank_user_amount as b
+        ANY LEFT JOIN spacebox.dex_vaults_config_state as c
+          ON (b."denom" = c."denom")
+        ANY LEFT JOIN spacebox.dex_vaults_shares_state as s
+          ON (c."contract_address" = s."contract_address")
         ANY LEFT JOIN spacebox.dex_vaults_events_dex_deposit_state as v
-          ON (s."contract_address" = v."contract_address")
+          ON (c."contract_address" = v."contract_address")
         WHERE
           "user_shares" > 0
           ${
