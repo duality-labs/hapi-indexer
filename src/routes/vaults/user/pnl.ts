@@ -189,8 +189,8 @@ export const route: Route<Request, Response> = {
                     sql`
                   "hold_equivalent_0",
                   "hold_equivalent_1",
-                  1 as "user_shares",
-                  1 as "total_shares"
+                  "total_shares" as "user_shares",
+                  sum("shares_in" - "shares_out") OVER cumulative_events as "total_shares"
                 `
               }
             FROM deduplicated_shares
