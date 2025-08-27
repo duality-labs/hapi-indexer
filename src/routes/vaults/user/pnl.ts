@@ -237,8 +237,8 @@ export const route: Route<Request, Response> = {
                   "user_shares",
                   "total_shares",
                   if (
-                    "shares_out" > 0 OR "total_shares" > 0,
-                    toFloat64("shares_out" / ("shares_out" + "total_shares")),
+                    "shares_out" > 0 OR "user_shares" > 0,
+                    toFloat64("shares_out" / ("shares_out" + "user_shares")),
                     0
                   ) as "share_fraction_reduction"
                 FROM balance_decrease_rows
