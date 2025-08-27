@@ -81,7 +81,9 @@ export const route: Route<Request, Response> = {
           deduplicated_bank_user_amount as (
             SELECT
               "denom",
-              sum("amount" * "sign") as "amount"
+              sum("amount" * "sign") as "amount",
+              count() > 0 as "had_amount",
+              countIf("timestamp" >= subtractMonths(toStartOfDay(now()), 1)) > 0 as "had_amount_recently"
             FROM deduplicated_bank_transfer
             GROUP BY "denom"
           )
@@ -104,7 +106,8 @@ export const route: Route<Request, Response> = {
         ANY LEFT JOIN spacebox.dex_vaults_events_dex_deposit_state as v
           ON (c."contract_address" = v."contract_address")
         WHERE
-          "user_shares" > 0
+          -- filter to "if user has or has recently held shares on this vault"
+          (b."amount" > 0 OR b."had_amount_recently" > 0)
           ${
             previousResponse
               ? // if this is an incremental update, get changes since known height
