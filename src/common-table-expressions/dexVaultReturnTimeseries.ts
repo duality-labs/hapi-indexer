@@ -9,6 +9,7 @@ export default function dexVaultReturnTimeseries({
   unixTimeStart,
   unixTimeEnd,
   limit = 30 * 24, // 30 days worth of hours
+  minimumBasisTVL = 1000, // minimum performance basis of $1000 considered only
 }: {
   contractAddress?: string;
   period?: TimePeriod;
@@ -16,6 +17,7 @@ export default function dexVaultReturnTimeseries({
   unixTimeStart?: number;
   unixTimeEnd?: number;
   limit?: number;
+  minimumBasisTVL?: number;
 } = {}) {
   const interval = `INTERVAL ${periods} ${period}`;
   return sql`
@@ -186,8 +188,8 @@ export default function dexVaultReturnTimeseries({
       /* ---------- 4.  JOIN & CALCULATE RETURNS ---------- */
       timeseries_minute_returns AS (
         WITH
-          b."prev_value_close" + coalesce(f."value_deposited", 0)     AS "period_value_open",
-          b."value_close" + coalesce(f."value_withdrawn", 0)          AS "period_value_close"
+          greatest(${minimumBasisTVL}, b."prev_value_close" + coalesce(f."value_deposited", 0))     AS "period_value_open",
+          greatest(${minimumBasisTVL}, b."value_close" + coalesce(f."value_withdrawn", 0))          AS "period_value_close"
         SELECT
           b."contract_address",
           b."time_minute",
