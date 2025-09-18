@@ -145,7 +145,9 @@ export default function dexVaultReturnTimeseries({
                 "has_price" > 0,
                 if("has_balance_row" = 1, "value_open", "approximate_close" - "value_changed"),
                 NULL
-              ) as "approximate_open"
+              ) as "approximate_open",
+              -- return the applied changes to "approximate_open"
+              "value_changed"
             FROM joined_periods
             WINDOW cumulative_contract_non_balance_periods as (
               PARTITION BY "contract_address", "balances_counted"
@@ -159,7 +161,13 @@ export default function dexVaultReturnTimeseries({
           "approximate_close" as "value_close",
           "price_0_close",
           "price_1_close",
-          COALESCE(lagInFrame("value_close", 1) OVER c_time, "approximate_open", 0)  AS "prev_value_close",      -- previous last value in the period
+          COALESCE(
+            lagInFrame("value_close", 1) OVER c_time,
+            -- this is very important: if the previous close value is not found
+            -- then using just the "approximate_open" value will accidentally double count the already applied "value_changed" value
+            "approximate_open" - "value_changed",
+            0
+          )                                                                          AS "prev_value_close",      -- previous last value in the period
           COALESCE(lagInFrame("price_0_close", 1) OVER c_time, "price_0_open", 0)    AS "prev_price_0_close",    -- previous price_0 in the period
           COALESCE(lagInFrame("price_1_close", 1) OVER c_time, "price_1_open", 0)    AS "prev_price_1_close"     -- previous price_1 in the period
         FROM filled_period_balances
