@@ -189,27 +189,24 @@ export default function dexVaultReturnTimeseries({
       timeseries_minute_returns AS (
         WITH
           ${minimumBasisTVL} as "min_base",
-          "raw_period_value_open" > "min_base" as "is_included",
-          b."prev_value_close" + coalesce(f."value_deposited", 0)     AS "raw_period_value_open",
-          b."value_close" + coalesce(f."value_withdrawn", 0)          AS "raw_period_value_close",
-          greatest("min_base", "raw_period_value_open")               AS "period_value_open",
-          greatest("min_base", "raw_period_value_close")              AS "period_value_close"
+          b."prev_value_close" + coalesce(f."value_deposited", 0)     AS "period_value_open",
+          b."value_close" + coalesce(f."value_withdrawn", 0)          AS "period_value_close"
         SELECT
           b."contract_address",
           b."time_minute",
 
           /* basis: the value on which we are calculating these returns ------ */
-          if("period_value_open" > 0, "period_value_open", 0)         AS "basis_usd",
-          if("period_value_close" > 0, "period_value_close", 0)       AS "final_usd",
+          greatest("min_base", "period_value_open")                   AS "basis_usd",
+          greatest("min_base", "period_value_close")                  AS "final_usd",
 
           /* hold return (how much return by holding 50/50 value) ------ */
           if(
-            "is_included" = 1 AND "period_value_open" > 0 AND COALESCE(b."prev_price_0_close", 0) > 0,
+            "period_value_open" > "min_base" AND COALESCE(b."prev_price_0_close", 0) > 0,
             b."price_0_close" / b."prev_price_0_close" - 1,
             0
           )                                                           AS "hold_0_minute_return_percent",
           if(
-            "is_included" = 1 AND "period_value_open" > 0 AND COALESCE(b."prev_price_1_close", 0) > 0,
+            "period_value_open" > "min_base" AND COALESCE(b."prev_price_1_close", 0) > 0,
             b."price_1_close" / b."prev_price_1_close" - 1,
             0
           )                                                           AS "hold_1_minute_return_percent",
