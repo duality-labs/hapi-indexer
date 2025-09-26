@@ -113,7 +113,6 @@ export const route: Route<Request, Response> = {
     // get previous query limit
     const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
     // get contract start time
-    const timeContractV1Start = 0;
     // ClickHouse will compare either native strings or Unix timestamps
     const unixFrom = Number(request.query.from) || 0;
     const unixTo = Number(request.query.to) || 0;
@@ -121,7 +120,6 @@ export const route: Route<Request, Response> = {
     const unixTimes = await getCachedResponse<{
       time_end: number;
       time_start: number;
-      time_data_start: number;
     }>(
       sql`
         SELECT
@@ -140,10 +138,6 @@ export const route: Route<Request, Response> = {
               INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
             )
           ) as "time_start",
-          greatest(
-            "time_start",
-            ${timeContractV1Start}
-          ) as "time_data_start",
           toUnixTimestamp(
             toStartOfInterval(
               least(
@@ -197,7 +191,7 @@ export const route: Route<Request, Response> = {
                 FROM spacebox.dex_vaults_dex_balance_valued
                 WHERE "contract_address" = ${request.params.contract}
                   AND "action" = 'dex_deposit'
-                  AND "timestamp" <= toDateTime(${unixTimes.time_data_start})
+                  AND "timestamp" <= toDateTime(${unixTimes.time_start})
                 ORDER BY "sort_key" DESC
                 LIMIT 1
               ),
@@ -212,7 +206,7 @@ export const route: Route<Request, Response> = {
                 FROM spacebox.dex_vaults_dex_balance_valued
                 WHERE "contract_address" = ${request.params.contract}
                   AND "action" = 'dex_deposit'
-                  AND "timestamp" >= toDateTime(${unixTimes.time_data_start})
+                  AND "timestamp" >= toDateTime(${unixTimes.time_start})
                   AND "timestamp" < toDateTime(${unixTimes.time_end})
                 ORDER BY "sort_key" DESC
               )
