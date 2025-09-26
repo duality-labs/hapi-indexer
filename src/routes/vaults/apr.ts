@@ -87,40 +87,27 @@ export const route: Route<Request, Response> = {
     const unixTimes = await getCachedResponse<{
       time_end: number;
       time_start: number;
-      time_data_end: number;
     }>(
       sql`
         SELECT
           toUnixTimestamp(
-            toStartOfInterval(
-              greatest(
-                toDateTime(${unixFrom || timePrevious}),
-                ${
-                  limit
-                    ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
-                        (timePeriods * limit).toFixed(0)
-                      )} ${raw(timePeriod)})`
-                    : sql`toDateTime(0)`
-                }
-              ),
-              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
+            greatest(
+              toDateTime(${unixFrom || timePrevious}),
+              ${
+                limit
+                  ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
+                      (timePeriods * limit).toFixed(0)
+                    )} ${raw(timePeriod)})`
+                  : sql`toDateTime(0)`
+              }
             )
           ) as "time_start",
-          toUnixTimestamp(
-            toStartOfInterval(
-              least(
-                ${endTime},
-                ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
-              ),
-              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-            )
-          ) as "time_end",
           toUnixTimestamp(
             least(
               ${endTime},
               ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
             )
-          ) as "time_data_end"
+          ) as "time_end"
         `,
       abortSignal,
       cacheConfig
@@ -159,7 +146,7 @@ export const route: Route<Request, Response> = {
             periods: timePeriods,
             limit: limit,
             unixTimeStart: unixTimes.time_start,
-            unixTimeEnd: unixTimes.time_data_end,
+            unixTimeEnd: unixTimes.time_end,
           })})
           SELECT
             time_range."timestamp" as "time",
