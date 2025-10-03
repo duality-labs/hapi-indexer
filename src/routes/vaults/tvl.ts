@@ -169,20 +169,42 @@ export const route: Route<Request, Response> = {
             FROM balance_valued
             GROUP BY "time"
             ORDER BY "time" DESC
+          ),
+          union as (
+            SELECT
+              time_range."time_period_end" as "time",
+              "height",
+              "token_0_value" as "tvl_0",
+              "token_1_value" as "tvl_1"
+            FROM time_range
+            ASOF LEFT JOIN timeseries
+              ON (time_range."contract_address" = timeseries."contract_address")
+              AND ("time" >= timeseries."time")
+            -- default sort reverse chronologically
+            ORDER BY "time" DESC
+            -- cap limit to max, set default if not well defined
+            LIMIT ${
+              Math.min(Number(request.query.limit) + 1, MAX_ROWS) ||
+              DEFAULT_ROWS
+            }
+            UNION ALL
+            SELECT
+              time_range."time_period_start" as "time",
+              "height",
+              "token_0_value" as "tvl_0",
+              "token_1_value" as "tvl_1"
+            FROM time_range
+            ASOF LEFT JOIN timeseries
+              ON (time_range."contract_address" = timeseries."contract_address")
+              AND ("time" >= timeseries."time")
+            -- default sort reverse chronologically
+            ORDER BY "time" ASC
+            -- cap limit to max, set default if not well defined
+            LIMIT 1
           )
-        SELECT
-          time_range."time_period_start" as "time",
-          "height",
-          "token_0_value" as "tvl_0",
-          "token_1_value" as "tvl_1"
-        FROM time_range
-        ASOF LEFT JOIN timeseries
-          ON (time_range."contract_address" = timeseries."contract_address")
-          AND (time_range."time_period_start" >= timeseries."time")
-        -- default sort reverse chronologically
+        SELECT *
+        FROM union
         ORDER BY "time" DESC
-        -- cap limit to max, set default if not well defined
-        LIMIT ${Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS}
       `,
       abortSignal,
       {
