@@ -130,10 +130,23 @@ export const route: Route<Request, Response> = {
               toDateTime(${unixTimes.time_start}) as "time_start",
               toDateTime(${unixTimes.time_end}) as "time_end"
             SELECT
-              subDate(
-                "time_end",
-                INTERVAL "generate_series" ${raw(timePeriod)}
-              ) as "timestamp",
+              greatest(
+                toStartOfInterval(
+                  "timestamp",
+                  INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
+                ),
+                toDateTime(${unixTimes.time_start})
+              ) as "time_period_start",
+              least(
+                dateAdd(
+                  toStartOfInterval(
+                    "timestamp",
+                    INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
+                  ),
+                  INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
+                ),
+                toDateTime(${unixTimes.time_end})
+              ) as "time_period_end",
               "_contract_address" as "contract_address"
             FROM generate_series(
               0,
@@ -150,23 +163,8 @@ export const route: Route<Request, Response> = {
             unixTimeEnd: unixTimes.time_end,
           })})
           SELECT
-            greatest(
-              toStartOfInterval(
-                time_range."timestamp",
-                INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
-              ),
-              toDateTime(${unixTimes.time_start})
-            ) as "time",
-            least(
-              dateAdd(
-                toStartOfInterval(
-                  time_range."timestamp",
-                  INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
-                ),
-                INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
-              ),
-              toDateTime(${unixTimes.time_end})
-            ) as "time_end",
+            time_range."time_period_start" as "time",
+            time_range."time_period_end" as "time_end",
             -- timeseries."time_period" as "time",
             "vault_apr_period" as "vault_apr",
             "hold_apr_period" as "hold_apr",
@@ -176,7 +174,7 @@ export const route: Route<Request, Response> = {
           FROM time_range
           ASOF LEFT JOIN vault_returns as timeseries
             ON (time_range."contract_address" = timeseries."contract_address")
-            AND (time_range."timestamp" >= timeseries."time_period")
+            AND (time_range."time_period_start" >= timeseries."time_period")
           -- default sort reverse chronologically
           ORDER BY "time" DESC
           -- cap limit to max
