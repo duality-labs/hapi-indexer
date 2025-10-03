@@ -1,4 +1,4 @@
-import sql, { raw } from 'sql-template-tag';
+import sql from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
@@ -8,7 +8,7 @@ import {
   getTimePeriod,
 } from '../../utils/units';
 import dexVaultReturnTimeseries from '../../common-table-expressions/dexVaultReturnTimeseries';
-import { endTime, getEndTimeCacheConfig } from './_common';
+import { getAllTimes, getEndTimeCacheConfig } from './_common';
 import timeRangeTimeseries from '../../common-table-expressions/timeRangeTimeseries';
 
 export interface Request {
@@ -72,52 +72,20 @@ export const route: Route<Request, Response> = {
       })
       .at(0);
 
-    // get requested time period or default
-    const timePeriods = Math.max(Number(request.query.periods), 0) || 1;
-    const last24H = !getTimePeriod(request.query.period);
-    const timePeriod = getTimePeriod(request.query.period) || 'minute';
-    const limit =
-      Math.round(Math.max(Number(request.query.limit), 0)) ||
-      (last24H ? 60 * 24 : 1);
-
-    // get previous query limit
-    const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
-    // ClickHouse will compare either native strings or Unix timestamps
-    const unixFrom = Number(request.query.from) || 0;
-    const unixTo = Number(request.query.to) || 0;
-
-    const unixTimes = await getCachedResponse<{
-      time_end: number;
-      time_start: number;
-    }>(
-      sql`
-        SELECT
-          toUnixTimestamp(
-            greatest(
-              toDateTime(${unixFrom || timePrevious}),
-              ${
-                limit
-                  ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
-                      (timePeriods * limit).toFixed(0)
-                    )} ${raw(timePeriod)})`
-                  : sql`toDateTime(0)`
-              }
-            )
-          ) as "time_start",
-          toUnixTimestamp(
-            least(
-              ${endTime},
-              ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
-            )
-          ) as "time_end"
-        `,
+    // get query times
+    const time = await getAllTimes(
+      {
+        ...request.query,
+        fromPrevious: previousResponse?.data.at(0)?.time,
+      },
       abortSignal,
       cacheConfig
-    ).then((r) => r.data.at(0));
+    );
 
-    if (!unixTimes) {
+    if (!time) {
       throw new Error('Invalid start/end times');
     }
+
     // get timeseries data
     return await getCachedResponse<
       Response & { height: number; apr_percentage: number },
@@ -126,18 +94,12 @@ export const route: Route<Request, Response> = {
       sql`
         WITH
           time_range AS (${timeRangeTimeseries({
+            ...time,
             contractAddress: request.params.contract,
-            period: timePeriod,
-            periods: timePeriods,
-            unixTimeStart: unixTimes.time_start,
-            unixTimeEnd: unixTimes.time_end,
           })}),
           vault_returns as (${dexVaultReturnTimeseries({
+            ...time,
             contractAddress: request.params.contract,
-            period: timePeriod,
-            periods: timePeriods,
-            unixTimeStart: unixTimes.time_start,
-            unixTimeEnd: unixTimes.time_end,
           })})
           SELECT
             time_range."time_period_start" as "time",
@@ -194,7 +156,9 @@ export const route: Route<Request, Response> = {
         },
         // flag as complete if there will be no data changes after this
         isComplete:
-          !!unixTo && toUnixTime(currentHeight?.data.at(0)?.time) > unixTo,
+          !!Number(request.query.to) &&
+          toUnixTime(currentHeight?.data.at(0)?.time) >
+            Number(request.query.to),
         ...cacheConfig,
       }
     );
