@@ -47,7 +47,7 @@ export function getValidTimePeriods(
   return { timePeriods, timePeriod };
 }
 
-type TimeSeriesQuery = {
+export type TimeSeriesQuery = {
   fromPrevious?: string;
   from?: string;
   to?: string;

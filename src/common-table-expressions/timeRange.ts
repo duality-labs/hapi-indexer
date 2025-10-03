@@ -1,17 +1,12 @@
 import sql, { raw } from 'sql-template-tag';
-import { getTimePeriod, toUnixTime, WithFillTimePeriod } from '../utils/units';
-import { getValidTimePeriods, endTime } from '../routes/vaults/_common';
+import { getTimePeriod, toUnixTime } from '../utils/units';
+import {
+  getValidTimePeriods,
+  endTime,
+  TimeSeriesQuery,
+} from '../routes/vaults/_common';
 
-export default function timeRange(
-  query: {
-    fromPrevious?: string;
-    from?: string;
-    to?: string;
-    periods?: string;
-    period?: WithFillTimePeriod;
-    limit?: string;
-  } = {}
-) {
+export default function timeRange(query: TimeSeriesQuery = {}) {
   // get requested time period or default
   const { timePeriods = 1, timePeriod = 'minute' } = getValidTimePeriods(query);
   const last24H = !getTimePeriod(query.period);
