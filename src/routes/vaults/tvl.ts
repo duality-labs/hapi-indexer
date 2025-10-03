@@ -1,4 +1,4 @@
-import sql, { raw } from 'sql-template-tag';
+import sql from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
@@ -126,32 +126,30 @@ export const route: Route<Request, Response> = {
               balance_start AS (
                 SELECT
                   "timestamp",
-                  "height",
+                  argMax("height_to", "timestamp") as "height",
                   "contract_address",
-                  "token_0_balance_before_deposit_value" as "token_0_value",
-                  "token_1_balance_before_deposit_value" as "token_1_value",
-                  "sort_key"
-                FROM spacebox.dex_vaults_dex_balance_valued
+                  argMax("token_0_value", "timestamp") as "token_0_value",
+                  argMax("token_1_value", "timestamp") as "token_1_value"
+                FROM spacebox.dex_vaults_dex_balance_valued_by_minute
                 WHERE "contract_address" = ${request.params.contract}
-                  AND "action" = 'dex_deposit'
                   AND "timestamp" <= toDateTime(${time.unixTimeStart})
-                ORDER BY "sort_key" DESC
+                GROUP BY "contract_address", "timestamp"
+                ORDER BY "timestamp" DESC
                 LIMIT 1
               ),
               balance_timeseries AS (
                 SELECT
                   "timestamp",
-                  "height",
+                  argMax("height_to", "timestamp") as "height",
                   "contract_address",
-                  "token_0_balance_before_deposit_value" as "token_0_value",
-                  "token_1_balance_before_deposit_value" as "token_1_value",
-                  "sort_key"
-                FROM spacebox.dex_vaults_dex_balance_valued
+                  argMax("token_0_value", "timestamp") as "token_0_value",
+                  argMax("token_1_value", "timestamp") as "token_1_value"
+                FROM spacebox.dex_vaults_dex_balance_valued_by_minute
                 WHERE "contract_address" = ${request.params.contract}
-                  AND "action" = 'dex_deposit'
                   AND "timestamp" >= toDateTime(${time.unixTimeStart})
                   AND "timestamp" < toDateTime(${time.unixTimeEnd})
-                ORDER BY "sort_key" DESC
+                GROUP BY "contract_address", "timestamp"
+                ORDER BY "timestamp" DESC
               )
             SELECT * FROM balance_timeseries
             UNION ALL
@@ -159,13 +157,11 @@ export const route: Route<Request, Response> = {
           ),
           timeseries as (
             SELECT
-              toStartOfInterval("timestamp", INTERVAL ${raw(
-                time.periods.toFixed(0)
-              )} ${raw(time.period)}) AS "time",
-              argMax("contract_address", "sort_key") AS "contract_address",
-              argMax("height", "sort_key") as "height",
-              argMax("token_0_value", "sort_key") as "token_0_value",
-              argMax("token_1_value", "sort_key") as "token_1_value"
+              "timestamp" AS "time",
+              argMax("contract_address", "timestamp") AS "contract_address",
+              argMax("height", "timestamp") as "height",
+              argMax("token_0_value", "timestamp") as "token_0_value",
+              argMax("token_1_value", "timestamp") as "token_1_value"
             FROM balance_valued
             GROUP BY "time"
             ORDER BY "time" DESC
