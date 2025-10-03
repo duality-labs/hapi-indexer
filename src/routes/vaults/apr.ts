@@ -9,6 +9,7 @@ import {
 } from '../../utils/units';
 import dexVaultReturnTimeseries from '../../common-table-expressions/dexVaultReturnTimeseries';
 import { endTime, getEndTimeCacheConfig } from './_common';
+import timeRangeTimeseries from '../../common-table-expressions/timeRangeTimeseries';
 
 export interface Request {
   params: { contract: string };
@@ -124,41 +125,17 @@ export const route: Route<Request, Response> = {
     >(
       sql`
         WITH
-          ${request.params.contract} as "_contract_address",
-          time_range AS (
-            WITH
-              toDateTime(${unixTimes.time_start}) as "time_start",
-              toDateTime(${unixTimes.time_end}) as "time_end"
-            SELECT
-              greatest(
-                toStartOfInterval(
-                  "timestamp",
-                  INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
-                ),
-                toDateTime(${unixTimes.time_start})
-              ) as "time_period_start",
-              least(
-                dateAdd(
-                  toStartOfInterval(
-                    "timestamp",
-                    INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
-                  ),
-                  INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
-                ),
-                toDateTime(${unixTimes.time_end})
-              ) as "time_period_end",
-              "_contract_address" as "contract_address"
-            FROM generate_series(
-              0,
-              dateDiff(${raw(timePeriod)}, "time_start", "time_end"),
-              ${timePeriods}
-            )
-          ),
+          time_range AS (${timeRangeTimeseries({
+            contractAddress: request.params.contract,
+            period: timePeriod,
+            periods: timePeriods,
+            unixTimeStart: unixTimes.time_start,
+            unixTimeEnd: unixTimes.time_end,
+          })}),
           vault_returns as (${dexVaultReturnTimeseries({
             contractAddress: request.params.contract,
             period: timePeriod,
             periods: timePeriods,
-            limit: limit,
             unixTimeStart: unixTimes.time_start,
             unixTimeEnd: unixTimes.time_end,
           })})
