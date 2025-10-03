@@ -22,6 +22,7 @@ export interface Request {
 }
 export interface Response {
   time: string;
+  time_end: string;
   vault_apr: number;
   hold_apr: number;
 }
@@ -149,7 +150,24 @@ export const route: Route<Request, Response> = {
             unixTimeEnd: unixTimes.time_end,
           })})
           SELECT
-            time_range."timestamp" as "time",
+            greatest(
+              toStartOfInterval(
+                time_range."timestamp",
+                INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
+              ),
+              toDateTime(${unixTimes.time_start})
+            ) as "time",
+            least(
+              dateAdd(
+                toStartOfInterval(
+                  time_range."timestamp",
+                  INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
+                ),
+                INTERVAL ${raw(`${timePeriods} ${timePeriod}`)}
+              ),
+              toDateTime(${unixTimes.time_end})
+            ) as "time_end",
+            -- timeseries."time_period" as "time",
             "vault_apr_period" as "vault_apr",
             "hold_apr_period" as "hold_apr",
             "hold_0_apr_period" as "hold_0_apr",
@@ -168,8 +186,9 @@ export const route: Route<Request, Response> = {
       {
         heartbeat: Number(currentHeight?.data.at(0)?.height),
         timestamp: currentHeight?.data.at(0)?.time,
-        getRow: ({ time, vault_apr, hold_apr }) => ({
+        getRow: ({ time, time_end, vault_apr, hold_apr }) => ({
           time,
+          time_end,
           vault_apr,
           hold_apr,
         }),
