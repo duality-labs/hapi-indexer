@@ -2,12 +2,9 @@ import sql, { raw } from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
-import {
-  getFillableTimePeriod,
-  WithFillTimePeriod,
-  toUnixTime,
-} from '../../utils/units';
-import { endTime, getEndTimeCacheConfig } from './_common';
+import { WithFillTimePeriod } from '../../utils/units';
+import { endTime, getAllTimes, getEndTimeCacheConfig } from './_common';
+import timeRangeTimeseries from '../../common-table-expressions/timeRangeTimeseries';
 
 export interface Request {
   params: { contract: string };
@@ -46,80 +43,27 @@ export const route: Route<Request, Response> = {
       cacheConfig
     );
 
-    // get requested time period or default
-    const timePeriods = Math.max(Number(request.query.periods), 0) || 1;
-    const last24H = !getFillableTimePeriod(request.query.period);
-    const timePeriod = getFillableTimePeriod(request.query.period) || 'minute';
-    const limit =
-      Math.round(Math.max(Number(request.query.limit), 0)) ||
-      (last24H ? 60 * 24 : 1);
-
-    // get previous query limit
-    const timePrevious = toUnixTime(previousResponse?.data.at(0)?.time);
-    // ClickHouse will compare either native strings or Unix timestamps
-    const unixFrom = Number(request.query.from) || 0;
-    const unixTo = Number(request.query.to) || 0;
-
-    const unixTimes = await getCachedResponse<{
-      time_end: number;
-      time_start: number;
-    }>(
-      sql`
-        SELECT
-          toUnixTimestamp(
-            toStartOfInterval(
-              greatest(
-                toDateTime(${unixFrom || timePrevious}),
-                ${
-                  limit
-                    ? sql`subDate(toDateTime("time_end"), INTERVAL ${raw(
-                        limit.toFixed(0)
-                      )} ${raw(timePeriod)})`
-                    : sql`toDateTime(0)`
-                }
-              ),
-              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-            )
-          ) as "time_start",
-          toUnixTimestamp(
-            toStartOfInterval(
-              least(
-                ${endTime},
-                ${unixTo ? sql`toDateTime(${unixTo})` : sql`NOW()`}
-              ),
-              INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-            )
-          ) as "time_end"
-        `,
+    // get query times
+    const time = await getAllTimes(
+      {
+        ...request.query,
+        fromPrevious: previousResponse?.data.at(0)?.time,
+      },
       abortSignal,
       cacheConfig
-    ).then((r) => r.data.at(0));
+    );
 
-    if (!unixTimes) {
+    if (!time) {
       throw new Error('Invalid start/end times');
     }
-
     // get timeseries data
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
         WITH
-          time_range AS (
-            WITH
-              toDateTime(${unixTimes.time_start}) as "time_start",
-              toDateTime(${unixTimes.time_end}) as "time_end"
-            SELECT
-              subDate(
-                "time_end" - (
-                  INTERVAL ${raw(timePeriods.toFixed(0))} ${raw(timePeriod)}
-                ),
-                INTERVAL "generate_series" ${raw(timePeriod)}
-              ) as "timestamp"
-            FROM generate_series(
-              0,
-              dateDiff(${raw(timePeriod)}, "time_start", "time_end"),
-              ${timePeriods}
-            )
-          ),
+          time_range AS (${timeRangeTimeseries({
+            ...time,
+            contractAddress: request.params.contract,
+          })}),
           vault_config AS (
             SELECT
               "token_0_denom",
@@ -147,8 +91,8 @@ export const route: Route<Request, Response> = {
                 FROM spacebox.dex_swaps_valued as s
                 WHERE "TokenZero" = (SELECT "token_0_denom" FROM vault_config)
                   AND "TokenOne" = (SELECT "token_1_denom" FROM vault_config)
-                  AND "timestamp" >= toDateTime(${unixTimes.time_start})
-                  AND "timestamp" < toDateTime(${unixTimes.time_end})
+                  AND "timestamp" >= toDateTime(${time.unixTimeStart})
+                  AND "timestamp" < toDateTime(${time.unixTimeEnd})
                   AND (
                   "Receiver" = ${request.params.contract} OR (
                     ("TrancheKey" IS NULL) AND (
@@ -177,11 +121,11 @@ export const route: Route<Request, Response> = {
             GROUP BY "sort_key"
           ),
           timeseries as (
-            WITH ${request.params.contract} as "_contract_address"
             SELECT
+              ${request.params.contract} as "_contract_address",
               toStartOfInterval("timestamp", INTERVAL ${raw(
-                timePeriods.toFixed(0)
-              )} ${raw(timePeriod)}) AS "time",
+                time.periods.toFixed(0)
+              )} ${raw(time.period)}) AS "time_period",
               max("height") as "height",
               sumIf("value_in_1" - "value_fee_1" + "value_out_0", "Receiver" = "_contract_address") / 2 as "volume_0_taker",
               sumIf("value_in_0" - "value_fee_0" + "value_out_1", "Receiver" = "_contract_address") / 2 as "volume_1_taker",
@@ -192,22 +136,26 @@ export const route: Route<Request, Response> = {
               sumIf("value_fee_0", "Receiver" IS NULL) as "fees_0_maker",
               sumIf("value_fee_1", "Receiver" IS NULL) as "fees_1_maker"
             FROM swaps_valued
-            GROUP BY "time"
+            GROUP BY "time_period"
           )
         SELECT
-          time_range."timestamp" as "time",
+          time_range."time_period_start" as "time",
+          time_range."time_period_end" as "time_end",
           "height",
           "volume_0_taker",
           "volume_1_taker",
           "volume_0_maker",
           "volume_1_maker"
         FROM time_range
-        ANY LEFT JOIN timeseries
-          ON (time_range."timestamp" = timeseries."time")
+        ASOF LEFT JOIN timeseries
+          ON (time_range."contract_address" = timeseries."_contract_address")
+          AND (time_range."time_period_start" >= timeseries."time_period")
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined
-        LIMIT ${Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS}
+        LIMIT ${
+          Math.min(Number(request.query.limit) + 1, MAX_ROWS) || DEFAULT_ROWS
+        }
       `,
       abortSignal,
       {
@@ -231,7 +179,9 @@ export const route: Route<Request, Response> = {
           );
         },
         // flag as complete if there will be no data changes after this
-        isComplete: !!unixTo && unixTimes.time_end > unixTo,
+        isComplete:
+          !!Number(request.query.to) &&
+          time.unixTimeEnd > Number(request.query.to),
         ...cacheConfig,
       }
     );
