@@ -192,7 +192,7 @@ export const route: Route<Request, Response> = {
             FROM time_range
             ASOF LEFT JOIN timeseries
               ON (time_range."contract_address" = timeseries."contract_address")
-              AND ("time" >= timeseries."time")
+              AND (time_range."time_period_start" >= timeseries."time")
             -- default sort reverse chronologically
             ORDER BY "time" ASC
             -- cap limit to max, set default if not well defined
