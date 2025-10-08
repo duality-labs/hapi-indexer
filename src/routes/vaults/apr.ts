@@ -101,23 +101,22 @@ export const route: Route<Request, Response> = {
             ...time,
             contractAddress: request.params.contract,
           })})
-          SELECT
-            time_range."time_period_start" as "time",
-            time_range."time_period_end" as "time_end",
-            -- timeseries."time_period" as "time",
-            "vault_apr_period" as "vault_apr",
-            "hold_apr_period" as "hold_apr",
-            "hold_0_apr_period" as "hold_0_apr",
-            "hold_1_apr_period" as "hold_1_apr",
-            "vault_over_hold_apr_period" as "vault_over_hold_apr"
-          FROM time_range
-          ASOF LEFT JOIN vault_returns as timeseries
-            ON (time_range."contract_address" = timeseries."contract_address")
-            AND (time_range."time_period_start" >= timeseries."time_period")
-          -- default sort reverse chronologically
-          ORDER BY "time" DESC
-          -- cap limit to max
-          LIMIT ${MAX_ROWS}
+        SELECT
+          time_range."time_period_start" as "time",
+          time_range."time_period_end" as "time_end",
+          "vault_apr_period" as "vault_apr",
+          "hold_apr_period" as "hold_apr",
+          "hold_0_apr_period" as "hold_0_apr",
+          "hold_1_apr_period" as "hold_1_apr",
+          "vault_over_hold_apr_period" as "vault_over_hold_apr"
+        FROM time_range
+        ASOF LEFT JOIN vault_returns as timeseries
+          ON (time_range."contract_address" = timeseries."contract_address")
+          AND (time_range."time_period_start" >= timeseries."time_period")
+        -- default sort reverse chronologically
+        ORDER BY "time" DESC
+        -- cap limit to max
+        LIMIT ${MAX_ROWS}
       `,
       abortSignal,
       {
