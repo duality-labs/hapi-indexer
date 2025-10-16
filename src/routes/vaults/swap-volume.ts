@@ -153,9 +153,7 @@ export const route: Route<Request, Response> = {
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined
-        LIMIT ${
-          Math.min(Number(request.query.limit) + 1, MAX_ROWS) || DEFAULT_ROWS
-        }
+        LIMIT ${Math.min(Number(request.query.limit), MAX_ROWS) || DEFAULT_ROWS}
       `,
       abortSignal,
       {
