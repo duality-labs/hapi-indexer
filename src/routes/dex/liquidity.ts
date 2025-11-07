@@ -6,6 +6,9 @@ import { hours, inMs } from '../../utils/units';
 
 interface Request {
   params: { denomA: string; denomB: string };
+  query: {
+    to_height?: string;
+  };
 }
 interface Response {
   index: string;
@@ -51,6 +54,9 @@ export const route: Route<Request, Response> = {
         ),
       ]);
 
+    // alow querying tick state up to a specific height
+    const toHeight = Number(request.query.to_height) || 0;
+
     return await getCachedResponse<
       { token: boolean; index: string; reserves: string; max_height: string },
       { index: string; reserves_0?: string; reserves_1?: string }
@@ -63,7 +69,11 @@ export const route: Route<Request, Response> = {
           -- this is specifically for incremental updates to not show dust rows
           -- when they appear (initial request will have all "if" as true here)
           sumIf("Reserves", "Reserves" >= ${threshold}) as "reserves"
-        FROM (${selectLatestTickState})
+        FROM (${
+          toHeight > 0
+            ? selectLatestTickStateAtHeight(toHeight)
+            : selectLatestTickState
+        })
         WHERE "TokenZero" = ${denom0}
           AND "TokenOne" = ${denom1}
           AND ${
@@ -137,6 +147,36 @@ const selectLatestTickState = sql`
     argMax("Reserves", "version") as "Reserves",
     argMax("ReservesZero", "version") as "ReservesZero"
   FROM spacebox.dex_message_event_tick_state
+  GROUP BY
+    "TokenZero",
+    "TokenOne",
+    "TokenIn",
+    "TickIndex",
+    "Fee",
+    "TrancheKey"
+`;
+
+const selectLatestTickStateAtHeight = (height: number) => sql`
+  WITH
+    -- note: taken from https://github.com/neutron-org/spacebox-indexer/blob/2c832537997a2648446701b532ce3e2ca55fdc01/migrations/clickhouse/000020_dex_message_event_tick_update.up.sql#L275-L280
+    (tu."event_index"        * toUInt256(1))
+    + (tu."tx_index"         * toUInt256(4294967296))              -- + shift by 32 event_index bits (2^32)
+    + (tu."block_part_index" * toUInt256(18446744073709551616))    -- + shift by 32 tx_index bits (2^64)
+    + (tu."height"           * toUInt256(4722366482869645213696))  -- + shift by 8 part_index bits (2^72)
+    AS "version"
+  SELECT
+    argMax("timestamp", "version") as "timestamp",
+    argMax("height", "version") as "height",
+    "TokenZero",
+    "TokenOne",
+    "TokenIn",
+    "TickIndex",
+    "Fee",
+    "TrancheKey",
+    argMax("Reserves", "version") as "Reserves",
+    "Reserves" = 0 as "ReservesZero"
+  FROM spacebox.dex_message_event_tick_update as tu
+  WHERE tu."height" <= ${height}
   GROUP BY
     "TokenZero",
     "TokenOne",
