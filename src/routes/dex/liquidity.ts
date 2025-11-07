@@ -3,6 +3,7 @@ import sql from 'sql-template-tag';
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
 import { hours, inMs } from '../../utils/units';
+import { ResponseError } from '../../utils/response';
 
 interface Request {
   params: { denomA: string; denomB: string };
@@ -56,6 +57,15 @@ export const route: Route<Request, Response> = {
 
     // alow querying tick state up to a specific height
     const toHeight = Number(request.query.to_height) || 0;
+    if (toHeight > 0) {
+      const height = Number(currentHeight.data.at(0)?.height);
+      if (height < toHeight) {
+        throw new ResponseError(
+          `height ${toHeight} not available yet, max height is ${height}`,
+          404
+        );
+      }
+    }
 
     return await getCachedResponse<
       { token: boolean; index: string; reserves: string; max_height: string },

@@ -338,9 +338,21 @@ export function handleResponse<
       next();
     } catch (err: unknown) {
       logger.error('handle response error', err);
-      res.statusCode = 500;
-      res.end('An unknown error occurred');
-      next(new Error('An unknown error occurred', { cause: err }));
+      const error = err as ResponseError | undefined;
+      const message = error?.message || 'An unknown error occurred';
+      res.statusCode = error?.statusCode || 500;
+      res.end(message);
+      next(new Error(message, { cause: err }));
     }
   };
+}
+
+export class ResponseError extends Error {
+  statusCode = 500;
+  constructor(message: string, statusCode?: number) {
+    super(message);
+    if (!!statusCode && statusCode < 600) {
+      this.statusCode = statusCode;
+    }
+  }
 }
