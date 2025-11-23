@@ -30,7 +30,7 @@ const MAX_ROWS = 1000;
 
 export const route: Route<Request, Response> = {
   method: 'get',
-  path: '/vaults/:contract/user/:address/pnl-v2',
+  path: '/vaults/:contract/user/:address/pnl',
   handler: async (request, abortSignal, previousResponse) => {
     // cache to specific end time
     const cacheConfig = await getEndTimeCacheConfig(abortSignal);
@@ -86,7 +86,7 @@ export const route: Route<Request, Response> = {
             WHERE "contract_address" = "_contract_address"
             LIMIT 1
           ),
-          balance_user_share_txs AS (
+          balance_user_share AS (
             WITH deduplicated_shares AS (
               SELECT
                 argMax(s."height", "timestamp_version") as "height",
@@ -134,84 +134,6 @@ export const route: Route<Request, Response> = {
                 `
               }
             FROM deduplicated_shares
-            WINDOW cumulative_events AS (
-              -- partition sums to each pool
-              PARTITION BY "contract_address"
-              ORDER BY "sort_key" ASC
-              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-            )
-            ORDER BY "sort_key" ASC
-          ),
-          balance_user_share_transfers AS (
-            WITH
-              bank_transfers AS (
-                SELECT
-                  "height",
-                  "timestamp",
-                  (SELECT "contract_address" FROM vault_config) as "contract_address",
-                  "type",
-                  if("type" = 'coin_received', "amount", 0) as "shares_in",
-                  if("type" = 'coin_spent', "amount", 0) as "shares_out",
-                  "sort_key"
-                FROM spacebox.bank_transfer_by_address_then_denom
-                WHERE "denom" = (SELECT "denom" FROM vault_config)
-                  AND "address" = ${request.params.address}
-                ORDER BY "sort_key" ASC
-              ),
-              if(p."price_timestamp" > 0, p."price_0", 0) as "token_price_0",
-              if(p."price_timestamp" > 0, p."price_1", 0) as "token_price_1",
-              p."total_shares" as "total_shares",
-              p."value_open" as "total_shares_value",
-              p."price_timestamp" as "price_timestamp",
-              if("total_shares" > 0, toFloat64("shares_in" - "shares_out") * "total_shares_value" / "total_shares", 0) as "shares_value"
-            SELECT
-              "height",
-              "timestamp",
-              "sort_key",
-              if("type" = 'coin_received', 'deposit', 'withdrawal') as "action",
-              "contract_address",
-              "shares_in",
-              "shares_out",
-              1 as "is_creator",
-              if("token_price_0" > 0, "shares_value" / 2 / "token_price_0", 0) as "hold_equivalent_0",
-              if("token_price_1" > 0, "shares_value" / 2 / "token_price_1", 0) as "hold_equivalent_1",
-              sum("shares_in" - "shares_out") OVER cumulative_events as "user_shares",
-              "total_shares"
-            FROM bank_transfers as b
-            ASOF LEFT JOIN spacebox.dex_vaults_shares_valued as p
-                ON (b."contract_address" = p."contract_address")
-                AND b."timestamp" >= p."timestamp"
-            WINDOW cumulative_events AS (
-              -- partition sums to each pool
-              PARTITION BY "contract_address"
-              ORDER BY "sort_key" ASC
-              ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-            )
-          ),
-          balance_user_share as (
-            WITH balance_union AS (
-              -- get other user share changes
-              SELECT * FROM balance_user_share_txs
-              WHERE "is_creator" = 0
-              -- add this user share changes
-              UNION ALL
-              SELECT * FROM balance_user_share_transfers
-            )
-            SELECT
-              "height",
-              "timestamp",
-              "sort_key",
-              "action",
-              "contract_address",
-              "shares_in",
-              "shares_out",
-              "is_creator",
-              "hold_equivalent_0",
-              "hold_equivalent_1",
-              -- overwrite the user_shares from more accurate transfers table
-              sumIf("shares_in" - "shares_out", "is_creator") OVER cumulative_events as "user_shares",
-              "total_shares"
-            FROM balance_union
             WINDOW cumulative_events AS (
               -- partition sums to each pool
               PARTITION BY "contract_address"

@@ -10,6 +10,7 @@ import { route as slinkyPriceRoute } from './slinky/price';
 import { route as vaultsRoute } from './vaults';
 import { route as vaultsSharesRoute } from './vaults/shares';
 import { route as vaultsPnlRoute } from './vaults/pnl';
+import { route as vaultsUserPnlOldRoute } from './vaults/user/pnl-old';
 import { route as vaultsUserPnlRoute } from './vaults/user/pnl';
 import { route as vaultsUserTvlRoute } from './vaults/user/tvl';
 import { route as vaultsUserSharesRoute } from './vaults/user/shares';
@@ -43,6 +44,7 @@ const productionRoutes: Route<any, any, any>[] = [
   vaultsRoute,
   vaultsSharesRoute,
   vaultsUserSharesRoute,
+  vaultsUserPnlOldRoute,
   vaultsUserPnlRoute,
   vaultsUserTvlRoute,
   vaultsPnlRoute,

@@ -3,7 +3,7 @@ import {
   route as userPnlRoute,
   Request as UserPnlRequest,
   Response as UserPnlResponse,
-} from './user/pnl';
+} from './user/pnl-old';
 
 export interface Request {
   params: { contract: string };
