@@ -304,6 +304,8 @@ export const route: Route<Request, Response> = {
               t."time_period_start" as "time",
               t."time_period_end" as "time_end",
               vault."contract_address" as "contract_address",
+              toFloat64("vault_amount_0") * "user_fraction_of_tvl" as "user_amount_0",
+              toFloat64("vault_amount_1") * "user_fraction_of_tvl" as "user_amount_1",
               "token_price_0" * toFloat64("hold_amount_0") as "hold_value_0",
               "token_price_1" * toFloat64("hold_amount_1") as "hold_value_1",
               "token_price_0" * toFloat64("vault_amount_0") * "user_fraction_of_tvl" as "vault_value_0",
@@ -339,6 +341,9 @@ export const route: Route<Request, Response> = {
           "time",
           "time_end",
           "height",
+          -- can return the amount of equivalent amount of tokens the user "holds" at each point in time
+          -- "user_amount_0",
+          -- "user_amount_1",
           "hold_value_0",
           "hold_value_1",
           "vault_value_0",
