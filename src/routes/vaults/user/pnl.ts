@@ -300,7 +300,7 @@ export const route: Route<Request, Response> = {
               vault."token_1_balance" as "vault_amount_1",
               if (user."total_shares" > 0, user."user_shares" / user."total_shares", 0) as "user_fraction_of_tvl"
             SELECT
-              greatest(vault."height", user."height", p."height") as "height",
+              greatest(vault."height", user."height") as "height",
               t."time_period_start" as "time",
               t."time_period_end" as "time_end",
               vault."contract_address" as "contract_address",
@@ -310,7 +310,7 @@ export const route: Route<Request, Response> = {
               "token_price_1" * toFloat64("vault_amount_1") * "user_fraction_of_tvl" as "vault_value_1"
             FROM time_range as t
             -- get most recent price before the end of the time period
-            ASOF JOIN spacebox.price_by_vault_denom as p
+            ASOF JOIN spacebox.price_by_vault_denom_by_minute as p
               ON (p."contract_address" = t."contract_address")
               AND p."timestamp" < t."time_period_end"
             -- get most recent user balances before the end of the time period
