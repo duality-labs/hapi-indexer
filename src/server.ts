@@ -172,7 +172,7 @@ const init = async () => {
     )
       .then((data) => ({ result: data, error: null }))
       .catch((error) => ({ error, result: null }))
-      .then(({ result, error }) => {
+      .then(async ({ result, error }) => {
         // server status
         const serverStatus = serverTimes.started
           ? 'OK'
@@ -205,6 +205,14 @@ const init = async () => {
                 // return single row of data object
                 data,
                 statistics: result?.statistics,
+                version: await getCachedResponse<{ version: string }>(
+                  sql`SELECT version() as version`,
+                  new AbortController().signal,
+                  {
+                    cacheTime: 2 * seconds * inMs,
+                    showStatistics: true,
+                  }
+                ),
               },
               error: error?.message,
               since: serverTimes.connected?.toISOString(),
