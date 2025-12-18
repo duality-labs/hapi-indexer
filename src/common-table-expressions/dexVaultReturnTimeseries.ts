@@ -91,7 +91,16 @@ export default function dexVaultReturnTimeseries({
               argMax("token_1_price", "timestamp")                    AS "price_1_close"  -- last price_1 in the period
             FROM spacebox.dex_vaults_dex_balance_valued_by_minute as b
             -- remove unvalued rows (before prices) from calculations
-            WHERE "price_timestamp" > 0
+            WHERE (
+                -- allow re-valued rows
+                "price_timestamp" > 0
+                -- allow unvalued rows that likely use the contract's first price
+                -- (important for the initial deposits to be valued correctly)
+                OR (
+                  "token_0_value" + "token_1_value" > 0
+                  AND "timestamp" < subtractDays(toDateTime(NOW()), 1)
+                )
+              )
               AND "timestamp" >= (SELECT "time_start" FROM time_period)
               AND "timestamp" < (SELECT "time_end" FROM time_period)
               ${
