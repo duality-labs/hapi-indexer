@@ -9,7 +9,7 @@ export default function dexVaultReturnTimeseries({
   unixTimeStart,
   unixTimeEnd,
   limit = 30 * 24, // 30 days worth of hours
-  minimumBasisTVL = 1000, // minimum performance basis of $1000 considered only
+  minimumBasisTVL = 100, // minimum performance basis of $100 considered only
 }: {
   contractAddress?: string;
   period?: TimePeriod;
