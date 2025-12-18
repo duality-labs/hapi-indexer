@@ -95,7 +95,7 @@ export const route: Route<Request, Response> = {
                   AND "timestamp" < toDateTime(${time.unixTimeEnd})
                   AND (
                   "Receiver" = ${request.params.contract} OR (
-                    ("TrancheKey" IS NULL) AND (
+                    ("TrancheKey" IS NULL OR "TrancheKey" = '') AND (
                       -- temp override: assume supervault is the only AMM user on the pair
                       --                see commit for previous estimation
                       "Fee" > 0
