@@ -2,7 +2,7 @@ import sql, { raw } from 'sql-template-tag';
 
 import { Route } from '../../types';
 import { getCachedResponse } from '../../utils/cache-query';
-import { WithFillTimePeriod } from '../../utils/units';
+import { toUnixTime, WithFillTimePeriod } from '../../utils/units';
 import { endTime, getAllTimes, getEndTimeCacheConfig } from './_common';
 import timeRangeTimeseries from '../../common-table-expressions/timeRangeTimeseries';
 
@@ -25,6 +25,13 @@ export interface Response {
 }
 const DEFAULT_ROWS = 100;
 const MAX_ROWS = 1000;
+
+interface PriceByVaultStateResponse {
+  timestamp: string;
+  contract_address: string;
+  token_0_price: string;
+  token_1_price: string;
+}
 
 export const route: Route<Request, Response> = {
   method: 'get',
@@ -56,6 +63,23 @@ export const route: Route<Request, Response> = {
     if (!time) {
       throw new Error('Invalid start/end times');
     }
+
+    const contractFirstDepositResponse =
+      await getCachedResponse<PriceByVaultStateResponse>(
+        sql`
+          SELECT *
+          FROM spacebox.price_by_vault_denom_first_state
+          WHERE "contract_address" = ${request.params.contract}
+        `,
+        abortSignal,
+        cacheConfig
+      );
+
+    const contractFirstDeposit = contractFirstDepositResponse.data.at(0);
+    if (!contractFirstDeposit) {
+      throw new Error('NotFound', { cause: 404 });
+    }
+
     // get timeseries data
     return await getCachedResponse<Response & { height: string }, Response>(
       sql`
@@ -91,7 +115,13 @@ export const route: Route<Request, Response> = {
                 FROM spacebox.dex_swaps_valued as s
                 WHERE "TokenZero" = (SELECT "token_0_denom" FROM vault_config)
                   AND "TokenOne" = (SELECT "token_1_denom" FROM vault_config)
-                  AND "timestamp" >= toDateTime(${time.unixTimeStart})
+                  AND "timestamp" >= toDateTime(${
+                    // limit to within the contract's actual onchain TVL > 0
+                    Math.max(
+                      time.unixTimeStart,
+                      toUnixTime(contractFirstDeposit.timestamp)
+                    )
+                  })
                   AND "timestamp" < toDateTime(${time.unixTimeEnd})
                   AND (
                   "Receiver" = ${request.params.contract} OR (
