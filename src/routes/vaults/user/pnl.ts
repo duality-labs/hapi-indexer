@@ -416,8 +416,8 @@ export const route: Route<Request, Response> = {
               AND vault."timestamp" < t."time_period_end"
           )
         SELECT
-          "time",
-          "time_end",
+          time_range."time_period_start" as "time",
+          time_range."time_period_end" as "time_end",
           "height",
           -- can return the amount of equivalent amount of tokens the user "holds" at each point in time
           -- "user_amount_0",
@@ -426,7 +426,10 @@ export const route: Route<Request, Response> = {
           "hold_value_1",
           "vault_value_0",
           "vault_value_1"
-        FROM timeseries
+        FROM time_range
+        ASOF LEFT JOIN timeseries
+          ON (time_range."contract_address" = timeseries."contract_address")
+          AND (time_range."time_period_start" >= timeseries."time")
         -- default sort reverse chronologically
         ORDER BY "time" DESC
         -- cap limit to max, set default if not well defined
