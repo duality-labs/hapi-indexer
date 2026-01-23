@@ -161,7 +161,7 @@ export const route: Route<Request, Response> = {
               if(p."price_timestamp" > 0, p."price_0", 0) as "token_price_0",
               if(p."price_timestamp" > 0, p."price_1", 0) as "token_price_1",
               p."total_shares" as "total_shares",
-              p."value_open" as "total_shares_value",
+              p."value_close" as "total_shares_value", -- the known value should be the value at end of the change
               p."price_timestamp" as "price_timestamp",
               if("total_shares" > 0, toFloat64("shares_in" - "shares_out") * "total_shares_value" / "total_shares", 0) as "shares_value"
             SELECT
