@@ -41,15 +41,11 @@ export const route: Route<Request, Response> = {
         SELECT
           "TokenZero" AS "token_0",
           "TokenOne" AS "token_1",
-          min("height") AS "created_at_height",
-          max("height") AS "updated_at_height",
-          argMin("timestamp", "height") AS "created_at",
-          argMax("timestamp", "height") AS "updated_at"
-        FROM spacebox."dex_message_event_tick_update"
-        -- group reserves from all tick index fees and tranche keys together
-        GROUP BY
-          "TokenZero",
-          "TokenOne"
+          "created_at_height",
+          "updated_at_height",
+          "created_at",
+          "updated_at"
+        FROM spacebox."dex_pairs"
         -- order chronologically for stability?
         ORDER BY "created_at_height" ASC
       `,
