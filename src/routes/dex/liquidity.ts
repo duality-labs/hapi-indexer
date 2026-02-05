@@ -47,7 +47,7 @@ export const route: Route<Request, Response> = {
         getCachedResponse<{ height: string }>(
           sql`
             SELECT max("height") AS "height"
-            FROM spacebox."dex_message_event_tick_update"
+            FROM spacebox."dex_message_event_tick_state"
             WHERE "TokenZero" = ${denom0}
               AND "TokenOne" = ${denom1}
           `,
