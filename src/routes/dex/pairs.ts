@@ -31,7 +31,7 @@ export const route: Route<Request, Response> = {
     const currentHeight = await getCachedResponse<{ height: string }>(
       sql`
           SELECT max("height") AS "height"
-          FROM spacebox."dex_message_event_tick_update"
+          FROM spacebox."dex_message_event_tick_state"
         `,
       abortSignal
     );
